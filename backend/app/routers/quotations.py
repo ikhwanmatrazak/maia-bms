@@ -25,9 +25,9 @@ router = APIRouter(prefix="/quotations", tags=["quotations"])
 async def _generate_quotation_number(db: AsyncSession) -> str:
     result = await db.execute(select(CompanySettings).limit(1))
     settings = result.scalar_one_or_none()
-    prefix = settings.quotation_prefix if settings else "QT"
+    prefix = (settings.quotation_prefix if settings else None) or "QT"
     year = datetime.now().year
-    count_result = await db.execute(func.count(Quotation.id))
+    count_result = await db.execute(select(func.count(Quotation.id)))
     count = (count_result.scalar() or 0) + 1
     return f"{prefix}-{year}-{count:04d}"
 
@@ -66,7 +66,8 @@ async def list_quotations(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(Quotation).options(selectinload(Quotation.items))
+    query = select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client))
+    query = query.where(Quotation.is_deleted != True)
     if not OwnershipChecker.can_view_all(current_user):
         query = query.where(Quotation.created_by == current_user.id)
     if status:
@@ -95,6 +96,7 @@ async def create_quotation(
         discount_amount=body.discount_amount,
         notes=body.notes,
         terms_conditions=body.terms_conditions,
+        payment_terms=body.payment_terms,
         template_id=body.template_id,
         created_by=current_user.id,
     )
@@ -133,7 +135,7 @@ async def create_quotation(
 
     await db.commit()
     result = await db.execute(
-        select(Quotation).options(selectinload(Quotation.items)).where(Quotation.id == quotation.id)
+        select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client)).where(Quotation.id == quotation.id)
     )
     return result.scalar_one()
 
@@ -145,7 +147,7 @@ async def get_quotation(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Quotation).options(selectinload(Quotation.items)).where(Quotation.id == quotation_id)
+        select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client)).where(Quotation.id == quotation_id)
     )
     quotation = result.scalar_one_or_none()
     if not quotation:
@@ -163,7 +165,7 @@ async def update_quotation(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Quotation).options(selectinload(Quotation.items)).where(Quotation.id == quotation_id)
+        select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client)).where(Quotation.id == quotation_id)
     )
     quotation = result.scalar_one_or_none()
     if not quotation:
@@ -206,7 +208,7 @@ async def update_quotation(
 
     await db.commit()
     result = await db.execute(
-        select(Quotation).options(selectinload(Quotation.items)).where(Quotation.id == quotation_id)
+        select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client)).where(Quotation.id == quotation_id)
     )
     return result.scalar_one()
 
@@ -218,7 +220,7 @@ async def send_quotation(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Quotation).options(selectinload(Quotation.items)).where(Quotation.id == quotation_id)
+        select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client)).where(Quotation.id == quotation_id)
     )
     quotation = result.scalar_one_or_none()
     if not quotation:
@@ -236,8 +238,10 @@ async def send_quotation(
     )
     db.add(activity)
     await db.commit()
-    await db.refresh(quotation)
-    return quotation
+    result = await db.execute(
+        select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client)).where(Quotation.id == quotation_id)
+    )
+    return result.scalar_one()
 
 
 @router.post("/{quotation_id}/convert", response_model=dict)
@@ -247,7 +251,7 @@ async def convert_to_invoice(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Quotation).options(selectinload(Quotation.items)).where(Quotation.id == quotation_id)
+        select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client)).where(Quotation.id == quotation_id)
     )
     quotation = result.scalar_one_or_none()
     if not quotation:
@@ -317,18 +321,100 @@ async def get_quotation_pdf(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Quotation).options(selectinload(Quotation.items)).where(Quotation.id == quotation_id)
+        select(Quotation)
+        .options(selectinload(Quotation.items), selectinload(Quotation.client))
+        .where(Quotation.id == quotation_id)
     )
     quotation = result.scalar_one_or_none()
     if not quotation:
         raise HTTPException(status_code=404, detail="Quotation not found")
 
     from app.services.pdf_service import generate_pdf
+    import json as _json
     settings_result = await db.execute(select(CompanySettings).limit(1))
     company = settings_result.scalar_one_or_none()
-    pdf_bytes = await generate_pdf("quotation", quotation, company)
+    template_style = "professional"
+    if quotation.template_id:
+        from app.models.settings import DocumentTemplate
+        tmpl_result = await db.execute(select(DocumentTemplate).where(DocumentTemplate.id == quotation.template_id))
+        tmpl = tmpl_result.scalar_one_or_none()
+        if tmpl and tmpl.template_json:
+            try:
+                template_style = _json.loads(tmpl.template_json).get("style", "professional")
+            except Exception:
+                pass
+    pdf_bytes = await generate_pdf("quotation", quotation, company, template_style)
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{quotation.quotation_number}.pdf"'},
     )
+
+
+@router.post("/{quotation_id}/duplicate", response_model=QuotationResponse, status_code=status.HTTP_201_CREATED)
+async def duplicate_quotation(
+    quotation_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client)).where(Quotation.id == quotation_id)
+    )
+    original = result.scalar_one_or_none()
+    if not original:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+
+    number = await _generate_quotation_number(db)
+    new_q = Quotation(
+        quotation_number=number,
+        client_id=original.client_id,
+        currency=original.currency,
+        exchange_rate=original.exchange_rate,
+        issue_date=datetime.now(timezone.utc),
+        expiry_date=original.expiry_date,
+        discount_amount=original.discount_amount,
+        subtotal=original.subtotal,
+        tax_total=original.tax_total,
+        total=original.total,
+        notes=original.notes,
+        terms_conditions=original.terms_conditions,
+        payment_terms=original.payment_terms,
+        template_id=original.template_id,
+        created_by=current_user.id,
+    )
+    db.add(new_q)
+    await db.flush()
+
+    for item in original.items:
+        db.add(QuotationItem(
+            quotation_id=new_q.id,
+            description=item.description,
+            quantity=item.quantity,
+            unit_price=item.unit_price,
+            tax_rate_id=item.tax_rate_id,
+            tax_amount=item.tax_amount,
+            line_total=item.line_total,
+            sort_order=item.sort_order,
+        ))
+
+    await db.commit()
+    result = await db.execute(
+        select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client)).where(Quotation.id == new_q.id)
+    )
+    return result.scalar_one()
+
+
+@router.delete("/{quotation_id}", status_code=204)
+async def delete_quotation(
+    quotation_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Quotation).where(Quotation.id == quotation_id))
+    quotation = result.scalar_one_or_none()
+    if not quotation:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+    if not OwnershipChecker.can_edit(current_user, quotation.created_by):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    quotation.is_deleted = True
+    await db.commit()

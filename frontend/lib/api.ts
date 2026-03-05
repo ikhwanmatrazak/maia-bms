@@ -1,6 +1,24 @@
 import axios, { AxiosError } from "axios";
 import { getAccessToken, getRefreshToken, setTokens, clearAuth } from "@/lib/auth";
 
+// Download a PDF via authenticated axios request (avoids "Not authenticated" on direct URL open)
+export async function downloadPdf(url: string, filename: string) {
+  try {
+    const { data } = await api.get(url, { responseType: "blob" });
+    const href = URL.createObjectURL(data);
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(href), 100);
+  } catch (err) {
+    console.error("PDF download failed:", err);
+    alert("Failed to download PDF. Please check the console for details.");
+  }
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 export const api = axios.create({
@@ -111,6 +129,8 @@ export const quotationsApi = {
   update: (id: number, data: object) => api.put(`/quotations/${id}`, data).then((r) => r.data),
   send: (id: number) => api.post(`/quotations/${id}/send`).then((r) => r.data),
   convert: (id: number) => api.post(`/quotations/${id}/convert`).then((r) => r.data),
+  softDelete: (id: number) => api.delete(`/quotations/${id}`),
+  duplicate: (id: number) => api.post(`/quotations/${id}/duplicate`).then((r) => r.data),
   getPdfUrl: (id: number) => `${API_URL}/quotations/${id}/pdf`,
 };
 
@@ -121,6 +141,8 @@ export const invoicesApi = {
   update: (id: number, data: object) => api.put(`/invoices/${id}`, data).then((r) => r.data),
   send: (id: number) => api.post(`/invoices/${id}/send`).then((r) => r.data),
   cancel: (id: number) => api.post(`/invoices/${id}/cancel`).then((r) => r.data),
+  softDelete: (id: number) => api.delete(`/invoices/${id}`),
+  duplicate: (id: number) => api.post(`/invoices/${id}/duplicate`).then((r) => r.data),
   recordPayment: (id: number, data: object) => api.post(`/invoices/${id}/payments`, data).then((r) => r.data),
   getPayments: (id: number) => api.get(`/invoices/${id}/payments`).then((r) => r.data),
   getPdfUrl: (id: number) => `${API_URL}/invoices/${id}/pdf`,
@@ -130,6 +152,7 @@ export const receiptsApi = {
   list: (params?: object) => api.get("/receipts", { params }).then((r) => r.data),
   get: (id: number) => api.get(`/receipts/${id}`).then((r) => r.data),
   send: (id: number) => api.post(`/receipts/${id}/send`).then((r) => r.data),
+  softDelete: (id: number) => api.delete(`/receipts/${id}`),
   getPdfUrl: (id: number) => `${API_URL}/receipts/${id}/pdf`,
 };
 

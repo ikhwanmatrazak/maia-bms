@@ -37,9 +37,9 @@ export default function TaxRatesPage() {
   return (
     <div>
       <Topbar title="Tax Rates" />
-      <div className="p-6 max-w-2xl">
+      <div className="p-6">
         <div className="flex justify-end mb-4">
-          <Button color="primary" className="bg-[#1a1a2e]" onPress={() => setModal(true)}>+ Add Tax Rate</Button>
+          <Button color="primary" onPress={() => setModal(true)}>+ Add Tax Rate</Button>
         </div>
 
         <Table aria-label="Tax Rates">
@@ -75,8 +75,8 @@ export default function TaxRatesPage() {
           <ModalContent>
             <ModalHeader>Add Tax Rate</ModalHeader>
             <ModalBody className="flex flex-col gap-4">
-              <Input label="Name" placeholder="e.g. SST 6%" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              <Input label="Rate (%)" type="number" step="0.01" value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} />
+              <Input variant="bordered" label="Name" placeholder="e.g. SST 6%" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <Input variant="bordered" label="Rate (%)" type="number" step="0.01" value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} />
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={form.is_default} onChange={(e) => setForm({ ...form, is_default: e.target.checked })} />
                 Set as default tax rate
@@ -84,7 +84,7 @@ export default function TaxRatesPage() {
             </ModalBody>
             <ModalFooter>
               <Button variant="flat" onPress={() => setModal(false)}>Cancel</Button>
-              <Button color="primary" className="bg-[#1a1a2e]" isLoading={createMutation.isPending}
+              <Button color="primary" isLoading={createMutation.isPending}
                 onPress={() => createMutation.mutate({ ...form, rate: Number(form.rate) })}>Add</Button>
             </ModalFooter>
           </ModalContent>

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Numeric, Enum
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Numeric, Enum, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -34,15 +34,21 @@ class Invoice(Base):
     balance_due = Column(Numeric(15, 2), default=0.00)
     notes = Column(Text, nullable=True)
     terms_conditions = Column(Text, nullable=True)
+    payment_terms = Column(Text, nullable=True)
     template_id = Column(Integer, ForeignKey("document_templates.id", ondelete="SET NULL"), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     paid_at = Column(DateTime(timezone=True), nullable=True)
+    is_deleted = Column(Boolean, default=False, server_default="0")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     client = relationship("Client", back_populates="invoices")
+
+    @property
+    def client_name(self) -> str:
+        return self.client.company_name if self.client else ""
     quotation = relationship("Quotation", back_populates="invoices")
     items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan",
                          order_by="InvoiceItem.sort_order")

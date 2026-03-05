@@ -32,13 +32,14 @@ export default function ClientsPage() {
       <div className="p-6">
         <div className="flex items-center justify-between mb-4">
           <Input
+            variant="bordered"
             placeholder="Search clients..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="max-w-xs"
             size="sm"
           />
-          <Button as={Link} href="/clients/new" color="primary" className="bg-[#1a1a2e]">
+          <Button as={Link} href="/clients/new" color="primary">
             + New Client
           </Button>
         </div>

@@ -26,7 +26,7 @@ router = APIRouter(prefix="/invoices", tags=["invoices"])
 async def _generate_invoice_number(db: AsyncSession) -> str:
     result = await db.execute(select(CompanySettings).limit(1))
     settings = result.scalar_one_or_none()
-    prefix = settings.invoice_prefix if settings else "INV"
+    prefix = (settings.invoice_prefix if settings else None) or "INV"
     year = datetime.now().year
     count_result = await db.execute(select(func.count(Invoice.id)))
     count = (count_result.scalar() or 0) + 1
@@ -42,7 +42,8 @@ async def list_invoices(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(Invoice).options(selectinload(Invoice.items))
+    query = select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client))
+    query = query.where(Invoice.is_deleted != True)
     if not OwnershipChecker.can_view_all(current_user):
         query = query.where(Invoice.created_by == current_user.id)
     if status:
@@ -72,6 +73,7 @@ async def create_invoice(
         discount_amount=body.discount_amount,
         notes=body.notes,
         terms_conditions=body.terms_conditions,
+        payment_terms=body.payment_terms,
         template_id=body.template_id,
         created_by=current_user.id,
     )
@@ -107,7 +109,7 @@ async def create_invoice(
 
     await db.commit()
     result = await db.execute(
-        select(Invoice).options(selectinload(Invoice.items)).where(Invoice.id == invoice.id)
+        select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client)).where(Invoice.id == invoice.id)
     )
     return result.scalar_one()
 
@@ -119,7 +121,7 @@ async def get_invoice(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Invoice).options(selectinload(Invoice.items)).where(Invoice.id == invoice_id)
+        select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client)).where(Invoice.id == invoice_id)
     )
     invoice = result.scalar_one_or_none()
     if not invoice:
@@ -135,7 +137,7 @@ async def update_invoice(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Invoice).options(selectinload(Invoice.items)).where(Invoice.id == invoice_id)
+        select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client)).where(Invoice.id == invoice_id)
     )
     invoice = result.scalar_one_or_none()
     if not invoice:
@@ -179,7 +181,7 @@ async def update_invoice(
 
     await db.commit()
     result = await db.execute(
-        select(Invoice).options(selectinload(Invoice.items)).where(Invoice.id == invoice_id)
+        select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client)).where(Invoice.id == invoice_id)
     )
     return result.scalar_one()
 
@@ -209,8 +211,10 @@ async def send_invoice(
     )
     db.add(activity)
     await db.commit()
-    await db.refresh(invoice)
-    return invoice
+    result = await db.execute(
+        select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client)).where(Invoice.id == invoice_id)
+    )
+    return result.scalar_one()
 
 
 @router.post("/{invoice_id}/cancel", response_model=InvoiceResponse)
@@ -230,8 +234,10 @@ async def cancel_invoice(
 
     invoice.status = InvoiceStatus.cancelled
     await db.commit()
-    await db.refresh(invoice)
-    return invoice
+    result = await db.execute(
+        select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client)).where(Invoice.id == invoice_id)
+    )
+    return result.scalar_one()
 
 
 @router.post("/{invoice_id}/payments", response_model=PaymentResponse, status_code=status.HTTP_201_CREATED)
@@ -327,6 +333,76 @@ async def list_payments(
     return result.scalars().all()
 
 
+@router.post("/{invoice_id}/duplicate", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED)
+async def duplicate_invoice(
+    invoice_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client)).where(Invoice.id == invoice_id)
+    )
+    original = result.scalar_one_or_none()
+    if not original:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    number = await _generate_invoice_number(db)
+    new_inv = Invoice(
+        invoice_number=number,
+        client_id=original.client_id,
+        currency=original.currency,
+        exchange_rate=original.exchange_rate,
+        issue_date=datetime.now(timezone.utc),
+        due_date=original.due_date,
+        discount_amount=original.discount_amount,
+        subtotal=original.subtotal,
+        tax_total=original.tax_total,
+        total=original.total,
+        balance_due=original.total,
+        notes=original.notes,
+        terms_conditions=original.terms_conditions,
+        payment_terms=original.payment_terms,
+        template_id=original.template_id,
+        created_by=current_user.id,
+    )
+    db.add(new_inv)
+    await db.flush()
+
+    for item in original.items:
+        db.add(InvoiceItem(
+            invoice_id=new_inv.id,
+            description=item.description,
+            quantity=item.quantity,
+            unit_price=item.unit_price,
+            tax_rate_id=item.tax_rate_id,
+            tax_amount=item.tax_amount,
+            line_total=item.line_total,
+            sort_order=item.sort_order,
+        ))
+
+    await db.commit()
+    result = await db.execute(
+        select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client)).where(Invoice.id == new_inv.id)
+    )
+    return result.scalar_one()
+
+
+@router.delete("/{invoice_id}", status_code=204)
+async def delete_invoice(
+    invoice_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
+    invoice = result.scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    if not OwnershipChecker.can_edit(current_user, invoice.created_by):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    invoice.is_deleted = True
+    await db.commit()
+
+
 @router.get("/{invoice_id}/pdf")
 async def get_invoice_pdf(
     invoice_id: int,
@@ -334,16 +410,29 @@ async def get_invoice_pdf(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Invoice).options(selectinload(Invoice.items)).where(Invoice.id == invoice_id)
+        select(Invoice)
+        .options(selectinload(Invoice.items), selectinload(Invoice.client))
+        .where(Invoice.id == invoice_id)
     )
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
     from app.services.pdf_service import generate_pdf
+    import json as _json
     settings_result = await db.execute(select(CompanySettings).limit(1))
     company = settings_result.scalar_one_or_none()
-    pdf_bytes = await generate_pdf("invoice", invoice, company)
+    template_style = "professional"
+    if invoice.template_id:
+        from app.models.settings import DocumentTemplate
+        tmpl_result = await db.execute(select(DocumentTemplate).where(DocumentTemplate.id == invoice.template_id))
+        tmpl = tmpl_result.scalar_one_or_none()
+        if tmpl and tmpl.template_json:
+            try:
+                template_style = _json.loads(tmpl.template_json).get("style", "professional")
+            except Exception:
+                pass
+    pdf_bytes = await generate_pdf("invoice", invoice, company, template_style)
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",

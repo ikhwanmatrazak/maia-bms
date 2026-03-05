@@ -39,6 +39,7 @@ class QuotationCreate(BaseModel):
     discount_amount: Decimal = Decimal("0.00")
     notes: Optional[str] = None
     terms_conditions: Optional[str] = None
+    payment_terms: Optional[str] = None
     template_id: Optional[int] = None
     items: List[DocumentItemCreate] = []
 
@@ -53,6 +54,7 @@ class QuotationUpdate(BaseModel):
     discount_amount: Optional[Decimal] = None
     notes: Optional[str] = None
     terms_conditions: Optional[str] = None
+    payment_terms: Optional[str] = None
     template_id: Optional[int] = None
     items: Optional[List[DocumentItemCreate]] = None
 
@@ -72,10 +74,12 @@ class QuotationResponse(BaseModel):
     total: Decimal
     notes: Optional[str]
     terms_conditions: Optional[str]
+    payment_terms: Optional[str]
     template_id: Optional[int]
     created_by: Optional[int]
     sent_at: Optional[datetime]
     accepted_at: Optional[datetime]
+    client_name: str = ""
     created_at: datetime
     updated_at: datetime
     items: List[DocumentItemResponse] = []
@@ -94,6 +98,7 @@ class InvoiceCreate(BaseModel):
     discount_amount: Decimal = Decimal("0.00")
     notes: Optional[str] = None
     terms_conditions: Optional[str] = None
+    payment_terms: Optional[str] = None
     template_id: Optional[int] = None
     items: List[DocumentItemCreate] = []
 
@@ -108,6 +113,7 @@ class InvoiceUpdate(BaseModel):
     discount_amount: Optional[Decimal] = None
     notes: Optional[str] = None
     terms_conditions: Optional[str] = None
+    payment_terms: Optional[str] = None
     template_id: Optional[int] = None
     items: Optional[List[DocumentItemCreate]] = None
 
@@ -130,10 +136,12 @@ class InvoiceResponse(BaseModel):
     balance_due: Decimal
     notes: Optional[str]
     terms_conditions: Optional[str]
+    payment_terms: Optional[str]
     template_id: Optional[int]
     created_by: Optional[int]
     sent_at: Optional[datetime]
     paid_at: Optional[datetime]
+    client_name: str = ""
     created_at: datetime
     updated_at: datetime
     items: List[DocumentItemResponse] = []
@@ -184,6 +192,7 @@ class ReceiptResponse(BaseModel):
     template_id: Optional[int]
     created_by: Optional[int]
     sent_at: Optional[datetime]
+    client_name: str = ""
     created_at: datetime
 
     model_config = {"from_attributes": True}

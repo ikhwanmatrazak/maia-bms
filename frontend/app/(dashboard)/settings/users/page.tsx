@@ -45,9 +45,9 @@ export default function UsersPage() {
   return (
     <div>
       <Topbar title="Users" />
-      <div className="p-6 max-w-4xl">
+      <div className="p-6">
         <div className="flex justify-end mb-4">
-          <Button color="primary" className="bg-[#1a1a2e]" onPress={() => setModal(true)}>+ Add User</Button>
+          <Button color="primary" onPress={() => setModal(true)}>+ Add User</Button>
         </div>
 
         <Table aria-label="Users">
@@ -86,16 +86,16 @@ export default function UsersPage() {
           <ModalContent>
             <ModalHeader>Add User</ModalHeader>
             <ModalBody className="flex flex-col gap-4">
-              <Input label="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              <Input label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              <Input label="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-              <Select label="Role" selectedKeys={[form.role]} onSelectionChange={(k) => setForm({ ...form, role: Array.from(k)[0] as string })}>
+              <Input variant="bordered" label="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <Input variant="bordered" label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <Input variant="bordered" label="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+              <Select variant="bordered" label="Role" selectedKeys={[form.role]} onSelectionChange={(k) => setForm({ ...form, role: Array.from(k)[0] as string })}>
                 {ROLES.map((r) => <SelectItem key={r} className="capitalize">{r}</SelectItem>)}
               </Select>
             </ModalBody>
             <ModalFooter>
               <Button variant="flat" onPress={() => setModal(false)}>Cancel</Button>
-              <Button color="primary" className="bg-[#1a1a2e]" isLoading={createMutation.isPending}
+              <Button color="primary" isLoading={createMutation.isPending}
                 onPress={() => createMutation.mutate(form)}>Create</Button>
             </ModalFooter>
           </ModalContent>

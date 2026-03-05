@@ -7,7 +7,7 @@ import {
   Card, CardBody, CardHeader, Button, Chip, Modal, ModalContent,
   ModalHeader, ModalBody, ModalFooter, Input, Select, SelectItem,
 } from "@heroui/react";
-import { invoicesApi } from "@/lib/api";
+import { invoicesApi, downloadPdf } from "@/lib/api";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
 import { Payment } from "@/types";
@@ -71,7 +71,7 @@ export default function InvoiceDetailPage() {
   return (
     <div>
       <Topbar title={inv.invoice_number} />
-      <div className="p-6 max-w-4xl space-y-4">
+      <div className="p-6 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <Chip color={statusColor(inv.status)} variant="flat">{inv.status}</Chip>
@@ -82,7 +82,7 @@ export default function InvoiceDetailPage() {
             {["sent", "partial", "overdue"].includes(inv.status) && (
               <Button size="sm" color="success" onPress={() => setPaymentModal(true)}>Record Payment</Button>
             )}
-            <Button as="a" href={invoicesApi.getPdfUrl(id)} target="_blank" size="sm" variant="flat">PDF</Button>
+            <Button size="sm" variant="flat" onPress={() => downloadPdf(invoicesApi.getPdfUrl(id), (inv?.invoice_number || "invoice-" + id) + ".pdf")}>PDF</Button>
             {!["paid", "cancelled"].includes(inv.status) && (
               <Button size="sm" color="danger" variant="flat" isLoading={cancelMutation.isPending}
                 onPress={() => cancelMutation.mutate()}>Cancel</Button>
@@ -120,7 +120,16 @@ export default function InvoiceDetailPage() {
               <tbody>
                 {inv.items.map((item: { id: number; description: string; quantity: string; unit_price: string; tax_amount: string; line_total: string }) => (
                   <tr key={item.id} className="border-b">
-                    <td className="py-2">{item.description}</td>
+                    <td className="py-2">
+                      {item.description.includes("\n") ? (
+                        <div>
+                          <span>{item.description.split("\n")[0]}</span>
+                          {item.description.split("\n").slice(1).map((sub: string, i: number) => (
+                            <div key={i} className="text-gray-500 text-xs pl-2 mt-0.5">{sub}</div>
+                          ))}
+                        </div>
+                      ) : item.description}
+                    </td>
                     <td className="py-2 text-right">{item.quantity}</td>
                     <td className="py-2 text-right">{formatCurrency(item.unit_price, inv.currency)}</td>
                     <td className="py-2 text-right">{formatCurrency(item.tax_amount, inv.currency)}</td>
@@ -137,6 +146,12 @@ export default function InvoiceDetailPage() {
             </div>
           </CardBody>
         </Card>
+
+        {inv.payment_terms && (
+          <Card><CardHeader><h3 className="font-semibold">Payment Terms</h3></CardHeader>
+            <CardBody><p className="text-sm text-gray-600 whitespace-pre-line">{inv.payment_terms}</p></CardBody>
+          </Card>
+        )}
 
         {payments.length > 0 && (
           <Card>
@@ -164,6 +179,7 @@ export default function InvoiceDetailPage() {
             <ModalHeader>Record Payment</ModalHeader>
             <ModalBody className="flex flex-col gap-4">
               <Input
+                variant="bordered"
                 label="Amount"
                 type="number"
                 step="0.01"
@@ -172,12 +188,14 @@ export default function InvoiceDetailPage() {
                 startContent={<span className="text-xs text-gray-400">{inv.currency}</span>}
               />
               <Input
+                variant="bordered"
                 label="Payment Date"
                 type="date"
                 value={paymentForm.payment_date}
                 onChange={(e) => setPaymentForm({ ...paymentForm, payment_date: e.target.value })}
               />
               <Select
+                variant="bordered"
                 label="Payment Method"
                 selectedKeys={[paymentForm.payment_method]}
                 onSelectionChange={(k) => setPaymentForm({ ...paymentForm, payment_method: Array.from(k)[0] as string })}
@@ -185,6 +203,7 @@ export default function InvoiceDetailPage() {
                 {PAYMENT_METHODS.map((m) => <SelectItem key={m} className="capitalize">{m.replace("_", " ")}</SelectItem>)}
               </Select>
               <Input
+                variant="bordered"
                 label="Reference Number"
                 value={paymentForm.reference_number}
                 onChange={(e) => setPaymentForm({ ...paymentForm, reference_number: e.target.value })}

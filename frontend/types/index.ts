@@ -53,6 +53,7 @@ export interface Quotation {
   id: number;
   quotation_number: string;
   client_id: number;
+  client_name?: string;
   status: QuotationStatus;
   currency: string;
   exchange_rate: string;
@@ -64,6 +65,7 @@ export interface Quotation {
   total: string;
   notes?: string;
   terms_conditions?: string;
+  payment_terms?: string;
   template_id?: number;
   created_by?: number;
   sent_at?: string;
@@ -78,6 +80,7 @@ export interface Invoice {
   invoice_number: string;
   quotation_id?: number;
   client_id: number;
+  client_name?: string;
   status: InvoiceStatus;
   currency: string;
   exchange_rate: string;
@@ -91,6 +94,7 @@ export interface Invoice {
   balance_due: string;
   notes?: string;
   terms_conditions?: string;
+  payment_terms?: string;
   template_id?: number;
   created_by?: number;
   sent_at?: string;
@@ -105,6 +109,7 @@ export interface Receipt {
   receipt_number: string;
   invoice_id: number;
   client_id: number;
+  client_name?: string;
   currency: string;
   exchange_rate: string;
   amount: string;
@@ -159,6 +164,12 @@ export interface CompanySettings {
   smtp_user?: string;
   smtp_from_email?: string;
   smtp_from_name?: string;
+  sst_no?: string;
+  payment_terms_text?: string;
+  payment_info?: string;
+  bank_name?: string;
+  bank_account_no?: string;
+  bank_account_name?: string;
   signature_image_url?: string;
   primary_color: string;
   accent_color: string;

@@ -65,14 +65,14 @@ export default function RemindersPage() {
                 size="sm"
                 variant={filter === f.key ? "solid" : "flat"}
                 color={filter === f.key ? "primary" : "default"}
-                className={filter === f.key ? "bg-[#1a1a2e]" : ""}
+                
                 onPress={() => setFilter(f.key)}
               >
                 {f.label}
               </Button>
             ))}
           </div>
-          <Button color="primary" className="bg-[#1a1a2e]" onPress={() => setModal(true)}>+ New</Button>
+          <Button color="primary" onPress={() => setModal(true)}>+ New</Button>
         </div>
 
         <div className="space-y-3">
@@ -117,16 +117,16 @@ export default function RemindersPage() {
           <ModalContent>
             <ModalHeader>New Reminder</ModalHeader>
             <ModalBody className="flex flex-col gap-3">
-              <Input label="Title *" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-              <Textarea label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-              <Input label="Due Date *" type="datetime-local" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
-              <Select label="Priority" selectedKeys={[form.priority]} onSelectionChange={(k) => setForm({ ...form, priority: Array.from(k)[0] as string })}>
+              <Input variant="bordered" label="Title *" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+              <Textarea variant="bordered" label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              <Input variant="bordered" label="Due Date *" type="datetime-local" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+              <Select variant="bordered" label="Priority" selectedKeys={[form.priority]} onSelectionChange={(k) => setForm({ ...form, priority: Array.from(k)[0] as string })}>
                 {PRIORITIES.map((p) => <SelectItem key={p} className="capitalize">{p}</SelectItem>)}
               </Select>
             </ModalBody>
             <ModalFooter>
               <Button variant="flat" onPress={() => setModal(false)}>Cancel</Button>
-              <Button color="primary" className="bg-[#1a1a2e]" isLoading={createMutation.isPending} onPress={submit}>Create</Button>
+              <Button color="primary" isLoading={createMutation.isPending} onPress={submit}>Create</Button>
             </ModalFooter>
           </ModalContent>
         </Modal>

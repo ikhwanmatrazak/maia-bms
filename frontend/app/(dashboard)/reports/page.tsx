@@ -64,7 +64,7 @@ export default function ReportsPage() {
               size="sm"
               variant={activeTab === t.key ? "solid" : "flat"}
               color={activeTab === t.key ? "primary" : "default"}
-              className={activeTab === t.key ? "bg-[#1a1a2e]" : ""}
+              
               onPress={() => setActiveTab(t.key)}
             >
               {t.label}
@@ -150,6 +150,7 @@ export default function ReportsPage() {
             <CardHeader className="flex items-center justify-between">
               <h3 className="font-semibold">Profit & Loss</h3>
               <Select
+                variant="bordered"
                 size="sm"
                 className="w-36"
                 selectedKeys={[pnlPeriod]}

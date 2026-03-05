@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed -i 's/ className=\"\"bg-\\\\[#1a1a2e\\\\]\"\"//g' app/\\\\\\(dashboard\\\\\\)/expenses/page.tsx app/\\\\\\(dashboard\\\\\\)/settings/users/page.tsx app/\\\\\\(dashboard\\\\\\)/quotations/new/page.tsx app/\\\\\\(dashboard\\\\\\)/settings/page.tsx app/\\\\\\(dashboard\\\\\\)/quotations/page.tsx app/\\\\\\(dashboard\\\\\\)/clients/page.tsx app/\\\\\\(dashboard\\\\\\)/invoices/page.tsx app/\\\\\\(dashboard\\\\\\)/clients/new/page.tsx app/\\\\\\(dashboard\\\\\\)/settings/tax/page.tsx app/\\\\\\(dashboard\\\\\\)/invoices/new/page.tsx)",
+      "Bash(sed -i 's/ className=\"\"mt-2 bg-\\\\[#1a1a2e\\\\]\"\"/ className=\"\"mt-2\"\"/g' app/\\\\\\(auth\\\\\\)/login/page.tsx)",
+      "Bash(sed -i 's/text-\\\\[#1a1a2e\\\\]/text-primary/g' app/\\\\\\(auth\\\\\\)/login/page.tsx)",
+      "Bash(sed -i 's/className={filter === f.key ? \"\"bg-\\\\[#1a1a2e\\\\]\"\" : \"\"\"\"}//g' \"/c/Users/Surface Pro 8/Documents/maia-bms/frontend/app/\\(dashboard\\)/reminders/page.tsx\")",
+      "Bash(sed -i 's/ className=\"\"bg-\\\\[#1a1a2e\\\\]\"\"//g' \"/c/Users/Surface Pro 8/Documents/maia-bms/frontend/app/\\(dashboard\\)/reminders/page.tsx\")",
+      "Bash(xargs grep -l \"<Input\")",
+      "Bash(while read f)",
+      "Bash(do sed -i 's/<Input /<Input variant=\"\"bordered\"\" /g; s/<Input\\\\n/<Input variant=\"\"bordered\"\"\\\\n/g' \"$f\")",
+      "Bash(done)"
+    ]
+  }
+}

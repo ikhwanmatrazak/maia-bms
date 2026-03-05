@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardBody, CardHeader, Button, Chip } from "@heroui/react";
-import { quotationsApi } from "@/lib/api";
+import { quotationsApi, downloadPdf } from "@/lib/api";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
 
@@ -34,7 +34,7 @@ export default function QuotationDetailPage() {
   return (
     <div>
       <Topbar title={q.quotation_number} />
-      <div className="p-6 max-w-4xl space-y-4">
+      <div className="p-6 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <Chip color={statusColor(q.status)} variant="flat">{q.status}</Chip>
@@ -51,7 +51,7 @@ export default function QuotationDetailPage() {
                 Convert to Invoice
               </Button>
             )}
-            <Button as="a" href={quotationsApi.getPdfUrl(id)} target="_blank" size="sm" variant="flat">
+            <Button size="sm" variant="flat" onPress={() => downloadPdf(quotationsApi.getPdfUrl(id), (q?.quotation_number || "quotation-" + id) + ".pdf")}>
               Download PDF
             </Button>
           </div>
@@ -81,7 +81,16 @@ export default function QuotationDetailPage() {
               <tbody>
                 {q.items.map((item: { id: number; description: string; quantity: string; unit_price: string; tax_amount: string; line_total: string }) => (
                   <tr key={item.id} className="border-b">
-                    <td className="py-2">{item.description}</td>
+                    <td className="py-2">
+                      {item.description.includes("\n") ? (
+                        <div>
+                          <span>{item.description.split("\n")[0]}</span>
+                          {item.description.split("\n").slice(1).map((sub: string, i: number) => (
+                            <div key={i} className="text-gray-500 text-xs pl-2 mt-0.5">{sub}</div>
+                          ))}
+                        </div>
+                      ) : item.description}
+                    </td>
                     <td className="py-2 text-right">{item.quantity}</td>
                     <td className="py-2 text-right">{formatCurrency(item.unit_price, q.currency)}</td>
                     <td className="py-2 text-right">{formatCurrency(item.tax_amount, q.currency)}</td>
@@ -102,6 +111,11 @@ export default function QuotationDetailPage() {
         {q.notes && (
           <Card><CardHeader><h3 className="font-semibold">Notes</h3></CardHeader>
             <CardBody><p className="text-sm text-gray-600">{q.notes}</p></CardBody>
+          </Card>
+        )}
+        {q.payment_terms && (
+          <Card><CardHeader><h3 className="font-semibold">Payment Terms</h3></CardHeader>
+            <CardBody><p className="text-sm text-gray-600 whitespace-pre-line">{q.payment_terms}</p></CardBody>
           </Card>
         )}
       </div>

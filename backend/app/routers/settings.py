@@ -193,14 +193,144 @@ async def update_tax_rate(
     return tax_rate
 
 
+def _tmpl_dict(t: DocumentTemplate) -> dict:
+    import json as _json
+    data = {}
+    if t.template_json:
+        try:
+            data = _json.loads(t.template_json)
+        except Exception:
+            pass
+    return {
+        "id": t.id,
+        "name": t.name,
+        "type": t.type,
+        "style": data.get("style", "professional"),
+        "is_default": t.is_default,
+        "items": data.get("items", []),
+        "notes": data.get("notes", ""),
+        "terms_conditions": data.get("terms_conditions", ""),
+        "currency": data.get("currency", "MYR"),
+        "exchange_rate": data.get("exchange_rate", 1),
+        "discount_amount": data.get("discount_amount", 0),
+        "expiry_days": data.get("expiry_days", 0),
+        "due_days": data.get("due_days", 0),
+    }
+
+
+async def _seed_default_templates(db: AsyncSession):
+    """Create built-in Professional + Minimal templates for each type if none exist."""
+    import json as _json
+    from app.models.settings import TemplateType
+    for doc_type in TemplateType:
+        result = await db.execute(select(DocumentTemplate).where(DocumentTemplate.type == doc_type))
+        if result.scalars().first() is None:
+            for style, name in [("professional", "Professional"), ("minimal", "Minimal")]:
+                db.add(DocumentTemplate(
+                    name=name,
+                    type=doc_type,
+                    template_json=_json.dumps({"style": style}),
+                    is_default=(style == "professional"),
+                ))
+    await db.commit()
+
+
 @router.get("/templates")
 async def list_templates(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(DocumentTemplate))
-    templates = result.scalars().all()
-    return [{"id": t.id, "name": t.name, "type": t.type, "is_default": t.is_default} for t in templates]
+    await _seed_default_templates(db)
+    result = await db.execute(select(DocumentTemplate).order_by(DocumentTemplate.type, DocumentTemplate.name))
+    return [_tmpl_dict(t) for t in result.scalars().all()]
+
+
+@router.post("/templates", status_code=201)
+async def create_template(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin_or_manager()),
+):
+    import json as _json
+    from app.models.settings import TemplateType
+    name = body.get("name", "").strip()
+    doc_type = body.get("type")
+    style = body.get("style", "professional")
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    if doc_type not in [e.value for e in TemplateType]:
+        raise HTTPException(status_code=400, detail="Invalid type")
+    if style not in ("professional", "minimal"):
+        raise HTTPException(status_code=400, detail="Style must be 'professional' or 'minimal'")
+    template = DocumentTemplate(
+        name=name, type=doc_type,
+        template_json=_json.dumps({
+            "style": style,
+            "items": body.get("items", []),
+            "notes": body.get("notes", ""),
+            "terms_conditions": body.get("terms_conditions", ""),
+            "currency": body.get("currency", "MYR"),
+            "exchange_rate": body.get("exchange_rate", 1),
+            "discount_amount": body.get("discount_amount", 0),
+            "expiry_days": body.get("expiry_days", 0),
+            "due_days": body.get("due_days", 0),
+        }),
+        is_default=body.get("is_default", False),
+    )
+    db.add(template)
+    await db.commit()
+    await db.refresh(template)
+    return _tmpl_dict(template)
+
+
+@router.put("/templates/{template_id}")
+async def update_template(
+    template_id: int,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin_or_manager()),
+):
+    result = await db.execute(select(DocumentTemplate).where(DocumentTemplate.id == template_id))
+    template = result.scalar_one_or_none()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    import json as _json
+    if "name" in body and body["name"].strip():
+        template.name = body["name"].strip()
+    # Merge any content fields into template_json
+    try:
+        existing = _json.loads(template.template_json) if template.template_json else {}
+    except Exception:
+        existing = {}
+    for field in ("style", "items", "notes", "terms_conditions", "currency", "exchange_rate", "discount_amount", "expiry_days", "due_days"):
+        if field in body:
+            existing[field] = body[field]
+    template.template_json = _json.dumps(existing)
+    if "is_default" in body:
+        if body["is_default"]:
+            others = await db.execute(
+                select(DocumentTemplate).where(DocumentTemplate.type == template.type, DocumentTemplate.id != template_id)
+            )
+            for t in others.scalars().all():
+                t.is_default = False
+        template.is_default = body["is_default"]
+    await db.commit()
+    await db.refresh(template)
+    return _tmpl_dict(template)
+
+
+@router.delete("/templates/{template_id}", status_code=204)
+async def delete_template(
+    template_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin_or_manager()),
+):
+    result = await db.execute(select(DocumentTemplate).where(DocumentTemplate.id == template_id))
+    template = result.scalar_one_or_none()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    await db.delete(template)
+    await db.commit()
 
 
 @router.post("/smtp/test")

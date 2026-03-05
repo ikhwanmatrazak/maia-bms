@@ -8,9 +8,10 @@
   <div class="company-info">
     {% if company %}
     <div class="company-name">{{ company.name }}</div>
-    <div>{{ company.address or '' }}</div>
-    <div>{{ company.phone or '' }}</div>
-    <div>{{ company.email or '' }}</div>
+    {% if company.address %}<div class="company-address">{{ company.address }}</div>{% endif %}
+    {% if company.phone %}<div>{{ company.phone }}</div>{% endif %}
+    {% if company.email %}<div>{{ company.email }}</div>{% endif %}
+    {% if company.sst_no %}<div>SST No: {{ company.sst_no }}</div>{% endif %}
     {% endif %}
   </div>
 </div>
@@ -23,23 +24,12 @@
     <p>{{ document.invoice_number }}</p>
   </div>
   <div class="meta-block">
-    <h4>Status</h4>
-    <p><span class="status-badge status-{{ document.status }}">{{ document.status }}</span></p>
-  </div>
-  <div class="meta-block">
     <h4>Issue Date</h4>
     <p>{{ document.issue_date.strftime('%d %b %Y') }}</p>
   </div>
   <div class="meta-block">
     <h4>Due Date</h4>
     <p>{{ document.due_date.strftime('%d %b %Y') if document.due_date else 'N/A' }}</p>
-  </div>
-  <div class="meta-block">
-    <h4>Currency</h4>
-    <p>{{ document.currency }}</p>
-    {% if document.exchange_rate != 1 %}
-    <p style="font-size:10px;color:#999">Rate: {{ document.exchange_rate }}</p>
-    {% endif %}
   </div>
 </div>
 
@@ -56,11 +46,11 @@
 <table>
   <thead>
     <tr>
-      <th style="width:5%">#</th>
-      <th style="width:40%">Description</th>
-      <th style="width:10%">Qty</th>
-      <th style="width:15%">Unit Price</th>
-      <th style="width:10%">Tax</th>
+      <th style="width:4%">#</th>
+      <th style="width:36%">Description</th>
+      <th style="width:8%">Qty</th>
+      <th style="width:18%">Unit Price</th>
+      <th style="width:14%">Tax</th>
       <th style="width:20%">Amount</th>
     </tr>
   </thead>
@@ -68,11 +58,11 @@
     {% for item in document.items %}
     <tr>
       <td>{{ loop.index }}</td>
-      <td>{{ item.description }}</td>
+      <td>{% set lines = item.description.split('\n') %}{{ lines[0] }}{% for sub in lines[1:] %}<div style="font-size:0.82em;color:#666;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ sub }}</div>{% endfor %}</td>
       <td>{{ item.quantity }}</td>
-      <td>{{ document.currency }} {{ "%.2f"|format(item.unit_price|float) }}</td>
-      <td>{{ "%.2f"|format(item.tax_amount|float) }}</td>
-      <td>{{ document.currency }} {{ "%.2f"|format(item.line_total|float) }}</td>
+      <td>{{ document.currency }} {{ item.unit_price|float|fmt }}</td>
+      <td>{{ item.tax_amount|float|fmt }}</td>
+      <td>{{ document.currency }} {{ item.line_total|float|fmt }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -80,17 +70,17 @@
 
 <div class="totals">
   <table>
-    <tr><td>Subtotal</td><td>{{ document.currency }} {{ "%.2f"|format(document.subtotal|float) }}</td></tr>
+    <tr><td>Subtotal</td><td>{{ document.currency }} {{ document.subtotal|float|fmt }}</td></tr>
     {% if document.discount_amount|float > 0 %}
-    <tr><td>Discount</td><td>- {{ document.currency }} {{ "%.2f"|format(document.discount_amount|float) }}</td></tr>
+    <tr><td>Discount</td><td>- {{ document.currency }} {{ document.discount_amount|float|fmt }}</td></tr>
     {% endif %}
-    <tr><td>Tax</td><td>{{ document.currency }} {{ "%.2f"|format(document.tax_total|float) }}</td></tr>
-    <tr class="total-row"><td>TOTAL</td><td>{{ document.currency }} {{ "%.2f"|format(document.total|float) }}</td></tr>
+    <tr><td>Tax</td><td>{{ document.currency }} {{ document.tax_total|float|fmt }}</td></tr>
+    <tr class="total-row"><td>TOTAL</td><td>{{ document.currency }} {{ document.total|float|fmt }}</td></tr>
     {% if document.amount_paid|float > 0 %}
-    <tr><td>Amount Paid</td><td>{{ document.currency }} {{ "%.2f"|format(document.amount_paid|float) }}</td></tr>
+    <tr><td>Amount Paid</td><td>{{ document.currency }} {{ document.amount_paid|float|fmt }}</td></tr>
     <tr style="color:{% if document.balance_due|float > 0 %}#dc2626{% else %}#16a34a{% endif %}">
       <td><b>Balance Due</b></td>
-      <td><b>{{ document.currency }} {{ "%.2f"|format(document.balance_due|float) }}</b></td>
+      <td><b>{{ document.currency }} {{ document.balance_due|float|fmt }}</b></td>
     </tr>
     {% endif %}
   </table>
@@ -107,6 +97,27 @@
 <div class="notes-section">
   <h4>Terms & Conditions</h4>
   <p>{{ document.terms_conditions }}</p>
+</div>
+{% endif %}
+
+{% if document.payment_terms %}
+<div class="notes-section">
+  <h4>Payment Terms</h4>
+  <p>{{ document.payment_terms }}</p>
+</div>
+{% endif %}
+
+{% if company and (company.bank_name or company.bank_account_no or company.bank_account_name) %}
+<div class="notes-section">
+  <h4>Payment / Banking Details</h4>
+  {% if company.bank_name %}<p><strong>Bank:</strong> {{ company.bank_name }}</p>{% endif %}
+  {% if company.bank_account_no %}<p><strong>Account No:</strong> {{ company.bank_account_no }}</p>{% endif %}
+  {% if company.bank_account_name %}<p><strong>Account Name:</strong> {{ company.bank_account_name }}</p>{% endif %}
+</div>
+{% elif company and company.payment_info %}
+<div class="notes-section">
+  <h4>Payment / Banking Details</h4>
+  <p style="white-space:pre-line;">{{ company.payment_info }}</p>
 </div>
 {% endif %}
 

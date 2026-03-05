@@ -11,9 +11,9 @@ import { Topbar } from "@/components/ui/Topbar";
 
 const schema = z.object({
   company_name: z.string().min(1, "Company name is required"),
-  contact_person: z.string().optional(),
+  contact_person: z.string().min(1, "Contact person is required"),
   email: z.string().email().optional().or(z.literal("")),
-  phone: z.string().optional(),
+  phone: z.string().min(1, "Phone is required"),
   address: z.string().optional(),
   city: z.string().optional(),
   country: z.string().optional(),
@@ -39,7 +39,7 @@ export default function NewClientPage() {
   return (
     <div>
       <Topbar title="New Client" />
-      <div className="p-6 max-w-2xl">
+      <div className="p-6">
         <Card>
           <CardHeader>
             <h3 className="font-semibold">Client Information</h3>
@@ -47,22 +47,36 @@ export default function NewClientPage() {
           <CardBody>
             <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="flex flex-col gap-4">
               <Input
+                variant="bordered"
                 label="Company Name *"
                 isInvalid={!!errors.company_name}
                 errorMessage={errors.company_name?.message}
                 {...register("company_name")}
               />
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Contact Person" {...register("contact_person")} />
-                <Input label="Email" type="email" {...register("email")} />
+                <Input
+                  variant="bordered"
+                  label="Contact Person *"
+                  isInvalid={!!errors.contact_person}
+                  errorMessage={errors.contact_person?.message}
+                  {...register("contact_person")}
+                />
+                <Input variant="bordered" label="Email" type="email" {...register("email")} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Phone" {...register("phone")} />
+                <Input
+                  variant="bordered"
+                  label="Phone *"
+                  isInvalid={!!errors.phone}
+                  errorMessage={errors.phone?.message}
+                  {...register("phone")}
+                />
                 <Controller
                   name="currency"
                   control={control}
                   render={({ field }) => (
                     <Select
+                      variant="bordered"
                       label="Currency"
                       selectedKeys={[field.value]}
                       onSelectionChange={(keys) => field.onChange(Array.from(keys)[0])}
@@ -74,17 +88,17 @@ export default function NewClientPage() {
                   )}
                 />
               </div>
-              <Textarea label="Address" {...register("address")} />
+              <Textarea variant="bordered" label="Address" {...register("address")} />
               <div className="grid grid-cols-2 gap-4">
-                <Input label="City" {...register("city")} />
-                <Input label="Country" {...register("country")} />
+                <Input variant="bordered" label="City" {...register("city")} />
+                <Input variant="bordered" label="Country" {...register("country")} />
               </div>
-              <Textarea label="Notes" {...register("notes")} />
+              <Textarea variant="bordered" label="Notes" {...register("notes")} />
               {mutation.isError && (
                 <p className="text-danger text-sm">Failed to create client. Please try again.</p>
               )}
               <div className="flex gap-3">
-                <Button type="submit" color="primary" className="bg-[#1a1a2e]" isLoading={mutation.isPending}>
+                <Button type="submit" color="primary" isLoading={mutation.isPending}>
                   Create Client
                 </Button>
                 <Button variant="flat" onPress={() => router.back()}>Cancel</Button>

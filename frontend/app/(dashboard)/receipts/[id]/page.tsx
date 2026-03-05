@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardBody, CardHeader, Button } from "@heroui/react";
-import { receiptsApi } from "@/lib/api";
+import { receiptsApi, downloadPdf } from "@/lib/api";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
 
@@ -22,9 +22,9 @@ export default function ReceiptDetailPage() {
   return (
     <div>
       <Topbar title={receipt.receipt_number} />
-      <div className="p-6 max-w-2xl space-y-4">
+      <div className="p-6 space-y-4">
         <div className="flex justify-end">
-          <Button as="a" href={receiptsApi.getPdfUrl(id)} target="_blank" variant="flat">Download PDF</Button>
+          <Button variant="flat" onPress={() => downloadPdf(receiptsApi.getPdfUrl(id), (receipt?.receipt_number || "receipt-" + id) + ".pdf")}>Download PDF</Button>
         </div>
         <Card>
           <CardHeader><h3 className="font-semibold">Receipt Details</h3></CardHeader>

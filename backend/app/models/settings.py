@@ -34,6 +34,18 @@ class CompanySettings(Base):
     smtp_from_email = Column(String(255), nullable=True)
     smtp_from_name = Column(String(255), nullable=True)
 
+    # SST
+    sst_no = Column(String(50), nullable=True)
+
+    # Payment
+    payment_terms_text = Column(Text, nullable=True)
+    payment_info = Column(Text, nullable=True)
+
+    # Banking Details (structured)
+    bank_name = Column(String(255), nullable=True)
+    bank_account_no = Column(String(100), nullable=True)
+    bank_account_name = Column(String(255), nullable=True)
+
     # Branding
     signature_image_url = Column(String(500), nullable=True)
     primary_color = Column(String(7), default="#1a1a2e")

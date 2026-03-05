@@ -7,7 +7,7 @@ import {
   Button, Chip, Select, SelectItem,
 } from "@heroui/react";
 import Link from "next/link";
-import { quotationsApi } from "@/lib/api";
+import { quotationsApi, downloadPdf } from "@/lib/api";
 import { Quotation, QuotationStatus } from "@/types";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
@@ -33,6 +33,11 @@ export default function QuotationsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["quotations"] }),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => quotationsApi.softDelete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["quotations"] }),
+  });
+
   return (
     <div>
       <Topbar title="Quotations" />
@@ -49,7 +54,7 @@ export default function QuotationsPage() {
               <SelectItem key={s} className="capitalize">{s}</SelectItem>
             ))}
           </Select>
-          <Button as={Link} href="/quotations/new" color="primary" className="bg-[#1a1a2e]">
+          <Button as={Link} href="/quotations/new" color="primary">
             + New Quotation
           </Button>
         </div>
@@ -72,7 +77,7 @@ export default function QuotationsPage() {
                     {q.quotation_number}
                   </Link>
                 </TableCell>
-                <TableCell>{q.client_id}</TableCell>
+                <TableCell>{q.client_name || q.client_id}</TableCell>
                 <TableCell>{formatDate(q.issue_date)}</TableCell>
                 <TableCell>{q.expiry_date ? formatDate(q.expiry_date) : "—"}</TableCell>
                 <TableCell>{formatCurrency(q.total, q.currency)}</TableCell>
@@ -90,7 +95,9 @@ export default function QuotationsPage() {
                       <Button size="sm" variant="flat" color="success" isLoading={convertMutation.isPending}
                         onPress={() => convertMutation.mutate(q.id)}>→ Invoice</Button>
                     )}
-                    <Button as="a" href={quotationsApi.getPdfUrl(q.id)} target="_blank" size="sm" variant="flat">PDF</Button>
+                    <Button size="sm" variant="flat" onPress={() => downloadPdf(quotationsApi.getPdfUrl(q.id), (q.quotation_number || "quotation-" + q.id) + ".pdf")}>PDF</Button>
+                    <Button size="sm" variant="flat" color="danger" isLoading={deleteMutation.isPending}
+                      onPress={() => { if (confirm("Delete this quotation?")) deleteMutation.mutate(q.id); }}>Delete</Button>
                   </div>
                 </TableCell>
               </TableRow>

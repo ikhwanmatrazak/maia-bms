@@ -65,7 +65,7 @@ export default function ExpensesPage() {
       <Topbar title="Expenses" />
       <div className="p-6">
         <div className="flex justify-end mb-4">
-          <Button color="primary" className="bg-[#1a1a2e]" onPress={() => setModal(true)}>+ Add Expense</Button>
+          <Button color="primary" onPress={() => setModal(true)}>+ Add Expense</Button>
         </div>
 
         <Table aria-label="Expenses" isLoading={isLoading}>
@@ -98,24 +98,24 @@ export default function ExpensesPage() {
           <ModalContent>
             <ModalHeader>Add Expense</ModalHeader>
             <ModalBody className="flex flex-col gap-3">
-              <Input label="Description *" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              <Input variant="bordered" label="Description *" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
               <div className="grid grid-cols-2 gap-3">
-                <Input label="Amount *" type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-                <Select label="Currency" selectedKeys={[form.currency]} onSelectionChange={(k) => setForm({ ...form, currency: Array.from(k)[0] as string })}>
+                <Input variant="bordered" label="Amount *" type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+                <Select variant="bordered" label="Currency" selectedKeys={[form.currency]} onSelectionChange={(k) => setForm({ ...form, currency: Array.from(k)[0] as string })}>
                   {CURRENCIES.map((c) => <SelectItem key={c}>{c}</SelectItem>)}
                 </Select>
               </div>
-              <Input label="Date" type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} />
-              <Select label="Category" selectedKeys={form.category_id ? [form.category_id] : []}
+              <Input variant="bordered" label="Date" type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} />
+              <Select variant="bordered" label="Category" selectedKeys={form.category_id ? [form.category_id] : []}
                 onSelectionChange={(k) => setForm({ ...form, category_id: Array.from(k)[0] as string })}>
                 {categories.map((c) => <SelectItem key={String(c.id)}>{c.name}</SelectItem>)}
               </Select>
-              <Input label="Vendor" value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })} />
-              <Textarea label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              <Input variant="bordered" label="Vendor" value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })} />
+              <Textarea variant="bordered" label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </ModalBody>
             <ModalFooter>
               <Button variant="flat" onPress={() => setModal(false)}>Cancel</Button>
-              <Button color="primary" className="bg-[#1a1a2e]" isLoading={createMutation.isPending} onPress={submit}>Add</Button>
+              <Button color="primary" isLoading={createMutation.isPending} onPress={submit}>Add</Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
