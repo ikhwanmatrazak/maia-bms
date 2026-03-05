@@ -1,0 +1,47 @@
+{% extends "quotation_minimal.html" %}
+{% block content %}
+<div style="margin-bottom:30px">
+  <div style="font-size:24px;font-weight:bold;color:#333">INVOICE</div>
+  <div style="color:#999;font-size:12px">{{ document.invoice_number }}</div>
+</div>
+<div style="display:flex;justify-content:space-between;margin-bottom:25px">
+  <div>
+    <div style="font-size:10px;color:#999;text-transform:uppercase;margin-bottom:4px">Bill To</div>
+    <div style="font-weight:bold">{{ document.client.company_name if document.client else 'Client' }}</div>
+    {% if document.client %}<div style="color:#666">{{ document.client.email or '' }}</div>{% endif %}
+  </div>
+  <div style="text-align:right">
+    <div style="font-weight:bold">{{ company.name if company else 'MAIA' }}</div>
+    <div style="margin-top:8px">
+      <div style="font-size:10px;color:#999">Issue Date: {{ document.issue_date.strftime('%d %b %Y') }}</div>
+      {% if document.due_date %}<div style="font-size:10px;color:#999">Due Date: {{ document.due_date.strftime('%d %b %Y') }}</div>{% endif %}
+    </div>
+  </div>
+</div>
+<table>
+  <thead><tr><th>#</th><th>Description</th><th>Qty</th><th>Price</th><th>Tax</th><th>Total</th></tr></thead>
+  <tbody>
+  {% for item in document.items %}
+  <tr>
+    <td>{{ loop.index }}</td><td>{{ item.description }}</td><td>{{ item.quantity }}</td>
+    <td>{{ "%.2f"|format(item.unit_price|float) }}</td><td>{{ "%.2f"|format(item.tax_amount|float) }}</td>
+    <td>{{ document.currency }} {{ "%.2f"|format(item.line_total|float) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<div class="totals">
+  <table>
+    <tr><td>Subtotal</td><td>{{ document.currency }} {{ "%.2f"|format(document.subtotal|float) }}</td></tr>
+    {% if document.discount_amount|float > 0 %}<tr><td>Discount</td><td>-{{ "%.2f"|format(document.discount_amount|float) }}</td></tr>{% endif %}
+    <tr><td>Tax</td><td>{{ "%.2f"|format(document.tax_total|float) }}</td></tr>
+    <tr class="total-row"><td>TOTAL</td><td>{{ document.currency }} {{ "%.2f"|format(document.total|float) }}</td></tr>
+    {% if document.amount_paid|float > 0 %}
+    <tr><td>Paid</td><td>{{ "%.2f"|format(document.amount_paid|float) }}</td></tr>
+    <tr><td><b>Balance</b></td><td><b>{{ document.currency }} {{ "%.2f"|format(document.balance_due|float) }}</b></td></tr>
+    {% endif %}
+  </table>
+</div>
+{% if document.notes %}<div class="notes-section"><h4>Notes</h4><p>{{ document.notes }}</p></div>{% endif %}
+<div class="footer">{% if qr_base64 %}<div class="qr-block"><img src="data:image/png;base64,{{ qr_base64 }}"><p>Verify</p></div>{% endif %}</div>
+{% endblock %}

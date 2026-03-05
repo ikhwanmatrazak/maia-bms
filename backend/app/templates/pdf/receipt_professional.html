@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="header">
+  <div class="logo">
+    {% if logo_data %}<img src="{{ logo_data }}" alt="Logo">{% endif %}
+    {% if not logo_data %}<div class="company-name">{{ company.name if company else 'MAIA' }}</div>{% endif %}
+  </div>
+  <div class="company-info">
+    {% if company %}
+    <div class="company-name">{{ company.name }}</div>
+    <div>{{ company.address or '' }}</div>
+    <div>{{ company.phone or '' }}</div>
+    <div>{{ company.email or '' }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="doc-title">Payment Receipt</div>
+
+<div class="doc-meta">
+  <div class="meta-block">
+    <h4>Receipt Number</h4>
+    <p>{{ document.receipt_number }}</p>
+  </div>
+  <div class="meta-block">
+    <h4>Payment Date</h4>
+    <p>{{ document.payment_date.strftime('%d %b %Y') }}</p>
+  </div>
+  <div class="meta-block">
+    <h4>Payment Method</h4>
+    <p>{{ document.payment_method.replace('_', ' ').title() }}</p>
+  </div>
+  <div class="meta-block">
+    <h4>Invoice Ref.</h4>
+    <p>{{ document.invoice.invoice_number if document.invoice else 'N/A' }}</p>
+  </div>
+</div>
+
+<div class="bill-to">
+  <h4>Received From</h4>
+  <div class="bill-to-name">{{ document.client.company_name if document.client else 'Client' }}</div>
+  {% if document.client %}
+  <div>{{ document.client.contact_person or '' }}</div>
+  <div>{{ document.client.email or '' }}</div>
+  {% endif %}
+</div>
+
+<div style="background: #f0fdf4; border: 2px solid #16a34a; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center;">
+  <div style="font-size: 13px; color: #166534; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;">Amount Received</div>
+  <div style="font-size: 32px; font-weight: bold; color: #15803d;">{{ document.currency }} {{ "%.2f"|format(document.amount|float) }}</div>
+  {% if document.exchange_rate != 1 %}
+  <div style="font-size: 11px; color: #999;">Exchange Rate: {{ document.exchange_rate }}</div>
+  {% endif %}
+</div>
+
+{% if document.notes %}
+<div class="notes-section">
+  <h4>Notes</h4>
+  <p>{{ document.notes }}</p>
+</div>
+{% endif %}
+
+<div class="footer">
+  {% if signature_data %}
+  <div class="signature-block">
+    <img src="data:image/png;base64,{{ signature_data }}" alt="Signature">
+    <div class="signature-line">Authorized Signature</div>
+  </div>
+  {% endif %}
+  {% if qr_base64 %}
+  <div class="qr-block">
+    <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR Code">
+    <p>Scan to verify</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

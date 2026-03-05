@@ -1,0 +1,202 @@
+"use client";
+
+import { useParams } from "next/navigation";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Card, CardBody, CardHeader, Button, Chip, Modal, ModalContent,
+  ModalHeader, ModalBody, ModalFooter, Input, Select, SelectItem,
+} from "@heroui/react";
+import { invoicesApi } from "@/lib/api";
+import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
+import { Topbar } from "@/components/ui/Topbar";
+import { Payment } from "@/types";
+
+const PAYMENT_METHODS = ["cash", "bank_transfer", "cheque", "online", "other"];
+
+export default function InvoiceDetailPage() {
+  const params = useParams();
+  const id = Number(params.id);
+  const queryClient = useQueryClient();
+  const [paymentModal, setPaymentModal] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({
+    amount: "",
+    currency: "MYR",
+    payment_date: new Date().toISOString().split("T")[0],
+    payment_method: "bank_transfer",
+    reference_number: "",
+    generate_receipt: true,
+  });
+
+  const { data: inv, isLoading } = useQuery({
+    queryKey: ["invoices", id],
+    queryFn: () => invoicesApi.get(id),
+  });
+
+  const { data: payments = [] } = useQuery<Payment[]>({
+    queryKey: ["invoices", id, "payments"],
+    queryFn: () => invoicesApi.getPayments(id),
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: () => invoicesApi.send(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices", id] }),
+  });
+
+  const paymentMutation = useMutation({
+    mutationFn: (data: object) => invoicesApi.recordPayment(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices", id] });
+      queryClient.invalidateQueries({ queryKey: ["invoices", id, "payments"] });
+      setPaymentModal(false);
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => invoicesApi.cancel(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices", id] }),
+  });
+
+  if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
+  if (!inv) return <div className="p-6">Invoice not found</div>;
+
+  const submitPayment = () => {
+    paymentMutation.mutate({
+      ...paymentForm,
+      amount: Number(paymentForm.amount),
+      payment_date: new Date(paymentForm.payment_date).toISOString(),
+    });
+  };
+
+  return (
+    <div>
+      <Topbar title={inv.invoice_number} />
+      <div className="p-6 max-w-4xl space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <Chip color={statusColor(inv.status)} variant="flat">{inv.status}</Chip>
+            <span className="text-gray-500 text-sm">{inv.invoice_number}</span>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {inv.status === "draft" && <Button size="sm" color="primary" isLoading={sendMutation.isPending} onPress={() => sendMutation.mutate()}>Send</Button>}
+            {["sent", "partial", "overdue"].includes(inv.status) && (
+              <Button size="sm" color="success" onPress={() => setPaymentModal(true)}>Record Payment</Button>
+            )}
+            <Button as="a" href={invoicesApi.getPdfUrl(id)} target="_blank" size="sm" variant="flat">PDF</Button>
+            {!["paid", "cancelled"].includes(inv.status) && (
+              <Button size="sm" color="danger" variant="flat" isLoading={cancelMutation.isPending}
+                onPress={() => cancelMutation.mutate()}>Cancel</Button>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[
+            { label: "Total", value: formatCurrency(inv.total, inv.currency) },
+            { label: "Paid", value: formatCurrency(inv.amount_paid, inv.currency), color: "text-success" },
+            { label: "Balance", value: formatCurrency(inv.balance_due, inv.currency), color: parseFloat(inv.balance_due) > 0 ? "text-danger" : "text-success" },
+            { label: "Due Date", value: inv.due_date ? formatDate(inv.due_date) : "N/A" },
+          ].map((item) => (
+            <Card key={item.label} className="shadow-sm">
+              <CardBody className="p-4">
+                <p className="text-xs text-gray-400 mb-1">{item.label}</p>
+                <p className={`text-xl font-bold ${item.color ?? "text-gray-900"}`}>{item.value}</p>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
+
+        <Card>
+          <CardHeader><h3 className="font-semibold">Line Items</h3></CardHeader>
+          <CardBody>
+            <table className="w-full text-sm">
+              <thead><tr className="border-b text-left text-gray-500">
+                <th className="pb-2">Description</th>
+                <th className="pb-2 text-right">Qty</th>
+                <th className="pb-2 text-right">Price</th>
+                <th className="pb-2 text-right">Tax</th>
+                <th className="pb-2 text-right">Total</th>
+              </tr></thead>
+              <tbody>
+                {inv.items.map((item: { id: number; description: string; quantity: string; unit_price: string; tax_amount: string; line_total: string }) => (
+                  <tr key={item.id} className="border-b">
+                    <td className="py-2">{item.description}</td>
+                    <td className="py-2 text-right">{item.quantity}</td>
+                    <td className="py-2 text-right">{formatCurrency(item.unit_price, inv.currency)}</td>
+                    <td className="py-2 text-right">{formatCurrency(item.tax_amount, inv.currency)}</td>
+                    <td className="py-2 text-right font-medium">{formatCurrency(item.line_total, inv.currency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="mt-4 ml-auto w-64 space-y-1 text-sm">
+              <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>{formatCurrency(inv.subtotal, inv.currency)}</span></div>
+              {parseFloat(inv.discount_amount) > 0 && <div className="flex justify-between"><span className="text-gray-500">Discount</span><span>-{formatCurrency(inv.discount_amount, inv.currency)}</span></div>}
+              <div className="flex justify-between"><span className="text-gray-500">Tax</span><span>{formatCurrency(inv.tax_total, inv.currency)}</span></div>
+              <div className="flex justify-between font-bold text-base border-t pt-1"><span>Total</span><span>{formatCurrency(inv.total, inv.currency)}</span></div>
+            </div>
+          </CardBody>
+        </Card>
+
+        {payments.length > 0 && (
+          <Card>
+            <CardHeader><h3 className="font-semibold">Payment History</h3></CardHeader>
+            <CardBody>
+              <div className="space-y-2">
+                {payments.map((p) => (
+                  <div key={p.id} className="flex justify-between text-sm border-b pb-2">
+                    <div>
+                      <span className="font-medium">{formatDate(p.payment_date)}</span>
+                      <span className="text-gray-400 ml-2 capitalize">{p.payment_method.replace("_", " ")}</span>
+                      {p.reference_number && <span className="text-gray-400 ml-2">Ref: {p.reference_number}</span>}
+                    </div>
+                    <span className="font-medium text-success">{formatCurrency(p.amount, p.currency)}</span>
+                  </div>
+                ))}
+              </div>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Payment Modal */}
+        <Modal isOpen={paymentModal} onClose={() => setPaymentModal(false)}>
+          <ModalContent>
+            <ModalHeader>Record Payment</ModalHeader>
+            <ModalBody className="flex flex-col gap-4">
+              <Input
+                label="Amount"
+                type="number"
+                step="0.01"
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                startContent={<span className="text-xs text-gray-400">{inv.currency}</span>}
+              />
+              <Input
+                label="Payment Date"
+                type="date"
+                value={paymentForm.payment_date}
+                onChange={(e) => setPaymentForm({ ...paymentForm, payment_date: e.target.value })}
+              />
+              <Select
+                label="Payment Method"
+                selectedKeys={[paymentForm.payment_method]}
+                onSelectionChange={(k) => setPaymentForm({ ...paymentForm, payment_method: Array.from(k)[0] as string })}
+              >
+                {PAYMENT_METHODS.map((m) => <SelectItem key={m} className="capitalize">{m.replace("_", " ")}</SelectItem>)}
+              </Select>
+              <Input
+                label="Reference Number"
+                value={paymentForm.reference_number}
+                onChange={(e) => setPaymentForm({ ...paymentForm, reference_number: e.target.value })}
+              />
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="flat" onPress={() => setPaymentModal(false)}>Cancel</Button>
+              <Button color="success" isLoading={paymentMutation.isPending} onPress={submitPayment}>Record Payment</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      </div>
+    </div>
+  );
+}

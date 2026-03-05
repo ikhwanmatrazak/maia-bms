@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="header">
+  <div class="logo">
+    {% if logo_data %}<img src="{{ logo_data }}" alt="Logo">{% endif %}
+    {% if not logo_data %}<div class="company-name">{{ company.name if company else 'MAIA' }}</div>{% endif %}
+  </div>
+  <div class="company-info">
+    {% if company %}
+    <div class="company-name">{{ company.name }}</div>
+    <div>{{ company.address or '' }}</div>
+    <div>{{ company.phone or '' }}</div>
+    <div>{{ company.email or '' }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="doc-title">Quotation</div>
+
+<div class="doc-meta">
+  <div class="meta-block">
+    <h4>Quotation Number</h4>
+    <p>{{ document.quotation_number }}</p>
+  </div>
+  <div class="meta-block">
+    <h4>Status</h4>
+    <p><span class="status-badge status-{{ document.status }}">{{ document.status }}</span></p>
+  </div>
+  <div class="meta-block">
+    <h4>Issue Date</h4>
+    <p>{{ document.issue_date.strftime('%d %b %Y') }}</p>
+  </div>
+  <div class="meta-block">
+    <h4>Expiry Date</h4>
+    <p>{{ document.expiry_date.strftime('%d %b %Y') if document.expiry_date else 'N/A' }}</p>
+  </div>
+  <div class="meta-block">
+    <h4>Currency</h4>
+    <p>{{ document.currency }}</p>
+    {% if document.exchange_rate != 1 %}
+    <p style="font-size:10px;color:#999">Rate: {{ document.exchange_rate }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="bill-to">
+  <h4>Prepared For</h4>
+  <div class="bill-to-name">{{ document.client.company_name if document.client else 'Client' }}</div>
+  {% if document.client %}
+  <div>{{ document.client.contact_person or '' }}</div>
+  <div>{{ document.client.email or '' }}</div>
+  <div>{{ document.client.phone or '' }}</div>
+  {% endif %}
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:5%">#</th>
+      <th style="width:40%">Description</th>
+      <th style="width:10%">Qty</th>
+      <th style="width:15%">Unit Price</th>
+      <th style="width:10%">Tax</th>
+      <th style="width:20%">Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in document.items %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ item.description }}</td>
+      <td>{{ item.quantity }}</td>
+      <td>{{ document.currency }} {{ "%.2f"|format(item.unit_price|float) }}</td>
+      <td>{{ "%.2f"|format(item.tax_amount|float) }}</td>
+      <td>{{ document.currency }} {{ "%.2f"|format(item.line_total|float) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="totals">
+  <table>
+    <tr><td>Subtotal</td><td>{{ document.currency }} {{ "%.2f"|format(document.subtotal|float) }}</td></tr>
+    {% if document.discount_amount|float > 0 %}
+    <tr><td>Discount</td><td>- {{ document.currency }} {{ "%.2f"|format(document.discount_amount|float) }}</td></tr>
+    {% endif %}
+    <tr><td>Tax</td><td>{{ document.currency }} {{ "%.2f"|format(document.tax_total|float) }}</td></tr>
+    <tr class="total-row"><td>TOTAL</td><td>{{ document.currency }} {{ "%.2f"|format(document.total|float) }}</td></tr>
+  </table>
+</div>
+
+{% if document.notes %}
+<div class="notes-section">
+  <h4>Notes</h4>
+  <p>{{ document.notes }}</p>
+</div>
+{% endif %}
+
+{% if document.terms_conditions %}
+<div class="notes-section">
+  <h4>Terms & Conditions</h4>
+  <p>{{ document.terms_conditions }}</p>
+</div>
+{% endif %}
+
+<div class="footer">
+  {% if signature_data %}
+  <div class="signature-block">
+    <img src="data:image/png;base64,{{ signature_data }}" alt="Signature">
+    <div class="signature-line">Authorized Signature</div>
+  </div>
+  {% endif %}
+  {% if qr_base64 %}
+  <div class="qr-block">
+    <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR Code">
+    <p>Scan to verify</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

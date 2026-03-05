@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="margin-bottom:30px">
+  <div style="font-size:24px;font-weight:bold;color:#333">RECEIPT</div>
+  <div style="color:#999;font-size:12px">{{ document.receipt_number }}</div>
+</div>
+<div style="display:flex;justify-content:space-between;margin-bottom:25px">
+  <div>
+    <div style="font-size:10px;color:#999;text-transform:uppercase;margin-bottom:4px">Received From</div>
+    <div style="font-weight:bold">{{ document.client.company_name if document.client else 'Client' }}</div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:10px;color:#999">Date: {{ document.payment_date.strftime('%d %b %Y') }}</div>
+    <div style="font-size:10px;color:#999">Method: {{ document.payment_method.replace('_',' ').title() }}</div>
+  </div>
+</div>
+<div style="text-align:center;padding:20px;border:2px solid #16a34a;border-radius:8px;margin:20px 0">
+  <div style="font-size:13px;color:#166534;margin-bottom:5px">AMOUNT RECEIVED</div>
+  <div style="font-size:32px;font-weight:bold;color:#15803d">{{ document.currency }} {{ "%.2f"|format(document.amount|float) }}</div>
+</div>
+{% if document.notes %}<div class="notes-section"><h4>Notes</h4><p>{{ document.notes }}</p></div>{% endif %}
+<div class="footer">{% if qr_base64 %}<div class="qr-block"><img src="data:image/png;base64,{{ qr_base64 }}"><p>Verify</p></div>{% endif %}</div>
+{% endblock %}

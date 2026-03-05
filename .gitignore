@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+
+# Environment
+.env
+.env.local
+.env.production
+.env.*.local
+*.pem
+
+# Node
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Uploads
+backend/uploads/
+backend/app/static/uploads/
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+
+# Alembic (keep versions tracked)
+# alembic/versions/
+
+# SSL Certificates (don't commit)
+*.crt
+*.pem
+*.key
+
+# Coverage
+htmlcov/
+.coverage
+coverage.xml
+
+# Build artifacts
+*.pyc
