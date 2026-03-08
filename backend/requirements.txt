@@ -20,3 +20,4 @@ babel==2.15.0
 slowapi==0.1.9
 aiofiles==23.2.1
 python-magic==0.4.27
+anthropic>=0.84.0

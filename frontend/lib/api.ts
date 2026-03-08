@@ -120,6 +120,13 @@ export const clientsApi = {
   addActivity: (id: number, data: object) => api.post(`/clients/${id}/activities`, data).then((r) => r.data),
   getReminders: (id: number) => api.get(`/clients/${id}/reminders`).then((r) => r.data),
   addReminder: (id: number, data: object) => api.post(`/clients/${id}/reminders`, data).then((r) => r.data),
+  getDocuments: (id: number) => api.get(`/clients/${id}/documents`).then((r) => r.data),
+  uploadDocument: (id: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post(`/clients/${id}/documents`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
+  },
+  deleteDocument: (id: number, filename: string) => api.delete(`/clients/${id}/documents/${filename}`),
 };
 
 export const quotationsApi = {
@@ -128,6 +135,7 @@ export const quotationsApi = {
   create: (data: object) => api.post("/quotations", data).then((r) => r.data),
   update: (id: number, data: object) => api.put(`/quotations/${id}`, data).then((r) => r.data),
   send: (id: number) => api.post(`/quotations/${id}/send`).then((r) => r.data),
+  email: (id: number, to_email: string) => api.post(`/quotations/${id}/email`, { to_email }).then((r) => r.data),
   convert: (id: number) => api.post(`/quotations/${id}/convert`).then((r) => r.data),
   softDelete: (id: number) => api.delete(`/quotations/${id}`),
   duplicate: (id: number) => api.post(`/quotations/${id}/duplicate`).then((r) => r.data),
@@ -140,6 +148,7 @@ export const invoicesApi = {
   create: (data: object) => api.post("/invoices", data).then((r) => r.data),
   update: (id: number, data: object) => api.put(`/invoices/${id}`, data).then((r) => r.data),
   send: (id: number) => api.post(`/invoices/${id}/send`).then((r) => r.data),
+  email: (id: number, to_email: string) => api.post(`/invoices/${id}/email`, { to_email }).then((r) => r.data),
   cancel: (id: number) => api.post(`/invoices/${id}/cancel`).then((r) => r.data),
   softDelete: (id: number) => api.delete(`/invoices/${id}`),
   duplicate: (id: number) => api.post(`/invoices/${id}/duplicate`).then((r) => r.data),
@@ -152,6 +161,7 @@ export const receiptsApi = {
   list: (params?: object) => api.get("/receipts", { params }).then((r) => r.data),
   get: (id: number) => api.get(`/receipts/${id}`).then((r) => r.data),
   send: (id: number) => api.post(`/receipts/${id}/send`).then((r) => r.data),
+  email: (id: number, to_email: string) => api.post(`/receipts/${id}/email`, { to_email }).then((r) => r.data),
   softDelete: (id: number) => api.delete(`/receipts/${id}`),
   getPdfUrl: (id: number) => `${API_URL}/receipts/${id}/pdf`,
 };
@@ -162,6 +172,13 @@ export const paymentsApi = {
     const form = new FormData();
     form.append("file", file);
     return api.post(`/payments/${id}/upload-proof`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }).then((r) => r.data);
+  },
+  analyzeProof: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post("/payments/analyze-proof", form, {
       headers: { "Content-Type": "multipart/form-data" },
     }).then((r) => r.data);
   },
@@ -183,12 +200,19 @@ export const remindersApi = {
   complete: (id: number) => api.post(`/reminders/${id}/complete`).then((r) => r.data),
 };
 
+export const analyticsApi = {
+  summary: () => api.get("/analytics/summary").then((r) => r.data),
+};
+
 export const reportsApi = {
   revenue: (params?: object) => api.get("/reports/revenue", { params }).then((r) => r.data),
   overdue: () => api.get("/reports/overdue").then((r) => r.data),
   expenses: (params?: object) => api.get("/reports/expenses", { params }).then((r) => r.data),
   pnl: (params?: object) => api.get("/reports/pnl", { params }).then((r) => r.data),
   taxSummary: (params?: object) => api.get("/reports/tax-summary", { params }).then((r) => r.data),
+  invoices: (params?: object) => api.get("/reports/invoices", { params }).then((r) => r.data),
+  payments: (params?: object) => api.get("/reports/payments", { params }).then((r) => r.data),
+  clientSummary: () => api.get("/reports/client-summary").then((r) => r.data),
 };
 
 export const settingsApi = {
@@ -213,6 +237,32 @@ export const settingsApi = {
   updateTaxRate: (id: number, data: object) => api.put(`/settings/tax-rates/${id}`, data).then((r) => r.data),
   testSmtp: (to_email: string) => api.post("/settings/smtp/test", { to_email }).then((r) => r.data),
   getTemplates: () => api.get("/settings/templates").then((r) => r.data),
+  getEmailTemplates: () => api.get("/settings/email-templates").then((r) => r.data),
+  updateEmailTemplate: (doc_type: string, data: object) => api.put(`/settings/email-templates/${doc_type}`, data).then((r) => r.data),
+};
+
+export const purchaseOrdersApi = {
+  list: (params?: object) => api.get("/purchase-orders", { params }).then((r) => r.data),
+  get: (id: number) => api.get(`/purchase-orders/${id}`).then((r) => r.data),
+  create: (data: object) => api.post("/purchase-orders", data).then((r) => r.data),
+  update: (id: number, data: object) => api.put(`/purchase-orders/${id}`, data).then((r) => r.data),
+  send: (id: number) => api.post(`/purchase-orders/${id}/send`).then((r) => r.data),
+  receive: (id: number) => api.post(`/purchase-orders/${id}/receive`).then((r) => r.data),
+  duplicate: (id: number) => api.post(`/purchase-orders/${id}/duplicate`).then((r) => r.data),
+  softDelete: (id: number) => api.delete(`/purchase-orders/${id}`),
+  getPdfUrl: (id: number) => `${API_URL}/purchase-orders/${id}/pdf`,
+};
+
+export const deliveryOrdersApi = {
+  list: (params?: object) => api.get("/delivery-orders", { params }).then((r) => r.data),
+  get: (id: number) => api.get(`/delivery-orders/${id}`).then((r) => r.data),
+  create: (data: object) => api.post("/delivery-orders", data).then((r) => r.data),
+  update: (id: number, data: object) => api.put(`/delivery-orders/${id}`, data).then((r) => r.data),
+  send: (id: number) => api.post(`/delivery-orders/${id}/send`).then((r) => r.data),
+  deliver: (id: number) => api.post(`/delivery-orders/${id}/deliver`).then((r) => r.data),
+  duplicate: (id: number) => api.post(`/delivery-orders/${id}/duplicate`).then((r) => r.data),
+  softDelete: (id: number) => api.delete(`/delivery-orders/${id}`),
+  getPdfUrl: (id: number) => `${API_URL}/delivery-orders/${id}/pdf`,
 };
 
 export const usersApi = {
@@ -220,4 +270,32 @@ export const usersApi = {
   create: (data: object) => api.post("/users", data).then((r) => r.data),
   update: (id: number, data: object) => api.put(`/users/${id}`, data).then((r) => r.data),
   delete: (id: number) => api.delete(`/users/${id}`),
+};
+
+export const productsApi = {
+  list: (params?: object) => api.get("/products", { params }).then((r) => r.data),
+  get: (id: number) => api.get(`/products/${id}`).then((r) => r.data),
+  create: (data: object) => api.post("/products", data).then((r) => r.data),
+  update: (id: number, data: object) => api.put(`/products/${id}`, data).then((r) => r.data),
+  delete: (id: number) => api.delete(`/products/${id}`),
+  getRenewals: (days = 30) => api.get("/products/renewals", { params: { days } }).then((r) => r.data),
+  getClientSubscriptions: (clientId: number) => api.get("/products/client-subscriptions", { params: { client_id: clientId } }).then((r) => r.data),
+  getSubscriptions: (id: number, params?: object) => api.get(`/products/${id}/subscriptions`, { params }).then((r) => r.data),
+  createSubscription: (id: number, data: object) => api.post(`/products/${id}/subscriptions`, data).then((r) => r.data),
+  updateSubscription: (id: number, subId: number, data: object) => api.put(`/products/${id}/subscriptions/${subId}`, data).then((r) => r.data),
+  deleteSubscription: (id: number, subId: number) => api.delete(`/products/${id}/subscriptions/${subId}`),
+  createPricing: (id: number, data: object) => api.post(`/products/${id}/pricing`, data).then((r) => r.data),
+  updatePricing: (id: number, pricingId: number, data: object) => api.put(`/products/${id}/pricing/${pricingId}`, data).then((r) => r.data),
+  deletePricing: (id: number, pricingId: number) => api.delete(`/products/${id}/pricing/${pricingId}`),
+};
+
+export const superAdminApi = {
+  getStats: () => api.get("/super-admin/stats").then((r) => r.data),
+  listTenants: () => api.get("/super-admin/tenants").then((r) => r.data),
+  createTenant: (data: object) => api.post("/super-admin/tenants", data).then((r) => r.data),
+  updateTenant: (id: number, data: object) => api.put(`/super-admin/tenants/${id}`, data).then((r) => r.data),
+  listTenantUsers: (id: number) => api.get(`/super-admin/tenants/${id}/users`).then((r) => r.data),
+  addTenantUser: (id: number, data: object) => api.post(`/super-admin/tenants/${id}/users`, data).then((r) => r.data),
+  updateTenantUser: (tenantId: number, userId: number, data: object) => api.patch(`/super-admin/tenants/${tenantId}/users/${userId}`, data).then((r) => r.data),
+  removeTenantUser: (tenantId: number, userId: number) => api.delete(`/super-admin/tenants/${tenantId}/users/${userId}`),
 };

@@ -7,18 +7,26 @@ import {
   Button, Input, Chip, Link as HeroLink,
 } from "@heroui/react";
 import Link from "next/link";
+import { Eye } from "lucide-react";
 import { clientsApi } from "@/lib/api";
 import { Client } from "@/types";
-import { formatDate, statusColor } from "@/lib/utils";
+import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+
+const PAGE_SIZE = 20;
 
 export default function ClientsPage() {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
 
   const { data: clients = [], isLoading } = useQuery<Client[]>({
-    queryKey: ["clients", search],
-    queryFn: () => clientsApi.list(search ? { search } : {}),
+    queryKey: ["clients", search, page],
+    queryFn: () => clientsApi.list({
+      ...(search ? { search } : {}),
+      skip: (page - 1) * PAGE_SIZE,
+      limit: PAGE_SIZE,
+    }),
   });
 
   const deleteMutation = useMutation({
@@ -35,7 +43,7 @@ export default function ClientsPage() {
             variant="bordered"
             placeholder="Search clients..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="max-w-xs"
             size="sm"
           />
@@ -51,8 +59,9 @@ export default function ClientsPage() {
             <TableColumn>Email</TableColumn>
             <TableColumn>Currency</TableColumn>
             <TableColumn>Status</TableColumn>
+            <TableColumn>Outstanding</TableColumn>
             <TableColumn>Since</TableColumn>
-            <TableColumn>Actions</TableColumn>
+            <TableColumn className="w-px whitespace-nowrap">Actions</TableColumn>
           </TableHeader>
           <TableBody>
             {clients.map((client) => (
@@ -70,18 +79,31 @@ export default function ClientsPage() {
                     {client.status}
                   </Chip>
                 </TableCell>
+                <TableCell>
+                  {parseFloat(client.outstanding_balance ?? "0") > 0 ? (
+                    <span className="text-danger font-medium">{formatCurrency(client.outstanding_balance!, client.currency)}</span>
+                  ) : (
+                    <span className="text-success text-sm">—</span>
+                  )}
+                </TableCell>
                 <TableCell>{formatDate(client.created_at)}</TableCell>
                 <TableCell>
-                  <div className="flex gap-2">
-                    <Button as={Link} href={`/clients/${client.id}`} size="sm" variant="flat">
-                      View
-                    </Button>
+                  <div className="flex gap-1">
+                    <Button as={Link} href={`/clients/${client.id}`} size="sm" variant="flat" isIconOnly title="View"><Eye size={15} /></Button>
                   </div>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+
+        <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
+          <span>Page {page}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(p => p - 1)}>Previous</Button>
+            <Button size="sm" variant="flat" isDisabled={clients.length < PAGE_SIZE} onPress={() => setPage(p => p + 1)}>Next</Button>
+          </div>
+        </div>
       </div>
     </div>
   );

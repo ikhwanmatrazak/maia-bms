@@ -1,8 +1,9 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardBody, CardHeader, Button, Chip } from "@heroui/react";
+import { Card, CardBody, CardHeader, Button, Chip, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input } from "@heroui/react";
 import { quotationsApi, downloadPdf } from "@/lib/api";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
@@ -12,6 +13,9 @@ export default function QuotationDetailPage() {
   const router = useRouter();
   const id = Number(params.id);
   const queryClient = useQueryClient();
+  const [emailModal, setEmailModal] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailResult, setEmailResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const { data: q, isLoading } = useQuery({
     queryKey: ["quotations", id],
@@ -23,10 +27,27 @@ export default function QuotationDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["quotations", id] }),
   });
 
+  const emailMutation = useMutation({
+    mutationFn: (to: string) => quotationsApi.email(id, to),
+    onSuccess: () => setEmailResult({ ok: true, msg: `Email sent to ${emailTo}` }),
+    onError: (e: any) => setEmailResult({ ok: false, msg: e?.response?.data?.detail || "Failed to send email" }),
+  });
+
   const convertMutation = useMutation({
     mutationFn: () => quotationsApi.convert(id),
     onSuccess: (data) => router.push(`/invoices/${data.invoice_id}`),
   });
+
+  const duplicateMutation = useMutation({
+    mutationFn: () => quotationsApi.duplicate(id),
+    onSuccess: (data) => router.push(`/quotations/${data.id}`),
+  });
+
+  const openEmailModal = () => {
+    setEmailTo(q?.client_email || "");
+    setEmailResult(null);
+    setEmailModal(true);
+  };
 
   if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
   if (!q) return <div className="p-6">Quotation not found</div>;
@@ -41,18 +62,19 @@ export default function QuotationDetailPage() {
             <span className="text-gray-500 text-sm">{q.quotation_number}</span>
           </div>
           <div className="flex gap-2 flex-wrap">
-            {q.status === "draft" && (
-              <Button size="sm" color="primary" isLoading={sendMutation.isPending} onPress={() => sendMutation.mutate()}>
-                Send to Client
-              </Button>
-            )}
-            {(q.status === "sent" || q.status === "accepted") && (
+            {!["rejected", "expired"].includes(q.status) && (
               <Button size="sm" color="success" isLoading={convertMutation.isPending} onPress={() => convertMutation.mutate()}>
                 Convert to Invoice
               </Button>
             )}
+            <Button size="sm" color="primary" variant="flat" onPress={openEmailModal}>
+              Email PDF
+            </Button>
             <Button size="sm" variant="flat" onPress={() => downloadPdf(quotationsApi.getPdfUrl(id), (q?.quotation_number || "quotation-" + id) + ".pdf")}>
               Download PDF
+            </Button>
+            <Button size="sm" variant="flat" isLoading={duplicateMutation.isPending} onPress={() => duplicateMutation.mutate()}>
+              Duplicate
             </Button>
           </div>
         </div>
@@ -119,6 +141,31 @@ export default function QuotationDetailPage() {
           </Card>
         )}
       </div>
+
+      <Modal isOpen={emailModal} onClose={() => setEmailModal(false)}>
+        <ModalContent>
+          <ModalHeader>Email Quotation PDF</ModalHeader>
+          <ModalBody className="flex flex-col gap-4">
+            <Input
+              variant="bordered"
+              label="Recipient Email"
+              type="email"
+              value={emailTo}
+              onChange={(e) => setEmailTo(e.target.value)}
+              placeholder="client@example.com"
+            />
+            {emailResult && (
+              <p className={`text-sm ${emailResult.ok ? "text-success" : "text-danger"}`}>{emailResult.msg}</p>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => setEmailModal(false)}>Close</Button>
+            <Button color="primary" isLoading={emailMutation.isPending} onPress={() => emailMutation.mutate(emailTo)}>
+              Send Email
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

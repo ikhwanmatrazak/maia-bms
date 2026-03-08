@@ -6,18 +6,23 @@ from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 
 from app.database import get_db
-from app.models.invoice import Invoice, InvoiceStatus
+from app.models.invoice import Invoice, InvoiceStatus, InvoiceItem
 from app.models.payment import Payment
 from app.models.expense import Expense
 from app.models.receipt import Receipt
-from app.models.client import Client
+from app.models.client import Client, ClientStatus
 from app.models.settings import TaxRate
-from app.models.invoice import InvoiceItem
 from app.models.user import User
 from app.middleware.auth import get_current_user
 from app.middleware.rbac import require_admin_or_manager
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+def _tenant_filter(query, model, current_user):
+    if not current_user.is_super_admin and current_user.tenant_id is not None:
+        query = query.where(model.tenant_id == current_user.tenant_id)
+    return query
 
 
 @router.get("/revenue")
@@ -37,6 +42,7 @@ async def revenue_report(
         Payment.payment_date >= start,
         Payment.payment_date <= end,
     )
+    query = _tenant_filter(query, Invoice, current_user)
     result = await db.execute(query)
     payments = result.scalars().all()
 
@@ -73,12 +79,12 @@ async def overdue_report(
     current_user: User = Depends(require_admin_or_manager()),
 ):
     now = datetime.now(timezone.utc)
-    result = await db.execute(
-        select(Invoice).where(
-            Invoice.status.in_([InvoiceStatus.sent, InvoiceStatus.partial, InvoiceStatus.overdue]),
-            Invoice.due_date < now,
-        ).order_by(Invoice.due_date)
-    )
+    query = select(Invoice).where(
+        Invoice.status.in_([InvoiceStatus.sent, InvoiceStatus.partial, InvoiceStatus.overdue]),
+        Invoice.due_date < now,
+    ).order_by(Invoice.due_date)
+    query = _tenant_filter(query, Invoice, current_user)
+    result = await db.execute(query)
     invoices = result.scalars().all()
 
     data = []
@@ -123,9 +129,9 @@ async def expenses_report(
     if not end:
         end = datetime.now(timezone.utc)
 
-    result = await db.execute(
-        select(Expense).where(Expense.expense_date >= start, Expense.expense_date <= end)
-    )
+    query = select(Expense).where(Expense.expense_date >= start, Expense.expense_date <= end)
+    query = _tenant_filter(query, Expense, current_user)
+    result = await db.execute(query)
     expenses = result.scalars().all()
 
     grouped = {}
@@ -156,14 +162,16 @@ async def pnl_report(
     else:
         start = now - timedelta(days=365 * 5)
 
-    payments_result = await db.execute(
-        select(Payment).where(Payment.payment_date >= start)
+    payments_query = select(Payment).join(Invoice, Payment.invoice_id == Invoice.id).where(
+        Payment.payment_date >= start
     )
+    payments_query = _tenant_filter(payments_query, Invoice, current_user)
+    payments_result = await db.execute(payments_query)
     payments = payments_result.scalars().all()
 
-    expenses_result = await db.execute(
-        select(Expense).where(Expense.expense_date >= start)
-    )
+    expenses_query = select(Expense).where(Expense.expense_date >= start)
+    expenses_query = _tenant_filter(expenses_query, Expense, current_user)
+    expenses_result = await db.execute(expenses_query)
     expenses = expenses_result.scalars().all()
 
     def get_period_key(dt):
@@ -212,13 +220,13 @@ async def tax_summary(
     if not end:
         end = datetime.now(timezone.utc)
 
-    result = await db.execute(
-        select(Invoice).where(
-            Invoice.status.in_([InvoiceStatus.paid, InvoiceStatus.partial]),
-            Invoice.issue_date >= start,
-            Invoice.issue_date <= end,
-        )
+    query = select(Invoice).where(
+        Invoice.status.in_([InvoiceStatus.paid, InvoiceStatus.partial]),
+        Invoice.issue_date >= start,
+        Invoice.issue_date <= end,
     )
+    query = _tenant_filter(query, Invoice, current_user)
+    result = await db.execute(query)
     invoices = result.scalars().all()
 
     tax_by_rate = {}
@@ -239,3 +247,122 @@ async def tax_summary(
         "end": end.isoformat(),
         "summary": [{"tax_rate": k, "total_collected": float(v)} for k, v in tax_by_rate.items()],
     }
+
+
+@router.get("/invoices")
+async def invoices_report(
+    start: Optional[datetime] = Query(None),
+    end: Optional[datetime] = Query(None),
+    status: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin_or_manager()),
+):
+    if not start:
+        start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0)
+    if not end:
+        end = datetime.now(timezone.utc)
+
+    query = select(Invoice).where(Invoice.issue_date >= start, Invoice.issue_date <= end)
+    if status:
+        try:
+            query = query.where(Invoice.status == InvoiceStatus(status))
+        except ValueError:
+            pass
+    query = _tenant_filter(query, Invoice, current_user)
+    query = query.order_by(Invoice.issue_date.desc())
+    result = await db.execute(query)
+    invoices = result.scalars().all()
+
+    rows = []
+    for inv in invoices:
+        client_result = await db.execute(select(Client).where(Client.id == inv.client_id))
+        client = client_result.scalar_one_or_none()
+        rows.append({
+            "invoice_number": inv.invoice_number,
+            "client": client.company_name if client else "Unknown",
+            "issue_date": inv.issue_date.date().isoformat() if inv.issue_date else "",
+            "due_date": inv.due_date.date().isoformat() if inv.due_date else "",
+            "status": inv.status.value,
+            "total_amount": float(inv.total_amount),
+            "balance_due": float(inv.balance_due),
+            "currency": inv.currency,
+        })
+
+    return {"count": len(rows), "invoices": rows}
+
+
+@router.get("/payments")
+async def payments_report(
+    start: Optional[datetime] = Query(None),
+    end: Optional[datetime] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin_or_manager()),
+):
+    if not start:
+        start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0)
+    if not end:
+        end = datetime.now(timezone.utc)
+
+    query = select(Payment).join(Invoice, Payment.invoice_id == Invoice.id).where(
+        Payment.payment_date >= start,
+        Payment.payment_date <= end,
+    )
+    query = _tenant_filter(query, Invoice, current_user)
+    query = query.order_by(Payment.payment_date.desc())
+    result = await db.execute(query)
+    payments = result.scalars().all()
+
+    rows = []
+    for p in payments:
+        inv_result = await db.execute(select(Invoice).where(Invoice.id == p.invoice_id))
+        inv = inv_result.scalar_one_or_none()
+        client_name = ""
+        if inv:
+            c_result = await db.execute(select(Client).where(Client.id == inv.client_id))
+            c = c_result.scalar_one_or_none()
+            client_name = c.company_name if c else "Unknown"
+        rows.append({
+            "payment_date": p.payment_date.date().isoformat() if p.payment_date else "",
+            "invoice_number": inv.invoice_number if inv else "",
+            "client": client_name,
+            "amount": float(p.amount),
+            "currency": p.currency,
+            "payment_method": p.payment_method.value if p.payment_method else "",
+            "reference_number": p.reference_number or "",
+        })
+
+    total = sum(r["amount"] for r in rows)
+    return {"count": len(rows), "total": total, "payments": rows}
+
+
+@router.get("/client-summary")
+async def client_summary_report(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin_or_manager()),
+):
+    client_q = select(Client)
+    client_q = _tenant_filter(client_q, Client, current_user)
+    client_q = client_q.order_by(Client.company_name)
+    client_result = await db.execute(client_q)
+    clients = client_result.scalars().all()
+
+    rows = []
+    for c in clients:
+        inv_q = select(Invoice).where(Invoice.client_id == c.id)
+        inv_result = await db.execute(inv_q)
+        invoices = inv_result.scalars().all()
+
+        total_invoiced = sum(float(i.total_amount) for i in invoices)
+        total_paid = sum(float(i.total_amount) - float(i.balance_due) for i in invoices)
+        total_outstanding = sum(float(i.balance_due) for i in invoices if i.status.value in ["sent", "partial", "overdue"])
+
+        rows.append({
+            "client": c.company_name,
+            "status": c.status.value if c.status else "",
+            "total_invoices": len(invoices),
+            "total_invoiced": total_invoiced,
+            "total_paid": total_paid,
+            "total_outstanding": total_outstanding,
+        })
+
+    return {"count": len(rows), "clients": rows}

@@ -7,15 +7,19 @@ import {
   Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Input, Select, SelectItem, Textarea,
 } from "@heroui/react";
+import { Trash2 } from "lucide-react";
 import { expensesApi } from "@/lib/api";
 import { Expense, ExpenseCategory } from "@/types";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
 
 const CURRENCIES = ["MYR", "USD", "EUR", "GBP", "SGD"];
+const PAGE_SIZE = 10;
 
 export default function ExpensesPage() {
   const [modal, setModal] = useState(false);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
   const [form, setForm] = useState({
     description: "",
     amount: "",
@@ -28,8 +32,8 @@ export default function ExpensesPage() {
   const queryClient = useQueryClient();
 
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
-    queryKey: ["expenses"],
-    queryFn: () => expensesApi.list(),
+    queryKey: ["expenses", search, page],
+    queryFn: () => expensesApi.list({ ...(search ? { search } : {}), skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE }),
   });
 
   const { data: categories = [] } = useQuery<ExpenseCategory[]>({
@@ -64,7 +68,15 @@ export default function ExpensesPage() {
     <div>
       <Topbar title="Expenses" />
       <div className="p-6">
-        <div className="flex justify-end mb-4">
+        <div className="flex items-center justify-between mb-4">
+          <Input
+            placeholder="Search by description or vendor..."
+            size="sm"
+            className="max-w-xs"
+            variant="bordered"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          />
           <Button color="primary" onPress={() => setModal(true)}>+ Add Expense</Button>
         </div>
 
@@ -75,7 +87,7 @@ export default function ExpensesPage() {
             <TableColumn>Category</TableColumn>
             <TableColumn>Vendor</TableColumn>
             <TableColumn>Amount</TableColumn>
-            <TableColumn>Actions</TableColumn>
+            <TableColumn className="w-px whitespace-nowrap">Actions</TableColumn>
           </TableHeader>
           <TableBody>
             {expenses.map((e) => (
@@ -86,13 +98,21 @@ export default function ExpensesPage() {
                 <TableCell>{e.vendor ?? "—"}</TableCell>
                 <TableCell className="font-medium">{formatCurrency(e.amount, e.currency)}</TableCell>
                 <TableCell>
-                  <Button size="sm" color="danger" variant="flat"
-                    onPress={() => deleteMutation.mutate(e.id)}>Delete</Button>
+                  <Button size="sm" color="danger" variant="flat" isIconOnly title="Delete"
+                    onPress={() => deleteMutation.mutate(e.id)}><Trash2 size={15} /></Button>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+
+        <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
+          <span>Page {page}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(p => p - 1)}>Previous</Button>
+            <Button size="sm" variant="flat" isDisabled={expenses.length < PAGE_SIZE} onPress={() => setPage(p => p + 1)}>Next</Button>
+          </div>
+        </div>
 
         <Modal isOpen={modal} onClose={() => setModal(false)} size="lg">
           <ModalContent>

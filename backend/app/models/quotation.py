@@ -17,6 +17,7 @@ class Quotation(Base):
     __tablename__ = "quotations"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
     quotation_number = Column(String(50), unique=True, nullable=False, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="RESTRICT"), nullable=False)
     status = Column(Enum(QuotationStatus), default=QuotationStatus.draft, nullable=False)
@@ -45,6 +46,10 @@ class Quotation(Base):
     @property
     def client_name(self) -> str:
         return self.client.company_name if self.client else ""
+
+    @property
+    def client_email(self) -> str:
+        return self.client.email if self.client else ""
     items = relationship("QuotationItem", back_populates="quotation", cascade="all, delete-orphan",
                          order_by="QuotationItem.sort_order")
     invoices = relationship("Invoice", back_populates="quotation")

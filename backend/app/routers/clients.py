@@ -1,10 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
+from decimal import Decimal
+import os
+import uuid
+from datetime import datetime as dt
 
 from app.database import get_db
 from app.models.client import Client, ClientStatus
+from app.models.invoice import Invoice, InvoiceStatus
 from app.models.activity import Activity, ActivityType
 from app.models.reminder import Reminder
 from app.models.user import User, UserRole
@@ -12,7 +17,8 @@ from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, Clien
 from app.schemas.activity import ActivityCreate, ActivityResponse
 from app.schemas.reminder import ReminderCreate, ReminderResponse
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import require_admin, require_admin_or_manager, OwnershipChecker
+from app.middleware.rbac import require_admin, require_admin_or_manager, OwnershipChecker, apply_tenant_filter
+from app.config import get_settings
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -28,6 +34,7 @@ async def list_clients(
     current_user: User = Depends(get_current_user),
 ):
     query = select(Client)
+    query = apply_tenant_filter(query, Client, current_user)
     if search:
         query = query.where(
             Client.company_name.ilike(f"%{search}%") |
@@ -38,7 +45,28 @@ async def list_clients(
         query = query.where(Client.status == status)
     query = query.order_by(Client.company_name).offset(skip).limit(limit)
     result = await db.execute(query)
-    return result.scalars().all()
+    clients = result.scalars().all()
+
+    # Get outstanding balances in one query
+    if clients:
+        client_ids = [c.id for c in clients]
+        bal_result = await db.execute(
+            select(Invoice.client_id, func.sum(Invoice.balance_due).label("outstanding"))
+            .where(Invoice.client_id.in_(client_ids))
+            .where(Invoice.is_deleted != True)
+            .where(Invoice.status.notin_([InvoiceStatus.paid, InvoiceStatus.cancelled]))
+            .group_by(Invoice.client_id)
+        )
+        balances = {row.client_id: row.outstanding for row in bal_result}
+    else:
+        balances = {}
+
+    responses = []
+    for client in clients:
+        r = ClientListResponse.model_validate(client)
+        r.outstanding_balance = balances.get(client.id, Decimal("0.00")) or Decimal("0.00")
+        responses.append(r)
+    return responses
 
 
 @router.post("", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)
@@ -47,7 +75,7 @@ async def create_client(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin_or_manager()),
 ):
-    client = Client(**body.model_dump(), created_by=current_user.id)
+    client = Client(**body.model_dump(), created_by=current_user.id, tenant_id=current_user.tenant_id)
     db.add(client)
     await db.commit()
     await db.refresh(client)
@@ -174,3 +202,81 @@ async def create_client_reminder(
     await db.commit()
     await db.refresh(reminder)
     return reminder
+
+
+# --- Client Documents ---
+
+def _doc_dir(client_id: int) -> str:
+    settings = get_settings()
+    path = os.path.join(settings.upload_dir, "client_documents", str(client_id))
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+@router.get("/{client_id}/documents")
+async def list_client_documents(
+    client_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Client).where(Client.id == client_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Client not found")
+    doc_dir = _doc_dir(client_id)
+    docs = []
+    if os.path.isdir(doc_dir):
+        for fname in sorted(os.listdir(doc_dir)):
+            fpath = os.path.join(doc_dir, fname)
+            stat = os.stat(fpath)
+            # fname format: {uuid}_{original_name}
+            original_name = "_".join(fname.split("_")[1:]) if "_" in fname else fname
+            docs.append({
+                "filename": fname,
+                "original_name": original_name,
+                "size": stat.st_size,
+                "uploaded_at": dt.fromtimestamp(stat.st_mtime).isoformat(),
+                "url": f"/uploads/client_documents/{client_id}/{fname}",
+            })
+    return docs
+
+
+@router.post("/{client_id}/documents")
+async def upload_client_document(
+    client_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Client).where(Client.id == client_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Client not found")
+    doc_dir = _doc_dir(client_id)
+    safe_name = os.path.basename(file.filename or "file")
+    filename = f"{uuid.uuid4().hex}_{safe_name}"
+    file_path = os.path.join(doc_dir, filename)
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+    return {
+        "filename": filename,
+        "original_name": safe_name,
+        "size": len(content),
+        "url": f"/uploads/client_documents/{client_id}/{filename}",
+    }
+
+
+@router.delete("/{client_id}/documents/{filename}", status_code=204)
+async def delete_client_document(
+    client_id: int,
+    filename: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Client).where(Client.id == client_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Client not found")
+    doc_dir = _doc_dir(client_id)
+    file_path = os.path.join(doc_dir, os.path.basename(filename))
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Document not found")
+    os.remove(file_path)

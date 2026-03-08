@@ -4,6 +4,13 @@ from app.middleware.auth import get_current_user
 from typing import List
 
 
+def apply_tenant_filter(query, model, current_user: User):
+    """Filter query by tenant unless caller is super admin."""
+    if not current_user.is_super_admin and current_user.tenant_id is not None:
+        query = query.where(model.tenant_id == current_user.tenant_id)
+    return query
+
+
 def require_roles(*roles: UserRole):
     """Dependency factory: requires user to have one of the specified roles."""
     async def role_checker(current_user: User = Depends(get_current_user)) -> User:

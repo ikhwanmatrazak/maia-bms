@@ -15,6 +15,8 @@ class TokenResponse(BaseModel):
     name: str
     email: str
     role: UserRole
+    is_super_admin: bool = False
+    tenant_id: int | None = None
 
 
 class RefreshRequest(BaseModel):

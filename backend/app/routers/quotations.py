@@ -5,19 +5,57 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from decimal import Decimal
+from pydantic import BaseModel
 import io
 
 from app.database import get_db
+from app.models.client import Client
 from app.models.quotation import Quotation, QuotationItem, QuotationStatus
 from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus
-from app.models.settings import TaxRate, CompanySettings
+from app.models.settings import TaxRate, CompanySettings, EmailTemplate
 from app.models.activity import Activity, ActivityType
 from app.models.user import User
 from app.schemas.document import QuotationCreate, QuotationUpdate, QuotationResponse
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import require_admin_or_manager, OwnershipChecker
+from app.middleware.rbac import require_admin_or_manager, OwnershipChecker, apply_tenant_filter
 from app.utils.tax import calculate_line_total, calculate_document_totals
+from app.services.email_service import decrypt_smtp_password, render_template, send_email
 from datetime import datetime, timezone
+
+
+class EmailRequest(BaseModel):
+    to_email: str
+
+
+async def _email_quotation(quotation, to_email: str, db):
+    from app.services.pdf_service import generate_pdf
+    settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == quotation.tenant_id).limit(1))
+    company = settings_result.scalar_one_or_none()
+    if not company or not company.smtp_host:
+        raise ValueError("SMTP not configured in Settings")
+    smtp_password = decrypt_smtp_password(company)
+    if not smtp_password:
+        raise ValueError("SMTP password not saved in Settings")
+
+    tmpl_result = await db.execute(select(EmailTemplate).where(EmailTemplate.doc_type == "quotation"))
+    tmpl = tmpl_result.scalar_one_or_none()
+    subject_tpl = tmpl.subject if tmpl else "Quotation {{quotation_number}} from {{company_name}}"
+    body_tpl = tmpl.body if tmpl else "Dear {{client_name}},\n\nPlease find attached quotation {{quotation_number}}.\n\nBest regards,\n{{company_name}}"
+
+    vars_map = {
+        "{{company_name}}": company.name or "MAIA",
+        "{{client_name}}": quotation.client.company_name if quotation.client else "",
+        "{{quotation_number}}": quotation.quotation_number,
+        "{{issue_date}}": quotation.issue_date.strftime("%d %b %Y") if quotation.issue_date else "",
+        "{{expiry_date}}": quotation.expiry_date.strftime("%d %b %Y") if quotation.expiry_date else "",
+        "{{currency}}": quotation.currency,
+        "{{total}}": str(quotation.total),
+    }
+    subject = render_template(subject_tpl, vars_map)
+    body_text = render_template(body_tpl, vars_map)
+    html_body = f"<html><body><pre style='font-family:sans-serif;white-space:pre-wrap'>{body_text}</pre></body></html>"
+    pdf_bytes = await generate_pdf("quotation", quotation, company, "professional")
+    await send_email(company, smtp_password, to_email, subject, html_body, pdf_bytes=pdf_bytes, pdf_filename=f"{quotation.quotation_number}.pdf")
 
 router = APIRouter(prefix="/quotations", tags=["quotations"])
 
@@ -61,12 +99,14 @@ async def _build_items(db: AsyncSession, items_data, doc_id: int, model_cls, id_
 async def list_quotations(
     status: Optional[QuotationStatus] = Query(None),
     client_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     query = select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client))
+    query = apply_tenant_filter(query, Quotation, current_user)
     query = query.where(Quotation.is_deleted != True)
     if not OwnershipChecker.can_view_all(current_user):
         query = query.where(Quotation.created_by == current_user.id)
@@ -74,6 +114,12 @@ async def list_quotations(
         query = query.where(Quotation.status == status)
     if client_id:
         query = query.where(Quotation.client_id == client_id)
+    if search:
+        client_ids_sq = select(Client.id).where(Client.company_name.ilike(f"%{search}%")).scalar_subquery()
+        query = query.where(
+            Quotation.quotation_number.ilike(f"%{search}%") |
+            Quotation.client_id.in_(client_ids_sq)
+        )
     query = query.order_by(Quotation.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
@@ -99,6 +145,7 @@ async def create_quotation(
         payment_terms=body.payment_terms,
         template_id=body.template_id,
         created_by=current_user.id,
+        tenant_id=current_user.tenant_id,
     )
     db.add(quotation)
     await db.flush()
@@ -241,7 +288,40 @@ async def send_quotation(
     result = await db.execute(
         select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client)).where(Quotation.id == quotation_id)
     )
-    return result.scalar_one()
+    quotation = result.scalar_one()
+
+    # Auto-email if client has an email address configured
+    client_email = quotation.client.email if quotation.client else None
+    if client_email:
+        try:
+            await _email_quotation(quotation, client_email, db)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Auto-email quotation {quotation_id} failed: {e}")
+
+    return quotation
+
+
+@router.post("/{quotation_id}/email")
+async def email_quotation(
+    quotation_id: int,
+    body: EmailRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client)).where(Quotation.id == quotation_id)
+    )
+    quotation = result.scalar_one_or_none()
+    if not quotation:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+    try:
+        await _email_quotation(quotation, body.to_email, db)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+    return {"message": f"Email sent to {body.to_email}"}
 
 
 @router.post("/{quotation_id}/convert", response_model=dict)
@@ -260,7 +340,7 @@ async def convert_to_invoice(
         raise HTTPException(status_code=400, detail="Only sent or accepted quotations can be converted")
 
     # Generate invoice number
-    settings_result = await db.execute(select(CompanySettings).limit(1))
+    settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == quotation.tenant_id).limit(1))
     settings = settings_result.scalar_one_or_none()
     prefix = settings.invoice_prefix if settings else "INV"
     year = datetime.now().year
@@ -292,6 +372,7 @@ async def convert_to_invoice(
         terms_conditions=quotation.terms_conditions,
         template_id=quotation.template_id,
         created_by=current_user.id,
+        tenant_id=quotation.tenant_id,
     )
     db.add(invoice)
     await db.flush()
@@ -331,7 +412,7 @@ async def get_quotation_pdf(
 
     from app.services.pdf_service import generate_pdf
     import json as _json
-    settings_result = await db.execute(select(CompanySettings).limit(1))
+    settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == quotation.tenant_id).limit(1))
     company = settings_result.scalar_one_or_none()
     template_style = "professional"
     if quotation.template_id:
@@ -381,6 +462,7 @@ async def duplicate_quotation(
         payment_terms=original.payment_terms,
         template_id=original.template_id,
         created_by=current_user.id,
+        tenant_id=current_user.tenant_id,
     )
     db.add(new_q)
     await db.flush()

@@ -67,6 +67,8 @@ export default function LoginPage() {
         name: response.name,
         email: response.email,
         role: response.role,
+        is_super_admin: response.is_super_admin,
+        tenant_id: response.tenant_id,
       });
       router.push("/dashboard");
     } catch (err: unknown) {

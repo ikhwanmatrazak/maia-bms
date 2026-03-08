@@ -1,4 +1,5 @@
 import smtplib
+import base64
 import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -7,6 +8,27 @@ from email import encoders
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+
+def decrypt_smtp_password(company) -> Optional[str]:
+    """Decrypt the stored SMTP password. Returns None if not configured."""
+    if not company or not company.smtp_pass_encrypted:
+        return None
+    from cryptography.fernet import Fernet
+    from app.config import get_settings as _get_settings
+    key = _get_settings().encryption_key.encode()
+    if len(key) == 44:
+        f = Fernet(key)
+    else:
+        key_b64 = base64.urlsafe_b64encode(key[:32].ljust(32, b'='))
+        f = Fernet(key_b64)
+    return f.decrypt(company.smtp_pass_encrypted.encode()).decode()
+
+
+def render_template(text: str, vars_map: dict) -> str:
+    for k, v in vars_map.items():
+        text = text.replace(k, str(v) if v is not None else "")
+    return text
 
 
 async def send_email(
@@ -33,11 +55,17 @@ async def send_email(
         msg.attach(part)
 
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(settings.smtp_user, smtp_password)
-            server.sendmail(settings.smtp_from_email, to_email, msg.as_string())
+        port = int(settings.smtp_port or 587)
+        if port == 465:
+            with smtplib.SMTP_SSL(settings.smtp_host, port, timeout=30) as server:
+                server.login(settings.smtp_user, smtp_password)
+                server.sendmail(settings.smtp_from_email, to_email, msg.as_string())
+        else:
+            with smtplib.SMTP(settings.smtp_host, port, timeout=30) as server:
+                server.ehlo()
+                server.starttls()
+                server.login(settings.smtp_user, smtp_password)
+                server.sendmail(settings.smtp_from_email, to_email, msg.as_string())
         logger.info(f"Email sent to {to_email}: {subject}")
     except Exception as e:
         logger.error(f"Failed to send email to {to_email}: {e}")

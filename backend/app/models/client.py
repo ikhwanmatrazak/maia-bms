@@ -14,6 +14,7 @@ class Client(Base):
     __tablename__ = "clients"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
     company_name = Column(String(255), nullable=False, index=True)
     contact_person = Column(String(255), nullable=True)
     email = Column(String(255), nullable=True, index=True)
@@ -34,3 +35,4 @@ class Client(Base):
     quotations = relationship("Quotation", back_populates="client")
     invoices = relationship("Invoice", back_populates="client")
     receipts = relationship("Receipt", back_populates="client")
+    delivery_orders = relationship("DeliveryOrder", back_populates="client")

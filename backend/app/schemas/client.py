@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime
+from decimal import Decimal
 from app.models.client import ClientStatus
 
 
@@ -58,5 +59,6 @@ class ClientListResponse(BaseModel):
     currency: str
     status: ClientStatus
     created_at: datetime
+    outstanding_balance: Decimal = Decimal("0.00")
 
     model_config = {"from_attributes": True}

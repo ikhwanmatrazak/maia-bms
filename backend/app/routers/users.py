@@ -17,7 +17,10 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin()),
 ):
-    result = await db.execute(select(User).order_by(User.name))
+    query = select(User).order_by(User.name)
+    if not current_user.is_super_admin:
+        query = query.where(User.tenant_id == current_user.tenant_id)
+    result = await db.execute(query)
     return result.scalars().all()
 
 
@@ -37,6 +40,7 @@ async def create_user(
         password_hash=hash_password(body.password),
         role=body.role,
         is_active=True,
+        tenant_id=current_user.tenant_id,
     )
     db.add(user)
     await db.commit()

@@ -24,3 +24,11 @@ class Payment(Base):
     # Relationships
     invoice = relationship("Invoice", back_populates="payments")
     receipt = relationship("Receipt", back_populates="payments")
+
+    @property
+    def client_name(self) -> str:
+        return self.invoice.client.company_name if self.invoice and self.invoice.client else ""
+
+    @property
+    def invoice_number(self) -> str:
+        return self.invoice.invoice_number if self.invoice else ""

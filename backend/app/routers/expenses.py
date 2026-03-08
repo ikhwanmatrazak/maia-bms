@@ -9,7 +9,7 @@ from app.models.expense import Expense, ExpenseCategory
 from app.models.user import User
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseCategoryCreate, ExpenseCategoryResponse
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import require_admin
+from app.middleware.rbac import require_admin, apply_tenant_filter
 from app.config import get_settings
 
 router = APIRouter(tags=["expenses"])
@@ -41,14 +41,21 @@ async def create_category(
 @router.get("/expenses", response_model=List[ExpenseResponse])
 async def list_expenses(
     category_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     query = select(Expense)
+    query = apply_tenant_filter(query, Expense, current_user)
     if category_id:
         query = query.where(Expense.category_id == category_id)
+    if search:
+        query = query.where(
+            Expense.description.ilike(f"%{search}%") |
+            Expense.vendor.ilike(f"%{search}%")
+        )
     query = query.order_by(Expense.expense_date.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
@@ -61,7 +68,7 @@ async def create_expense(
     current_user: User = Depends(get_current_user),
 ):
     data = body.model_dump()
-    expense = Expense(**data, created_by=current_user.id)
+    expense = Expense(**data, created_by=current_user.id, tenant_id=current_user.tenant_id)
     db.add(expense)
     await db.commit()
     await db.refresh(expense)

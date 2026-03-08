@@ -31,7 +31,8 @@ export interface Client {
   status: ClientStatus;
   created_by?: number;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
+  outstanding_balance?: string;
 }
 
 export type QuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
@@ -54,6 +55,7 @@ export interface Quotation {
   quotation_number: string;
   client_id: number;
   client_name?: string;
+  client_email?: string;
   status: QuotationStatus;
   currency: string;
   exchange_rate: string;
@@ -81,6 +83,7 @@ export interface Invoice {
   quotation_id?: number;
   client_id: number;
   client_name?: string;
+  client_email?: string;
   status: InvoiceStatus;
   currency: string;
   exchange_rate: string;
@@ -110,6 +113,7 @@ export interface Receipt {
   invoice_id: number;
   client_id: number;
   client_name?: string;
+  client_email?: string;
   currency: string;
   exchange_rate: string;
   amount: string;
@@ -135,6 +139,8 @@ export interface Payment {
   notes?: string;
   recorded_by?: number;
   created_at: string;
+  client_name?: string;
+  invoice_number?: string;
 }
 
 export interface TaxRate {
@@ -220,4 +226,119 @@ export interface ExpenseCategory {
   name: string;
   color: string;
   is_active: boolean;
+}
+
+export type PurchaseOrderStatus = "draft" | "sent" | "received" | "cancelled";
+export type DeliveryOrderStatus = "draft" | "sent" | "delivered" | "cancelled";
+
+export interface PurchaseOrderItem {
+  id: number;
+  description: string;
+  quantity: string;
+  unit_price: string;
+  tax_rate_id?: number;
+  tax_amount: string;
+  line_total: string;
+  sort_order: number;
+}
+
+export interface PurchaseOrder {
+  id: number;
+  po_number: string;
+  vendor_name: string;
+  vendor_email?: string;
+  vendor_phone?: string;
+  vendor_address?: string;
+  status: PurchaseOrderStatus;
+  currency: string;
+  exchange_rate: string;
+  issue_date: string;
+  expected_delivery_date?: string;
+  subtotal: string;
+  discount_amount: string;
+  tax_total: string;
+  total: string;
+  notes?: string;
+  terms_conditions?: string;
+  created_by?: number;
+  sent_at?: string;
+  received_at?: string;
+  created_at: string;
+  updated_at: string;
+  items: PurchaseOrderItem[];
+}
+
+export interface DeliveryOrderItem {
+  id: number;
+  description: string;
+  quantity: string;
+  unit?: string;
+  sort_order: number;
+}
+
+export interface DeliveryOrder {
+  id: number;
+  do_number: string;
+  client_id: number;
+  client_name?: string;
+  status: DeliveryOrderStatus;
+  issue_date: string;
+  delivery_date?: string;
+  delivery_address?: string;
+  notes?: string;
+  created_by?: number;
+  sent_at?: string;
+  delivered_at?: string;
+  created_at: string;
+  updated_at: string;
+  items: DeliveryOrderItem[];
+}
+
+export type BillingCycle = "one_time" | "monthly" | "quarterly" | "annually";
+export type SubscriptionStatus = "active" | "paused" | "cancelled";
+
+export interface ProductPricing {
+  id: number;
+  product_id: number;
+  name: string;
+  description?: string;
+  amount: string;
+  billing_cycle: BillingCycle;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface Product {
+  id: number;
+  name: string;
+  description?: string;
+  unit_price: string;
+  currency: string;
+  unit_label?: string;
+  billing_cycle: BillingCycle;
+  category?: string;
+  is_active: boolean;
+  email_subject?: string;
+  email_body?: string;
+  document_template_id?: number;
+  active_subscription_count: number;
+  pricing: ProductPricing[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductSubscription {
+  id: number;
+  product_id: number;
+  client_id: number;
+  client_name: string;
+  product_name: string;
+  start_date: string;
+  next_renewal_date?: string;
+  billing_cycle: BillingCycle;
+  amount: string;
+  status: SubscriptionStatus;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
 }

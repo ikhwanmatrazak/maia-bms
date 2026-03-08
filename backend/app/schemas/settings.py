@@ -15,6 +15,8 @@ class CompanySettingsUpdate(BaseModel):
     invoice_prefix: Optional[str] = None
     quotation_prefix: Optional[str] = None
     receipt_prefix: Optional[str] = None
+    po_prefix: Optional[str] = None
+    do_prefix: Optional[str] = None
     smtp_host: Optional[str] = None
     smtp_port: Optional[int] = None
     smtp_user: Optional[str] = None
@@ -44,6 +46,8 @@ class CompanySettingsResponse(BaseModel):
     invoice_prefix: str
     quotation_prefix: str
     receipt_prefix: str
+    po_prefix: str = "PO"
+    do_prefix: str = "DO"
     smtp_host: Optional[str]
     smtp_port: Optional[int]
     smtp_user: Optional[str]
@@ -89,3 +93,20 @@ class TaxRateResponse(BaseModel):
 
 class SMTPTestRequest(BaseModel):
     to_email: str
+
+
+class EmailTemplateUpsert(BaseModel):
+    subject: str
+    body: str
+    is_active: bool = True
+
+
+class EmailTemplateResponse(BaseModel):
+    id: int
+    doc_type: str
+    subject: str
+    body: str
+    is_active: bool
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

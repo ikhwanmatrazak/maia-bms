@@ -80,6 +80,7 @@ class QuotationResponse(BaseModel):
     sent_at: Optional[datetime]
     accepted_at: Optional[datetime]
     client_name: str = ""
+    client_email: str = ""
     created_at: datetime
     updated_at: datetime
     items: List[DocumentItemResponse] = []
@@ -142,6 +143,7 @@ class InvoiceResponse(BaseModel):
     sent_at: Optional[datetime]
     paid_at: Optional[datetime]
     client_name: str = ""
+    client_email: str = ""
     created_at: datetime
     updated_at: datetime
     items: List[DocumentItemResponse] = []
@@ -173,6 +175,8 @@ class PaymentResponse(BaseModel):
     notes: Optional[str]
     recorded_by: Optional[int]
     created_at: datetime
+    client_name: str = ""
+    invoice_number: str = ""
 
     model_config = {"from_attributes": True}
 
@@ -193,6 +197,7 @@ class ReceiptResponse(BaseModel):
     created_by: Optional[int]
     sent_at: Optional[datetime]
     client_name: str = ""
+    client_email: str = ""
     created_at: datetime
 
     model_config = {"from_attributes": True}

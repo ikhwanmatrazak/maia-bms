@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="header">
+  <div class="logo">
+    {% if logo_data %}<img src="{{ logo_data }}" alt="Logo">{% endif %}
+    {% if not logo_data %}<div class="company-name">{{ company.name if company else 'MAIA' }}</div>{% endif %}
+  </div>
+  <div class="company-info">
+    {% if company %}
+    <div class="company-name">{{ company.name }}</div>
+    {% if company.address %}<div class="company-address">{{ company.address }}</div>{% endif %}
+    {% if company.phone %}<div>{{ company.phone }}</div>{% endif %}
+    {% if company.email %}<div>{{ company.email }}</div>{% endif %}
+    {% if company.sst_no %}<div>SST No: {{ company.sst_no }}</div>{% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="doc-title">Delivery Order</div>
+
+<div class="doc-meta">
+  <div class="meta-block">
+    <h4>DO Number</h4>
+    <p>{{ document.do_number }}</p>
+  </div>
+  <div class="meta-block">
+    <h4>Issue Date</h4>
+    <p>{{ document.issue_date.strftime('%d %b %Y') }}</p>
+  </div>
+  {% if document.delivery_date %}
+  <div class="meta-block">
+    <h4>Delivery Date</h4>
+    <p>{{ document.delivery_date.strftime('%d %b %Y') }}</p>
+  </div>
+  {% endif %}
+  <div class="meta-block">
+    <h4>Status</h4>
+    <p><span class="status-badge status-{{ document.status }}">{{ document.status }}</span></p>
+  </div>
+</div>
+
+<div class="bill-to">
+  <h4>Deliver To</h4>
+  <div class="bill-to-name">{{ document.client.company_name if document.client else 'Client' }}</div>
+  {% if document.client %}
+  <div>{{ document.client.contact_person or '' }}</div>
+  <div>{{ document.client.email or '' }}</div>
+  <div>{{ document.client.phone or '' }}</div>
+  {% endif %}
+  {% if document.delivery_address %}
+  <div style="margin-top:6px;white-space:pre-line;">{{ document.delivery_address }}</div>
+  {% endif %}
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:4%">#</th>
+      <th style="width:56%">Description</th>
+      <th style="width:20%">Quantity</th>
+      <th style="width:20%">Unit</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in document.items %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ item.description }}</td>
+      <td>{{ item.quantity }}</td>
+      <td>{{ item.unit or 'pcs' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if document.notes %}
+<div class="notes-section">
+  <h4>Notes</h4>
+  <p>{{ document.notes }}</p>
+</div>
+{% endif %}
+
+<div class="notes-section" style="margin-top:40px;">
+  <div style="display:flex;justify-content:space-between;">
+    <div style="width:200px;text-align:center;">
+      <div style="border-top:1px solid #333;padding-top:6px;font-size:10px;color:#666;">Prepared By</div>
+    </div>
+    <div style="width:200px;text-align:center;">
+      <div style="border-top:1px solid #333;padding-top:6px;font-size:10px;color:#666;">Received By</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  {% if signature_data %}
+  <div class="signature-block">
+    <img src="data:image/png;base64,{{ signature_data }}" alt="Signature">
+    <div class="signature-line">Authorized Signature</div>
+  </div>
+  {% endif %}
+  {% if qr_base64 %}
+  <div class="qr-block">
+    <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR Code">
+    <p>Scan to verify</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

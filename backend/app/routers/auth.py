@@ -63,6 +63,8 @@ async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends
         name=user.name,
         email=user.email,
         role=user.role,
+        is_super_admin=user.is_super_admin,
+        tenant_id=user.tenant_id,
     )
 
 
@@ -104,6 +106,8 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
         name=user.name,
         email=user.email,
         role=user.role,
+        is_super_admin=user.is_super_admin,
+        tenant_id=user.tenant_id,
     )
 
 

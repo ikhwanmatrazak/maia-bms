@@ -1,11 +1,16 @@
 import os
+import base64
+import json
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from typing import List, Optional
 
 from app.database import get_db
 from app.models.payment import Payment
+from app.models.invoice import Invoice
+from app.models.client import Client
 from app.models.user import User
 from app.schemas.document import PaymentResponse
 from app.middleware.auth import get_current_user
@@ -24,7 +29,16 @@ async def list_payments(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(Payment).order_by(Payment.created_at.desc()).offset(skip).limit(limit)
+    query = (
+        select(Payment)
+        .options(selectinload(Payment.invoice).selectinload(Invoice.client))
+        .order_by(Payment.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    if not current_user.is_super_admin and current_user.tenant_id is not None:
+        tenant_invoice_ids = select(Invoice.id).where(Invoice.tenant_id == current_user.tenant_id).scalar_subquery()
+        query = query.where(Payment.invoice_id.in_(tenant_invoice_ids))
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -62,3 +76,61 @@ async def upload_proof(
     await db.commit()
     await db.refresh(payment)
     return payment
+
+
+@router.post("/analyze-proof")
+async def analyze_payment_proof(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload a payment receipt image/PDF and extract payment details using AI."""
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid file type. Allowed: JPEG, PNG, WebP, PDF")
+
+    if not settings.anthropic_api_key:
+        raise HTTPException(status_code=503, detail="AI analysis not configured. Set ANTHROPIC_API_KEY in environment.")
+
+    content = await file.read()
+    max_bytes = settings.max_file_size_mb * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=400, detail=f"File too large. Maximum size: {settings.max_file_size_mb}MB")
+
+    import anthropic as _anthropic
+    client = _anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+    # For PDFs convert to base64 as document type; for images use image type
+    is_pdf = file.content_type == "application/pdf"
+    b64_content = base64.standard_b64encode(content).decode("utf-8")
+
+    if is_pdf:
+        source = {"type": "base64", "media_type": "application/pdf", "data": b64_content}
+        content_block = {"type": "document", "source": source}
+    else:
+        source = {"type": "base64", "media_type": file.content_type, "data": b64_content}
+        content_block = {"type": "image", "source": source}
+
+    prompt = (
+        "This is a payment receipt or bank transaction proof. "
+        "Extract the following details and respond ONLY with a JSON object (no markdown, no explanation):\n"
+        '{"amount": <number or null>, "currency": "<3-letter code or MYR>", '
+        '"payment_date": "<YYYY-MM-DD or null>", "payment_method": "<cash|bank_transfer|cheque|online|other>", '
+        '"reference_number": "<string or null>", "notes": "<brief description or null>"}'
+    )
+
+    try:
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=256,
+            messages=[{"role": "user", "content": [content_block, {"type": "text", "text": prompt}]}],
+        )
+        raw = response.content[0].text.strip()
+        # Strip markdown fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        extracted = json.loads(raw)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Could not extract payment details: {str(e)}")
+
+    return extracted

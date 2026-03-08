@@ -5,20 +5,59 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from decimal import Decimal
+from pydantic import BaseModel
 import io
 from datetime import datetime, timezone
 
 from app.database import get_db
+from app.models.client import Client
 from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus
 from app.models.receipt import Receipt, PaymentMethod
 from app.models.payment import Payment
-from app.models.settings import TaxRate, CompanySettings
+from app.models.settings import TaxRate, CompanySettings, EmailTemplate
 from app.models.activity import Activity, ActivityType
 from app.models.user import User
 from app.schemas.document import InvoiceCreate, InvoiceUpdate, InvoiceResponse, PaymentCreate, PaymentResponse
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import OwnershipChecker
+from app.middleware.rbac import OwnershipChecker, apply_tenant_filter
 from app.utils.tax import calculate_line_total, calculate_document_totals
+from app.services.email_service import decrypt_smtp_password, render_template, send_email
+
+
+class EmailRequest(BaseModel):
+    to_email: str
+
+
+async def _email_invoice(invoice, to_email: str, db):
+    from app.services.pdf_service import generate_pdf
+    settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == invoice.tenant_id).limit(1))
+    company = settings_result.scalar_one_or_none()
+    if not company or not company.smtp_host:
+        raise ValueError("SMTP not configured in Settings")
+    smtp_password = decrypt_smtp_password(company)
+    if not smtp_password:
+        raise ValueError("SMTP password not saved in Settings")
+
+    tmpl_result = await db.execute(select(EmailTemplate).where(EmailTemplate.doc_type == "invoice"))
+    tmpl = tmpl_result.scalar_one_or_none()
+    subject_tpl = tmpl.subject if tmpl else "Invoice {{invoice_number}} from {{company_name}}"
+    body_tpl = tmpl.body if tmpl else "Dear {{client_name}},\n\nPlease find attached invoice {{invoice_number}}.\n\nBest regards,\n{{company_name}}"
+
+    vars_map = {
+        "{{company_name}}": company.name or "MAIA",
+        "{{client_name}}": invoice.client.company_name if invoice.client else "",
+        "{{invoice_number}}": invoice.invoice_number,
+        "{{issue_date}}": invoice.issue_date.strftime("%d %b %Y") if invoice.issue_date else "",
+        "{{due_date}}": invoice.due_date.strftime("%d %b %Y") if invoice.due_date else "",
+        "{{currency}}": invoice.currency,
+        "{{total}}": str(invoice.total),
+        "{{balance_due}}": str(invoice.balance_due),
+    }
+    subject = render_template(subject_tpl, vars_map)
+    body_text = render_template(body_tpl, vars_map)
+    html_body = f"<html><body><pre style='font-family:sans-serif;white-space:pre-wrap'>{body_text}</pre></body></html>"
+    pdf_bytes = await generate_pdf("invoice", invoice, company, "professional")
+    await send_email(company, smtp_password, to_email, subject, html_body, pdf_bytes=pdf_bytes, pdf_filename=f"{invoice.invoice_number}.pdf")
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -37,12 +76,14 @@ async def _generate_invoice_number(db: AsyncSession) -> str:
 async def list_invoices(
     status: Optional[InvoiceStatus] = Query(None),
     client_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     query = select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client))
+    query = apply_tenant_filter(query, Invoice, current_user)
     query = query.where(Invoice.is_deleted != True)
     if not OwnershipChecker.can_view_all(current_user):
         query = query.where(Invoice.created_by == current_user.id)
@@ -50,6 +91,12 @@ async def list_invoices(
         query = query.where(Invoice.status == status)
     if client_id:
         query = query.where(Invoice.client_id == client_id)
+    if search:
+        client_ids_sq = select(Client.id).where(Client.company_name.ilike(f"%{search}%")).scalar_subquery()
+        query = query.where(
+            Invoice.invoice_number.ilike(f"%{search}%") |
+            Invoice.client_id.in_(client_ids_sq)
+        )
     query = query.order_by(Invoice.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
@@ -76,6 +123,7 @@ async def create_invoice(
         payment_terms=body.payment_terms,
         template_id=body.template_id,
         created_by=current_user.id,
+        tenant_id=current_user.tenant_id,
     )
     db.add(invoice)
     await db.flush()
@@ -214,7 +262,40 @@ async def send_invoice(
     result = await db.execute(
         select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client)).where(Invoice.id == invoice_id)
     )
-    return result.scalar_one()
+    invoice = result.scalar_one()
+
+    # Auto-email if client has an email address configured
+    client_email = invoice.client.email if invoice.client else None
+    if client_email:
+        try:
+            await _email_invoice(invoice, client_email, db)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Auto-email invoice {invoice_id} failed: {e}")
+
+    return invoice
+
+
+@router.post("/{invoice_id}/email")
+async def email_invoice(
+    invoice_id: int,
+    body: EmailRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client)).where(Invoice.id == invoice_id)
+    )
+    invoice = result.scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    try:
+        await _email_invoice(invoice, body.to_email, db)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+    return {"message": f"Email sent to {body.to_email}"}
 
 
 @router.post("/{invoice_id}/cancel", response_model=InvoiceResponse)
@@ -364,6 +445,7 @@ async def duplicate_invoice(
         payment_terms=original.payment_terms,
         template_id=original.template_id,
         created_by=current_user.id,
+        tenant_id=current_user.tenant_id,
     )
     db.add(new_inv)
     await db.flush()
@@ -420,7 +502,7 @@ async def get_invoice_pdf(
 
     from app.services.pdf_service import generate_pdf
     import json as _json
-    settings_result = await db.execute(select(CompanySettings).limit(1))
+    settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == invoice.tenant_id).limit(1))
     company = settings_result.scalar_one_or_none()
     template_style = "professional"
     if invoice.template_id:

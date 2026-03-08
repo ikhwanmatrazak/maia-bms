@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Numeric, Text, Enum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Numeric, Text, Enum, ForeignKey
 from sqlalchemy.sql import func
 from app.database import Base
 import enum
@@ -14,6 +14,7 @@ class CompanySettings(Base):
     __tablename__ = "company_settings"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, unique=True, index=True)
     name = Column(String(255), nullable=False, default="MAIA")
     logo_url = Column(String(500), nullable=True)
     address = Column(Text, nullable=True)
@@ -25,6 +26,8 @@ class CompanySettings(Base):
     invoice_prefix = Column(String(20), default="INV")
     quotation_prefix = Column(String(20), default="QT")
     receipt_prefix = Column(String(20), default="RCP")
+    po_prefix = Column(String(20), default="PO")
+    do_prefix = Column(String(20), default="DO")
 
     # SMTP settings (password stored encrypted)
     smtp_host = Column(String(255), nullable=True)
@@ -59,6 +62,7 @@ class TaxRate(Base):
     __tablename__ = "tax_rates"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
     name = Column(String(100), nullable=False)
     rate = Column(Numeric(5, 2), nullable=False)
     is_default = Column(Boolean, default=False)
@@ -66,10 +70,24 @@ class TaxRate(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class EmailTemplate(Base):
+    __tablename__ = "email_templates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
+    doc_type = Column(String(50), nullable=False)
+    subject = Column(String(500), nullable=False)
+    body = Column(Text, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class DocumentTemplate(Base):
     __tablename__ = "document_templates"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
     name = Column(String(100), nullable=False)
     type = Column(Enum(TemplateType), nullable=False)
     template_json = Column(Text, nullable=True)  # JSON config for template customization

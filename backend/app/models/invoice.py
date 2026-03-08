@@ -18,6 +18,7 @@ class Invoice(Base):
     __tablename__ = "invoices"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
     invoice_number = Column(String(50), unique=True, nullable=False, index=True)
     quotation_id = Column(Integer, ForeignKey("quotations.id", ondelete="SET NULL"), nullable=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="RESTRICT"), nullable=False)
@@ -49,6 +50,11 @@ class Invoice(Base):
     @property
     def client_name(self) -> str:
         return self.client.company_name if self.client else ""
+
+    @property
+    def client_email(self) -> str:
+        return self.client.email if self.client else ""
+
     quotation = relationship("Quotation", back_populates="invoices")
     items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan",
                          order_by="InvoiceItem.sort_order")

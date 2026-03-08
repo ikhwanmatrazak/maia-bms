@@ -45,8 +45,9 @@ async def init_db():
     async with engine.begin() as conn:
         # Import all models to register them
         from app.models import (  # noqa: F401
-            user, client, quotation, invoice,
+            tenant, user, client, quotation, invoice,
             receipt, payment, expense, activity,
-            reminder, settings as settings_model
+            reminder, settings as settings_model,
+            purchase_order, delivery_order, product
         )
         logger.info("Database connection established")

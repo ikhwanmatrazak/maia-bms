@@ -1,13 +1,13 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Card, CardBody, CardHeader, Button, Chip, Modal, ModalContent,
   ModalHeader, ModalBody, ModalFooter, Input, Select, SelectItem,
 } from "@heroui/react";
-import { invoicesApi, downloadPdf } from "@/lib/api";
+import { invoicesApi, paymentsApi, downloadPdf } from "@/lib/api";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
 import { Payment } from "@/types";
@@ -16,9 +16,14 @@ const PAYMENT_METHODS = ["cash", "bank_transfer", "cheque", "online", "other"];
 
 export default function InvoiceDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const id = Number(params.id);
   const queryClient = useQueryClient();
-  const [paymentModal, setPaymentModal] = useState(false);
+  const [paymentModal, setPaymentModal] = useState(searchParams.get("receipt") === "1");
+  const [emailModal, setEmailModal] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailResult, setEmailResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
     currency: "MYR",
@@ -27,6 +32,8 @@ export default function InvoiceDetailPage() {
     reference_number: "",
     generate_receipt: true,
   });
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const { data: inv, isLoading } = useQuery({
     queryKey: ["invoices", id],
@@ -43,6 +50,18 @@ export default function InvoiceDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices", id] }),
   });
 
+  const emailMutation = useMutation({
+    mutationFn: (to: string) => invoicesApi.email(id, to),
+    onSuccess: () => setEmailResult({ ok: true, msg: `Email sent to ${emailTo}` }),
+    onError: (e: any) => setEmailResult({ ok: false, msg: e?.response?.data?.detail || "Failed to send email" }),
+  });
+
+  const openEmailModal = () => {
+    setEmailTo((inv as any)?.client_email || "");
+    setEmailResult(null);
+    setEmailModal(true);
+  };
+
   const paymentMutation = useMutation({
     mutationFn: (data: object) => invoicesApi.recordPayment(id, data),
     onSuccess: () => {
@@ -57,15 +76,49 @@ export default function InvoiceDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices", id] }),
   });
 
+  const duplicateMutation = useMutation({
+    mutationFn: () => invoicesApi.duplicate(id),
+    onSuccess: (data) => router.push(`/invoices/${data.id}`),
+  });
+
   if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
   if (!inv) return <div className="p-6">Invoice not found</div>;
 
-  const submitPayment = () => {
-    paymentMutation.mutate({
-      ...paymentForm,
-      amount: Number(paymentForm.amount),
-      payment_date: new Date(paymentForm.payment_date).toISOString(),
-    });
+  const analyzeProof = async (file: File) => {
+    setIsAnalyzing(true);
+    try {
+      const result = await paymentsApi.analyzeProof(file);
+      setPaymentForm((prev) => ({
+        ...prev,
+        ...(result.amount ? { amount: String(result.amount) } : {}),
+        ...(result.currency ? { currency: result.currency } : {}),
+        ...(result.payment_date ? { payment_date: result.payment_date } : {}),
+        ...(result.payment_method && PAYMENT_METHODS.includes(result.payment_method) ? { payment_method: result.payment_method } : {}),
+        ...(result.reference_number ? { reference_number: result.reference_number } : {}),
+      }));
+    } catch {
+      // silently fail — user can fill in manually
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const submitPayment = async () => {
+    paymentMutation.mutate(
+      {
+        ...paymentForm,
+        amount: Number(paymentForm.amount),
+        payment_date: new Date(paymentForm.payment_date).toISOString(),
+      },
+      {
+        onSuccess: async (data) => {
+          if (proofFile) {
+            try { await paymentsApi.uploadProof(data.id, proofFile); } catch { /* non-critical */ }
+          }
+          setProofFile(null);
+        },
+      }
+    );
   };
 
   return (
@@ -78,11 +131,15 @@ export default function InvoiceDetailPage() {
             <span className="text-gray-500 text-sm">{inv.invoice_number}</span>
           </div>
           <div className="flex gap-2 flex-wrap">
-            {inv.status === "draft" && <Button size="sm" color="primary" isLoading={sendMutation.isPending} onPress={() => sendMutation.mutate()}>Send</Button>}
-            {["sent", "partial", "overdue"].includes(inv.status) && (
+            {!["paid", "cancelled"].includes(inv.status) && (
               <Button size="sm" color="success" onPress={() => setPaymentModal(true)}>Record Payment</Button>
             )}
+            {!["paid", "cancelled"].includes(inv.status) && (
+              <Button size="sm" color="primary" onPress={() => setPaymentModal(true)}>Create Receipt</Button>
+            )}
+            <Button size="sm" color="primary" variant="flat" onPress={openEmailModal}>Email PDF</Button>
             <Button size="sm" variant="flat" onPress={() => downloadPdf(invoicesApi.getPdfUrl(id), (inv?.invoice_number || "invoice-" + id) + ".pdf")}>PDF</Button>
+            <Button size="sm" variant="flat" isLoading={duplicateMutation.isPending} onPress={() => duplicateMutation.mutate()}>Duplicate</Button>
             {!["paid", "cancelled"].includes(inv.status) && (
               <Button size="sm" color="danger" variant="flat" isLoading={cancelMutation.isPending}
                 onPress={() => cancelMutation.mutate()}>Cancel</Button>
@@ -178,6 +235,25 @@ export default function InvoiceDetailPage() {
           <ModalContent>
             <ModalHeader>Record Payment</ModalHeader>
             <ModalBody className="flex flex-col gap-4">
+              {/* Proof upload + auto-fill */}
+              <div className="border-2 border-dashed border-gray-200 rounded-lg p-3">
+                <p className="text-xs text-gray-500 mb-2">Upload payment proof (image or PDF) — AI will auto-fill the form</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    className="text-xs text-gray-600 flex-1"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      setProofFile(f);
+                      if (f) analyzeProof(f);
+                    }}
+                  />
+                  {isAnalyzing && <span className="text-xs text-primary animate-pulse">Analyzing...</span>}
+                  {proofFile && !isAnalyzing && <span className="text-xs text-success">✓ Ready</span>}
+                </div>
+              </div>
+
               <Input
                 variant="bordered"
                 label="Amount"
@@ -211,7 +287,33 @@ export default function InvoiceDetailPage() {
             </ModalBody>
             <ModalFooter>
               <Button variant="flat" onPress={() => setPaymentModal(false)}>Cancel</Button>
-              <Button color="success" isLoading={paymentMutation.isPending} onPress={submitPayment}>Record Payment</Button>
+              <Button color="success" isLoading={paymentMutation.isPending || isAnalyzing} onPress={submitPayment}>Record Payment</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        {/* Email Modal */}
+        <Modal isOpen={emailModal} onClose={() => setEmailModal(false)}>
+          <ModalContent>
+            <ModalHeader>Email Invoice PDF</ModalHeader>
+            <ModalBody className="flex flex-col gap-4">
+              <Input
+                variant="bordered"
+                label="Recipient Email"
+                type="email"
+                value={emailTo}
+                onChange={(e) => setEmailTo(e.target.value)}
+                placeholder="client@example.com"
+              />
+              {emailResult && (
+                <p className={`text-sm ${emailResult.ok ? "text-success" : "text-danger"}`}>{emailResult.msg}</p>
+              )}
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="flat" onPress={() => setEmailModal(false)}>Close</Button>
+              <Button color="primary" isLoading={emailMutation.isPending} onPress={() => emailMutation.mutate(emailTo)}>
+                Send Email
+              </Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
