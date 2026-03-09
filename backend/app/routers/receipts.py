@@ -29,14 +29,21 @@ router = APIRouter(prefix="/receipts", tags=["receipts"])
 async def list_receipts(
     client_id: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
+    month: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from datetime import datetime as _dt, timezone as _tz
     query = select(Receipt).options(selectinload(Receipt.client))
     query = apply_tenant_filter(query, Receipt, current_user)
     query = query.where(Receipt.is_deleted != True)
+    if month:
+        y, m_n = int(month.split("-")[0]), int(month.split("-")[1])
+        start = _dt(y, m_n, 1, tzinfo=_tz.utc)
+        end = _dt(y + 1, 1, 1, tzinfo=_tz.utc) if m_n == 12 else _dt(y, m_n + 1, 1, tzinfo=_tz.utc)
+        query = query.where(Receipt.payment_date >= start, Receipt.payment_date < end)
     if client_id:
         query = query.where(Receipt.client_id == client_id)
     if search:
@@ -48,6 +55,32 @@ async def list_receipts(
     query = query.order_by(Receipt.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
+
+
+@router.get("/summary")
+async def receipts_summary_route(
+    month: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from decimal import Decimal as _Dec
+    from datetime import datetime as _dt, timezone as _tz
+    if month:
+        y, m = int(month.split("-")[0]), int(month.split("-")[1])
+    else:
+        now = _dt.now(_tz.utc)
+        y, m = now.year, now.month
+    start = _dt(y, m, 1, tzinfo=_tz.utc)
+    end = _dt(y + 1, 1, 1, tzinfo=_tz.utc) if m == 12 else _dt(y, m + 1, 1, tzinfo=_tz.utc)
+    q = select(Receipt).where(Receipt.payment_date >= start, Receipt.payment_date < end)
+    q = apply_tenant_filter(q, Receipt, current_user)
+    result = await db.execute(q)
+    rows = result.scalars().all()
+    return {
+        "count": len(rows),
+        "total_amount": float(sum(_Dec(str(r.amount)) for r in rows)),
+        "month": month or _dt.now(_tz.utc).strftime("%Y-%m"),
+    }
 
 
 @router.get("/{receipt_id}", response_model=ReceiptResponse)
@@ -111,6 +144,9 @@ async def email_receipt(
 
     settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == receipt.tenant_id).limit(1))
     company = settings_result.scalar_one_or_none()
+    if company is None:
+        _fb = await db.execute(select(CompanySettings).limit(1))
+        company = _fb.scalar_one_or_none()
     if not company or not company.smtp_host:
         raise HTTPException(status_code=422, detail="SMTP not configured in Settings")
     smtp_password = decrypt_smtp_password(company)
@@ -182,6 +218,9 @@ async def get_receipt_pdf(
     from app.services.pdf_service import generate_pdf
     settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == receipt.tenant_id).limit(1))
     company = settings_result.scalar_one_or_none()
+    if company is None:
+        _fb = await db.execute(select(CompanySettings).limit(1))
+        company = _fb.scalar_one_or_none()
     pdf_bytes = await generate_pdf("receipt", receipt, company)
     return StreamingResponse(
         io.BytesIO(pdf_bytes),

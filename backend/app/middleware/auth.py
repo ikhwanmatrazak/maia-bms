@@ -81,6 +81,12 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+    # Attach switched_tenant_id if present in token (for super admin tenant switching)
+    switched = payload.get("switched_tenant_id")
+    if switched is not None:
+        user.switched_tenant_id = int(switched)
+    else:
+        user.switched_tenant_id = None
     return user
 
 

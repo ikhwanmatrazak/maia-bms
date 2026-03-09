@@ -13,7 +13,7 @@ from app.schemas.settings import (
     SMTPTestRequest, EmailTemplateUpsert, EmailTemplateResponse,
 )
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import require_admin, require_admin_or_manager
+from app.middleware.rbac import require_admin, require_admin_or_manager, get_effective_tenant_id
 from app.config import get_settings
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -65,7 +65,7 @@ async def get_company_settings(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return await _get_or_create_settings(db, tenant_id=current_user.tenant_id)
+    return await _get_or_create_settings(db, tenant_id=get_effective_tenant_id(current_user))
 
 
 @router.put("/company", response_model=CompanySettingsResponse)
@@ -74,7 +74,7 @@ async def update_company_settings(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin()),
 ):
-    settings = await _get_or_create_settings(db, tenant_id=current_user.tenant_id)
+    settings = await _get_or_create_settings(db, tenant_id=get_effective_tenant_id(current_user))
     update_data = body.model_dump(exclude_unset=True)
 
     if "smtp_password" in update_data and update_data["smtp_password"]:
@@ -111,7 +111,7 @@ async def upload_logo(
     with open(file_path, "wb") as f:
         f.write(content)
 
-    settings = await _get_or_create_settings(db, tenant_id=current_user.tenant_id)
+    settings = await _get_or_create_settings(db, tenant_id=get_effective_tenant_id(current_user))
     settings.logo_url = f"/uploads/logos/{filename}"
     await db.commit()
     await db.refresh(settings)
@@ -137,7 +137,7 @@ async def upload_signature(
     with open(os.path.join(upload_dir, filename), "wb") as f:
         f.write(content)
 
-    settings = await _get_or_create_settings(db, tenant_id=current_user.tenant_id)
+    settings = await _get_or_create_settings(db, tenant_id=get_effective_tenant_id(current_user))
     settings.signature_image_url = f"/uploads/signatures/{filename}"
     await db.commit()
     await db.refresh(settings)
@@ -249,7 +249,7 @@ async def list_templates(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    tenant_id = current_user.tenant_id
+    tenant_id = get_effective_tenant_id(current_user)
     await _seed_default_templates(db, tenant_id=tenant_id)
     result = await db.execute(
         select(DocumentTemplate)
@@ -278,7 +278,7 @@ async def create_template(
         raise HTTPException(status_code=400, detail="Style must be 'professional' or 'minimal'")
     template = DocumentTemplate(
         name=name, type=doc_type,
-        tenant_id=current_user.tenant_id,
+        tenant_id=get_effective_tenant_id(current_user),
         template_json=_json.dumps({
             "style": style,
             "items": body.get("items", []),
@@ -307,7 +307,7 @@ async def update_template(
 ):
     result = await db.execute(select(DocumentTemplate).where(
         DocumentTemplate.id == template_id,
-        DocumentTemplate.tenant_id == current_user.tenant_id,
+        DocumentTemplate.tenant_id == get_effective_tenant_id(current_user),
     ))
     template = result.scalar_one_or_none()
     if not template:
@@ -345,7 +345,7 @@ async def delete_template(
 ):
     result = await db.execute(select(DocumentTemplate).where(
         DocumentTemplate.id == template_id,
-        DocumentTemplate.tenant_id == current_user.tenant_id,
+        DocumentTemplate.tenant_id == get_effective_tenant_id(current_user),
     ))
     template = result.scalar_one_or_none()
     if not template:
@@ -361,7 +361,7 @@ async def test_smtp(
     current_user: User = Depends(require_admin()),
 ):
     from app.services.email_service import send_test_email
-    settings = await _get_or_create_settings(db, tenant_id=current_user.tenant_id)
+    settings = await _get_or_create_settings(db, tenant_id=get_effective_tenant_id(current_user))
     if not settings.smtp_host:
         raise HTTPException(status_code=400, detail="SMTP not configured")
 
@@ -402,7 +402,7 @@ async def list_email_templates(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    tenant_id = current_user.tenant_id
+    tenant_id = get_effective_tenant_id(current_user)
     result = await db.execute(
         select(EmailTemplate)
         .where(EmailTemplate.tenant_id == tenant_id)
@@ -439,7 +439,7 @@ async def upsert_email_template(
 ):
     if doc_type not in _DEFAULT_EMAIL_TEMPLATES:
         raise HTTPException(status_code=400, detail="Invalid doc_type")
-    tenant_id = current_user.tenant_id
+    tenant_id = get_effective_tenant_id(current_user)
     result = await db.execute(
         select(EmailTemplate).where(
             EmailTemplate.doc_type == doc_type,

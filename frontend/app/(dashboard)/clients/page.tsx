@@ -38,13 +38,13 @@ export default function ClientsPage() {
     <div>
       <Topbar title="Clients" />
       <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <Input
             variant="bordered"
             placeholder="Search clients..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="max-w-xs"
+            className="w-full sm:max-w-xs"
             size="sm"
           />
           <Button as={Link} href="/clients/new" color="primary">
@@ -52,6 +52,7 @@ export default function ClientsPage() {
           </Button>
         </div>
 
+        <div className="overflow-x-auto -mx-1">
         <Table aria-label="Clients" isLoading={isLoading}>
           <TableHeader>
             <TableColumn>Company</TableColumn>
@@ -96,6 +97,7 @@ export default function ClientsPage() {
             ))}
           </TableBody>
         </Table>
+        </div>
 
         <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
           <span>Page {page}</span>

@@ -17,6 +17,7 @@ import { Topbar } from "@/components/ui/Topbar";
 
 const STATUSES: InvoiceStatus[] = ["draft", "sent", "partial", "paid", "overdue", "cancelled"];
 const PAGE_SIZE = 10;
+const thisMonth = new Date().toISOString().slice(0, 7);
 
 interface BulkResult {
   invoice_number: string;
@@ -30,6 +31,7 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "">("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [month, setMonth] = useState(thisMonth);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkModal, setBulkModal] = useState(false);
   const [bulkResults, setBulkResults] = useState<BulkResult[]>([]);
@@ -38,11 +40,17 @@ export default function InvoicesPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const { data: summary } = useQuery({
+    queryKey: ["invoices-summary", month],
+    queryFn: () => invoicesApi.summary(month),
+  });
+
   const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
-    queryKey: ["invoices", statusFilter, search, page],
+    queryKey: ["invoices", statusFilter, search, page, month],
     queryFn: () => invoicesApi.list({
       ...(statusFilter ? { status: statusFilter } : {}),
       ...(search ? { search } : {}),
+      month,
       skip: (page - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
     }),
@@ -119,6 +127,40 @@ export default function InvoicesPage() {
     <div>
       <Topbar title="Invoices" />
       <div className="p-6">
+        {/* Summary Bar */}
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <Input
+            type="month"
+            size="sm"
+            className="w-40"
+            variant="bordered"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+          />
+          {summary && (
+            <>
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-default-100 text-sm">
+                <span className="text-default-500">Billed</span>
+                <span className="font-semibold ml-1">{formatCurrency(summary.total_billed, "MYR")}</span>
+              </div>
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-success-50 text-sm">
+                <span className="text-success-600">Paid</span>
+                <span className="font-semibold ml-1 text-success-700">{formatCurrency(summary.total_paid, "MYR")}</span>
+              </div>
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-warning-50 text-sm">
+                <span className="text-warning-600">Outstanding</span>
+                <span className="font-semibold ml-1 text-warning-700">{formatCurrency(summary.total_outstanding, "MYR")}</span>
+              </div>
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-default-100 text-sm">
+                <span className="text-default-500">{summary.count} invoices</span>
+              </div>
+              {summary.by_status && Object.entries(summary.by_status).filter(([, v]) => (v as number) > 0).map(([s, v]) => (
+                <Chip key={s} size="sm" color={statusColor(s)} variant="flat" className="capitalize">{s}: {v as number}</Chip>
+              ))}
+            </>
+          )}
+        </div>
+
         <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
           <div className="flex gap-2 flex-wrap items-center">
             <Input
@@ -151,6 +193,7 @@ export default function InvoicesPage() {
           </Button>
         </div>
 
+        <div className="overflow-x-auto -mx-1">
         <Table aria-label="Invoices" isLoading={isLoading}>
           <TableHeader>
             <TableColumn className="w-px">
@@ -212,6 +255,7 @@ export default function InvoicesPage() {
             ))}
           </TableBody>
         </Table>
+        </div>
 
         <div className="flex justify-center mt-4">
           <Pagination

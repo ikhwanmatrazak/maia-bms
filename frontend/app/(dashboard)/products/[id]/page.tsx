@@ -8,7 +8,7 @@ import {
   Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Card, CardBody, CardHeader,
 } from "@heroui/react";
-import { productsApi, clientsApi, settingsApi } from "@/lib/api";
+import { productsApi, clientsApi } from "@/lib/api";
 import { Product, ProductPricing, ProductSubscription, Client, BillingCycle, SubscriptionStatus } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
@@ -79,11 +79,6 @@ export default function ProductDetailPage() {
     queryFn: () => clientsApi.list({ limit: 200 }),
   });
 
-  const { data: templates = [] } = useQuery<{ id: number; name: string; doc_type: string }[]>({
-    queryKey: ["settings", "templates"],
-    queryFn: settingsApi.getTemplates,
-  });
-
   useEffect(() => {
     if (product) {
       setDetailForm({
@@ -95,7 +90,6 @@ export default function ProductDetailPage() {
         billing_cycle: product.billing_cycle,
         category: product.category ?? "",
         is_active: product.is_active,
-        document_template_id: product.document_template_id,
       });
       setDetailDirty(false);
     }
@@ -295,26 +289,6 @@ export default function ProductDetailPage() {
                   onValueChange={(v) => { setDetailForm({ ...detailForm, is_active: v }); setDetailDirty(true); }}>
                   Active
                 </Switch>
-              </CardBody>
-            </Card>
-
-            {/* Document Template */}
-            <Card>
-              <CardHeader><h3 className="font-semibold">Document Template</h3></CardHeader>
-              <CardBody className="flex flex-col gap-4">
-                <p className="text-sm text-default-400">Select the PDF template to use when generating quotations or invoices for this product.</p>
-                <Select variant="bordered" label="Document Template"
-                  selectedKeys={detailForm.document_template_id ? [String(detailForm.document_template_id)] : ["none"]}
-                  onSelectionChange={(k) => {
-                    const val = Array.from(k)[0] as string;
-                    setDetailForm({ ...detailForm, document_template_id: val && val !== "none" ? Number(val) : undefined });
-                    setDetailDirty(true);
-                  }}>
-                  <SelectItem key="none" textValue="— None (use default) —">— None (use default) —</SelectItem>
-                  {templates.map((t) => (
-                    <SelectItem key={String(t.id)} textValue={t.name}>{t.name}{t.doc_type ? ` (${t.doc_type})` : ""}</SelectItem>
-                  ))}
-                </Select>
               </CardBody>
             </Card>
 

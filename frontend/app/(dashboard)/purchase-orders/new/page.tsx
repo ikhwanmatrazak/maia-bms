@@ -4,24 +4,37 @@ import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardBody, CardHeader, Button, Input, Select, SelectItem, Textarea } from "@heroui/react";
 import { useForm, Controller } from "react-hook-form";
-import { purchaseOrdersApi, settingsApi } from "@/lib/api";
+import { useState } from "react";
+import { purchaseOrdersApi, settingsApi, vendorsApi } from "@/lib/api";
 import { TaxRate } from "@/types";
 import { LineItemsEditor } from "@/components/documents/LineItemsEditor";
 import { Topbar } from "@/components/ui/Topbar";
 
 const CURRENCIES = ["MYR", "USD", "EUR", "GBP", "SGD"];
 
+interface Vendor {
+  id: number;
+  name: string;
+  contact_person: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  postal_code: string | null;
+  payment_terms: string | null;
+}
+
 export default function NewPurchaseOrderPage() {
   const router = useRouter();
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
 
   const { data: taxRates = [] } = useQuery<TaxRate[]>({ queryKey: ["tax-rates"], queryFn: settingsApi.getTaxRates });
+  const { data: vendors = [] } = useQuery<Vendor[]>({ queryKey: ["vendors-active"], queryFn: () => vendorsApi.list({ active_only: true }) });
 
   const { register, handleSubmit, control, watch } = useForm({
     defaultValues: {
-      vendor_name: "",
-      vendor_email: "",
-      vendor_phone: "",
-      vendor_address: "",
       currency: "MYR",
       exchange_rate: "1",
       issue_date: new Date().toISOString().split("T")[0],
@@ -41,8 +54,20 @@ export default function NewPurchaseOrderPage() {
   });
 
   const onSubmit = (data: Record<string, unknown>) => {
+    const addressParts = [
+      selectedVendor?.address,
+      selectedVendor?.city,
+      selectedVendor?.state,
+      selectedVendor?.postal_code,
+      selectedVendor?.country,
+    ].filter(Boolean);
+
     mutation.mutate({
       ...data,
+      vendor_name: selectedVendor?.name || "",
+      vendor_email: selectedVendor?.email || "",
+      vendor_phone: selectedVendor?.phone || "",
+      vendor_address: addressParts.join(", "),
       exchange_rate: Number(data.exchange_rate),
       discount_amount: Number(data.discount_amount),
       issue_date: new Date(data.issue_date as string).toISOString(),
@@ -64,12 +89,34 @@ export default function NewPurchaseOrderPage() {
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-6">
             <Card>
-              <CardHeader><h3 className="font-semibold">Vendor Details</h3></CardHeader>
-              <CardBody className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input variant="bordered" label="Vendor Name *" {...register("vendor_name")} />
-                <Input variant="bordered" label="Vendor Email" type="email" {...register("vendor_email")} />
-                <Input variant="bordered" label="Vendor Phone" {...register("vendor_phone")} />
-                <Textarea variant="bordered" label="Vendor Address" {...register("vendor_address")} />
+              <CardHeader><h3 className="font-semibold">Vendor</h3></CardHeader>
+              <CardBody className="space-y-4">
+                {vendors.length === 0 ? (
+                  <p className="text-sm text-gray-400">
+                    No vendors yet. <a href="/vendors" className="text-primary underline">Add vendors</a> first.
+                  </p>
+                ) : (
+                  <Select
+                    variant="bordered"
+                    label="Select Vendor *"
+                    placeholder="Choose a vendor..."
+                    selectedKeys={selectedVendor ? [String(selectedVendor.id)] : []}
+                    onSelectionChange={(keys) => {
+                      const id = Array.from(keys)[0] as string;
+                      setSelectedVendor(vendors.find((v) => String(v.id) === id) ?? null);
+                    }}
+                  >
+                    {vendors.map((v) => (
+                      <SelectItem key={String(v.id)} textValue={v.name}>
+                        <div>
+                          <p className="font-medium">{v.name}</p>
+                          {v.contact_person && <p className="text-xs text-gray-400">{v.contact_person}</p>}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </Select>
+                )}
+
               </CardBody>
             </Card>
 
@@ -106,8 +153,11 @@ export default function NewPurchaseOrderPage() {
             </Card>
 
             {mutation.isError && <p className="text-danger text-sm">Failed to create purchase order.</p>}
+            {!selectedVendor && vendors.length > 0 && <p className="text-warning text-sm">Please select a vendor before submitting.</p>}
             <div className="flex gap-3">
-              <Button type="submit" color="primary" isLoading={mutation.isPending}>Create Purchase Order</Button>
+              <Button type="submit" color="primary" isLoading={mutation.isPending} isDisabled={!selectedVendor && vendors.length > 0}>
+                Create Purchase Order
+              </Button>
               <Button variant="flat" onPress={() => router.back()}>Cancel</Button>
             </div>
           </div>

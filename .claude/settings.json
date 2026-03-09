@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"c:\\\\Users\\\\Surface Pro:*)",
+      "Bash(alembic upgrade 005)",
+      "Bash(alembic current)"
+    ]
+  }
+}

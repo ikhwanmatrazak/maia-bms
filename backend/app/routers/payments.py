@@ -26,9 +26,11 @@ ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp", "application/pdf"
 async def list_payments(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
+    month: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from datetime import datetime as _dt, timezone as _tz
     query = (
         select(Payment)
         .options(selectinload(Payment.invoice).selectinload(Invoice.client))
@@ -39,6 +41,11 @@ async def list_payments(
     if not current_user.is_super_admin and current_user.tenant_id is not None:
         tenant_invoice_ids = select(Invoice.id).where(Invoice.tenant_id == current_user.tenant_id).scalar_subquery()
         query = query.where(Payment.invoice_id.in_(tenant_invoice_ids))
+    if month:
+        y, m_n = int(month.split("-")[0]), int(month.split("-")[1])
+        start = _dt(y, m_n, 1, tzinfo=_tz.utc)
+        end = _dt(y + 1, 1, 1, tzinfo=_tz.utc) if m_n == 12 else _dt(y, m_n + 1, 1, tzinfo=_tz.utc)
+        query = query.where(Payment.payment_date >= start, Payment.payment_date < end)
     result = await db.execute(query)
     return result.scalars().all()
 
@@ -134,3 +141,46 @@ async def analyze_payment_proof(
         raise HTTPException(status_code=422, detail=f"Could not extract payment details: {str(e)}")
 
     return extracted
+
+
+from decimal import Decimal as _Dec
+from datetime import datetime as _dt, timezone as _tz
+
+
+def _month_range(month):
+    if month:
+        y, m = int(month.split("-")[0]), int(month.split("-")[1])
+    else:
+        now = _dt.now(_tz.utc)
+        y, m = now.year, now.month
+    start = _dt(y, m, 1, tzinfo=_tz.utc)
+    end = _dt(y + 1, 1, 1, tzinfo=_tz.utc) if m == 12 else _dt(y, m + 1, 1, tzinfo=_tz.utc)
+    return start, end
+
+
+@router.get("/summary")
+async def payments_summary(
+    month: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    start, end = _month_range(month)
+    q = select(Payment).join(Invoice, Payment.invoice_id == Invoice.id).where(
+        Payment.payment_date >= start, Payment.payment_date < end
+    )
+    if not current_user.is_super_admin and current_user.tenant_id is not None:
+        q = q.where(Invoice.tenant_id == current_user.tenant_id)
+    result = await db.execute(q)
+    rows = result.scalars().all()
+
+    by_method = {}
+    for r in rows:
+        k = r.payment_method.value if r.payment_method else "other"
+        by_method[k] = by_method.get(k, 0) + 1
+
+    return {
+        "count": len(rows),
+        "total_amount": float(sum(_Dec(str(r.amount)) for r in rows)),
+        "by_method": by_method,
+        "month": month or _dt.now(_tz.utc).strftime("%Y-%m"),
+    }

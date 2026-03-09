@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
   Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
-  Input, Select, SelectItem, Textarea,
+  Input, Select, SelectItem, Textarea, Pagination,
 } from "@heroui/react";
 import { Trash2 } from "lucide-react";
 import { expensesApi } from "@/lib/api";
@@ -15,11 +15,13 @@ import { Topbar } from "@/components/ui/Topbar";
 
 const CURRENCIES = ["MYR", "USD", "EUR", "GBP", "SGD"];
 const PAGE_SIZE = 10;
+const thisMonth = new Date().toISOString().slice(0, 7);
 
 export default function ExpensesPage() {
   const [modal, setModal] = useState(false);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [month, setMonth] = useState(thisMonth);
   const [form, setForm] = useState({
     description: "",
     amount: "",
@@ -31,9 +33,14 @@ export default function ExpensesPage() {
   });
   const queryClient = useQueryClient();
 
+  const { data: summary } = useQuery({
+    queryKey: ["expenses-summary", month],
+    queryFn: () => expensesApi.summary(month),
+  });
+
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
-    queryKey: ["expenses", search, page],
-    queryFn: () => expensesApi.list({ ...(search ? { search } : {}), skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE }),
+    queryKey: ["expenses", search, page, month],
+    queryFn: () => expensesApi.list({ ...(search ? { search } : {}), month, skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE }),
   });
 
   const { data: categories = [] } = useQuery<ExpenseCategory[]>({
@@ -68,11 +75,40 @@ export default function ExpensesPage() {
     <div>
       <Topbar title="Expenses" />
       <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
+        {/* Summary Bar */}
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <Input
+            type="month"
+            size="sm"
+            className="w-40"
+            variant="bordered"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+          />
+          {summary && (
+            <>
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-danger-50 text-sm">
+                <span className="text-danger-600">Total Spent</span>
+                <span className="font-semibold ml-1 text-danger-700">{formatCurrency(summary.total_amount, "MYR")}</span>
+              </div>
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-default-100 text-sm">
+                <span className="text-default-500">{summary.count} expenses</span>
+              </div>
+              {summary.by_category && Object.entries(summary.by_category).filter(([, v]) => (v as number) > 0).map(([cat, v]) => (
+                <div key={cat} className="px-3 py-1.5 rounded-lg bg-default-50 text-sm">
+                  <span className="text-default-500">{cat}</span>
+                  <span className="font-medium ml-1">{v as number}</span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <Input
             placeholder="Search by description or vendor..."
             size="sm"
-            className="max-w-xs"
+            className="w-full sm:max-w-xs"
             variant="bordered"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
@@ -80,6 +116,7 @@ export default function ExpensesPage() {
           <Button color="primary" onPress={() => setModal(true)}>+ Add Expense</Button>
         </div>
 
+        <div className="overflow-x-auto -mx-1">
         <Table aria-label="Expenses" isLoading={isLoading}>
           <TableHeader>
             <TableColumn>Date</TableColumn>
@@ -105,13 +142,16 @@ export default function ExpensesPage() {
             ))}
           </TableBody>
         </Table>
+        </div>
 
-        <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
-          <span>Page {page}</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(p => p - 1)}>Previous</Button>
-            <Button size="sm" variant="flat" isDisabled={expenses.length < PAGE_SIZE} onPress={() => setPage(p => p + 1)}>Next</Button>
-          </div>
+        <div className="flex justify-center mt-4">
+          <Pagination
+            total={page + (expenses.length >= PAGE_SIZE ? 1 : 0)}
+            page={page}
+            onChange={setPage}
+            size="sm"
+            showControls
+          />
         </div>
 
         <Modal isOpen={modal} onClose={() => setModal(false)} size="lg">

@@ -42,13 +42,20 @@ async def create_category(
 async def list_expenses(
     category_id: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
+    month: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from datetime import datetime as _dt
     query = select(Expense)
     query = apply_tenant_filter(query, Expense, current_user)
+    if month:
+        y, m_n = int(month.split("-")[0]), int(month.split("-")[1])
+        _start = _dt(y, m_n, 1)
+        _end = _dt(y + 1, 1, 1) if m_n == 12 else _dt(y, m_n + 1, 1)
+        query = query.where(Expense.expense_date >= _start, Expense.expense_date < _end)
     if category_id:
         query = query.where(Expense.category_id == category_id)
     if search:
@@ -105,3 +112,43 @@ async def delete_expense(
         raise HTTPException(status_code=404, detail="Expense not found")
     await db.delete(expense)
     await db.commit()
+
+
+from decimal import Decimal as _Dec
+from datetime import datetime as _dt, timezone as _tz
+
+
+def _month_range(month):
+    if month:
+        y, m = int(month.split("-")[0]), int(month.split("-")[1])
+    else:
+        now = _dt.now(_tz.utc)
+        y, m = now.year, now.month
+    start = _dt(y, m, 1)
+    end = _dt(y + 1, 1, 1) if m == 12 else _dt(y, m + 1, 1)
+    return start, end
+
+
+@router.get("/expenses/summary")
+async def expenses_summary(
+    month: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    start, end = _month_range(month)
+    q = select(Expense).where(Expense.expense_date >= start, Expense.expense_date < end)
+    q = apply_tenant_filter(q, Expense, current_user)
+    result = await db.execute(q)
+    rows = result.scalars().all()
+
+    by_category = {}
+    for r in rows:
+        k = r.category or "Uncategorized"
+        by_category[k] = round(by_category.get(k, 0) + float(_Dec(str(r.amount))), 2)
+
+    return {
+        "count": len(rows),
+        "total_amount": float(sum(_Dec(str(r.amount)) for r in rows)),
+        "by_category": by_category,
+        "month": month or _dt.now(_tz.utc).strftime("%Y-%m"),
+    }

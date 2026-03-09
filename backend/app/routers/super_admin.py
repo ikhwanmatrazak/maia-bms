@@ -10,7 +10,7 @@ from app.database import get_db
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
 from app.models.settings import CompanySettings
-from app.middleware.auth import get_current_user, hash_password
+from app.middleware.auth import get_current_user, hash_password, create_access_token, create_refresh_token
 
 router = APIRouter(prefix="/super-admin", tags=["super-admin"])
 
@@ -278,4 +278,44 @@ async def platform_stats(
         "total_tenants": tenant_count.scalar() or 0,
         "active_tenants": active_count.scalar() or 0,
         "total_users": user_count.scalar() or 0,
+    }
+
+
+@router.post("/switch-tenant/{tenant_id}")
+async def switch_tenant(
+    tenant_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Issue tokens scoped to a specific tenant so super admin can view that tenant's data."""
+    result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+    tenant = result.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    payload = {"sub": str(current_user.id), "switched_tenant_id": tenant_id}
+    access_token = create_access_token(payload)
+    refresh_token = create_refresh_token(payload)
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "switched_tenant_id": tenant_id,
+        "switched_tenant_name": tenant.name,
+    }
+
+
+@router.post("/exit-tenant")
+async def exit_tenant(
+    current_user: User = Depends(require_super_admin),
+):
+    """Restore super admin tokens without any tenant scoping."""
+    payload = {"sub": str(current_user.id)}
+    access_token = create_access_token(payload)
+    refresh_token = create_refresh_token(payload)
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "switched_tenant_id": None,
+        "switched_tenant_name": None,
     }

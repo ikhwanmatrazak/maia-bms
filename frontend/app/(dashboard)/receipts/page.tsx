@@ -14,6 +14,7 @@ import { formatDate, formatCurrency } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
 
 const PAGE_SIZE = 10;
+const thisMonth = new Date().toISOString().slice(0, 7);
 
 interface BulkResult {
   receipt_number: string;
@@ -26,6 +27,7 @@ interface BulkResult {
 export default function ReceiptsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [month, setMonth] = useState(thisMonth);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkModal, setBulkModal] = useState(false);
   const [bulkResults, setBulkResults] = useState<BulkResult[]>([]);
@@ -33,9 +35,14 @@ export default function ReceiptsPage() {
   const [sendingId, setSendingId] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
+  const { data: summary } = useQuery({
+    queryKey: ["receipts-summary", month],
+    queryFn: () => receiptsApi.summary(month),
+  });
+
   const { data: receipts = [], isLoading } = useQuery<Receipt[]>({
-    queryKey: ["receipts", search, page],
-    queryFn: () => receiptsApi.list({ ...(search ? { search } : {}), skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE }),
+    queryKey: ["receipts", search, page, month],
+    queryFn: () => receiptsApi.list({ ...(search ? { search } : {}), month, skip: (page - 1) * PAGE_SIZE, limit: PAGE_SIZE }),
   });
 
   const deleteMutation = useMutation({
@@ -103,6 +110,29 @@ export default function ReceiptsPage() {
     <div>
       <Topbar title="Receipts" />
       <div className="p-6">
+        {/* Summary Bar */}
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <Input
+            type="month"
+            size="sm"
+            className="w-40"
+            variant="bordered"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+          />
+          {summary && (
+            <>
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-success-50 text-sm">
+                <span className="text-success-600">Collected</span>
+                <span className="font-semibold ml-1 text-success-700">{formatCurrency(summary.total_amount, "MYR")}</span>
+              </div>
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-default-100 text-sm">
+                <span className="text-default-500">{summary.count} receipts</span>
+              </div>
+            </>
+          )}
+        </div>
+
         <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
           <div className="flex gap-2 flex-wrap items-center">
             <Input
@@ -121,6 +151,7 @@ export default function ReceiptsPage() {
           </div>
         </div>
 
+        <div className="overflow-x-auto -mx-1">
         <Table aria-label="Receipts" isLoading={isLoading}>
           <TableHeader>
             <TableColumn className="w-px">
@@ -170,6 +201,7 @@ export default function ReceiptsPage() {
             ))}
           </TableBody>
         </Table>
+        </div>
 
         <div className="flex justify-center mt-4">
           <Pagination

@@ -8,7 +8,9 @@ import {
   Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
 } from "@heroui/react";
+import { ArrowRightLeft } from "lucide-react";
 import { superAdminApi } from "@/lib/api";
+import { setTokens, setSwitchedTenant, getSwitchedTenant } from "@/lib/auth";
 import { Topbar } from "@/components/ui/Topbar";
 import { formatDate } from "@/lib/utils";
 
@@ -37,6 +39,34 @@ const PLAN_OPTIONS = ["standard", "professional", "enterprise"];
 export default function AdminPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const [switchingId, setSwitchingId] = useState<number | null>(null);
+  const currentlySwitched = getSwitchedTenant();
+
+  const handleSwitchTenant = async (t: Tenant) => {
+    setSwitchingId(t.id);
+    try {
+      const data = await superAdminApi.switchTenant(t.id);
+      setTokens(data.access_token, data.refresh_token);
+      setSwitchedTenant(data.switched_tenant_id, data.switched_tenant_name);
+      queryClient.clear();
+      router.push("/");
+    } finally {
+      setSwitchingId(null);
+    }
+  };
+
+  const handleExitTenant = async () => {
+    setSwitchingId(-1);
+    try {
+      const data = await superAdminApi.exitTenant();
+      setTokens(data.access_token, data.refresh_token);
+      setSwitchedTenant(null, null);
+      queryClient.clear();
+      router.push("/admin");
+    } finally {
+      setSwitchingId(null);
+    }
+  };
 
   // Stats
   const { data: stats } = useQuery({
@@ -101,11 +131,21 @@ export default function AdminPage() {
   return (
     <div>
       <Topbar title="Super Admin — Company Management" />
+      {currentlySwitched && (
+        <div className="flex items-center justify-between px-6 py-2 bg-warning-50 border-b border-warning-200 text-sm">
+          <span className="text-warning-700 font-medium">
+            Viewing as: <span className="font-bold">{currentlySwitched.name}</span>
+          </span>
+          <Button size="sm" color="warning" variant="flat" isLoading={switchingId === -1} onPress={handleExitTenant}>
+            Exit Company View
+          </Button>
+        </div>
+      )}
       <div className="p-6 space-y-6">
 
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <Card>
               <CardBody className="text-center py-4">
                 <p className="text-3xl font-bold text-primary">{stats.total_tenants}</p>
@@ -139,6 +179,7 @@ export default function AdminPage() {
             {isLoading ? (
               <p className="text-gray-400 text-sm">Loading...</p>
             ) : (
+              <div className="overflow-x-auto -mx-1">
               <Table aria-label="Companies table">
                 <TableHeader>
                   <TableColumn>Company</TableColumn>
@@ -166,12 +207,23 @@ export default function AdminPage() {
                         <div className="flex gap-2">
                           <Button size="sm" variant="flat" onPress={() => router.push(`/admin/${t.id}/edit`)}>Edit</Button>
                           <Button size="sm" variant="flat" color="primary" onPress={() => openUsers(t)}>Users</Button>
+                          <Button
+                            size="sm"
+                            color="secondary"
+                            variant={currentlySwitched?.id === t.id ? "solid" : "flat"}
+                            startContent={<ArrowRightLeft size={13} />}
+                            isLoading={switchingId === t.id}
+                            onPress={() => handleSwitchTenant(t)}
+                          >
+                            {currentlySwitched?.id === t.id ? "Viewing" : "Switch Tenant"}
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardBody>
         </Card>
@@ -222,6 +274,7 @@ export default function AdminPage() {
         <ModalContent>
           <ModalHeader>Users — {selectedTenant?.name}</ModalHeader>
           <ModalBody className="space-y-4">
+            <div className="overflow-x-auto -mx-1">
             <Table aria-label="Users table">
               <TableHeader>
                 <TableColumn>Name</TableColumn>
@@ -244,6 +297,7 @@ export default function AdminPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
 
             <div className="border-t pt-4 space-y-3">
               <p className="text-sm font-medium text-gray-600">Add User</p>

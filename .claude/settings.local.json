@@ -9,7 +9,10 @@
       "Bash(xargs grep -l \"<Input\")",
       "Bash(while read f)",
       "Bash(do sed -i 's/<Input /<Input variant=\"\"bordered\"\" /g; s/<Input\\\\n/<Input variant=\"\"bordered\"\"\\\\n/g' \"$f\")",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(python -c \":*)",
+      "Bash(python -c \"from app.routers.vendors import router; print\\(''vendors router OK''\\)\")",
+      "Bash(ipconfig)"
     ]
   }
 }

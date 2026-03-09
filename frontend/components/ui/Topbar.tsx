@@ -6,18 +6,35 @@ import {
   Button, Input, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Popover, PopoverTrigger, PopoverContent,
 } from "@heroui/react";
-import { Bell, User, LogOut, Settings, ChevronDown, Check } from "lucide-react";
-import { remindersApi, authApi, usersApi } from "@/lib/api";
-import { clearAuth } from "@/lib/auth";
+import { Bell, User, LogOut, Settings, ChevronDown, Check, Building2, X, Menu } from "lucide-react";
+import { remindersApi, authApi, usersApi, superAdminApi } from "@/lib/api";
+import { clearAuth, getSwitchedTenant, setSwitchedTenant, setTokens } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
+import { useSidebarToggle } from "@/app/(dashboard)/layout";
 
 export function Topbar({ title }: { title?: string }) {
+  const onMenuToggle = useSidebarToggle();
   const router = useRouter();
   const queryClient = useQueryClient();
 
   const [mounted, setMounted] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [exitingTenant, setExitingTenant] = useState(false);
+  const switchedTenant = mounted ? getSwitchedTenant() : null;
+
+  const handleExitTenant = async () => {
+    setExitingTenant(true);
+    try {
+      const data = await superAdminApi.exitTenant();
+      setTokens(data.access_token, data.refresh_token);
+      setSwitchedTenant(null, null);
+      queryClient.clear();
+      router.push("/admin");
+    } finally {
+      setExitingTenant(false);
+    }
+  };
   const [notifOpen, setNotifOpen] = useState(false);
   const [editModal, setEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", new_password: "", confirm_password: "" });
@@ -91,8 +108,33 @@ export function Topbar({ title }: { title?: string }) {
 
   return (
     <>
-      <header className="h-14 bg-white border-b border-divider flex items-center justify-between px-6 sticky top-0 z-40">
-        <h2 className="text-base font-semibold text-foreground">{title}</h2>
+      {switchedTenant && (
+        <div className="flex items-center justify-between px-6 py-1.5 bg-warning-50 border-b border-warning-200 text-sm sticky top-0 z-50">
+          <div className="flex items-center gap-2 text-warning-700">
+            <Building2 size={14} />
+            <span>Viewing as company: <span className="font-bold">{switchedTenant.name}</span></span>
+          </div>
+          <button
+            onClick={handleExitTenant}
+            disabled={exitingTenant}
+            className="flex items-center gap-1 text-xs font-medium text-warning-700 hover:text-warning-900 px-2 py-0.5 rounded hover:bg-warning-100 transition-colors"
+          >
+            <X size={12} />
+            {exitingTenant ? "Exiting..." : "Exit Company View"}
+          </button>
+        </div>
+      )}
+      <header className="h-14 bg-white border-b border-divider flex items-center justify-between px-3 sm:px-6 sticky top-0 z-40">
+        <div className="flex items-center gap-2">
+          {/* Hamburger — mobile only */}
+          <button
+            onClick={onMenuToggle}
+            className="lg:hidden p-2 rounded-xl hover:bg-gray-100 transition-colors"
+          >
+            <Menu size={20} className="text-gray-600" />
+          </button>
+          <h2 className="text-base font-semibold text-foreground">{title}</h2>
+        </div>
 
         <div className="flex items-center gap-1">
           {/* Notification Bell */}

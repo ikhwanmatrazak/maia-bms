@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Card, CardBody, Button, Chip, Select, SelectItem,
+  Card, CardBody, Button, Chip, Select, SelectItem, Pagination,
   Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Input, Textarea,
 } from "@heroui/react";
@@ -11,6 +11,8 @@ import { remindersApi } from "@/lib/api";
 import { Reminder } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+
+const PAGE_SIZE = 10;
 
 const FILTERS = [
   { key: "", label: "Active" },
@@ -24,6 +26,7 @@ const PRIORITIES = ["low", "medium", "high"];
 
 export default function RemindersPage() {
   const [filter, setFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", due_date: "", priority: "medium" });
   const queryClient = useQueryClient();
@@ -32,6 +35,9 @@ export default function RemindersPage() {
     queryKey: ["reminders", filter],
     queryFn: () => remindersApi.list(filter ? { filter } : {}),
   });
+
+  const totalPages = Math.max(1, Math.ceil(reminders.length / PAGE_SIZE));
+  const pagedReminders = reminders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const createMutation = useMutation({
     mutationFn: (data: object) => remindersApi.create(data),
@@ -57,8 +63,8 @@ export default function RemindersPage() {
     <div>
       <Topbar title="Reminders" />
       <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-2">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <div className="flex gap-2 flex-wrap">
             {FILTERS.map((f) => (
               <Button
                 key={f.key}
@@ -66,7 +72,7 @@ export default function RemindersPage() {
                 variant={filter === f.key ? "solid" : "flat"}
                 color={filter === f.key ? "primary" : "default"}
                 
-                onPress={() => setFilter(f.key)}
+                onPress={() => { setFilter(f.key); setPage(1); }}
               >
                 {f.label}
               </Button>
@@ -78,7 +84,7 @@ export default function RemindersPage() {
         <div className="space-y-3">
           {reminders.length === 0 ? (
             <p className="text-gray-400 text-sm">No reminders</p>
-          ) : reminders.map((r) => (
+          ) : pagedReminders.map((r) => (
             <Card key={r.id} className={`shadow-sm ${r.is_completed ? "opacity-60" : ""}`}>
               <CardBody className="flex flex-row items-center justify-between gap-4">
                 <div className="flex items-start gap-3">
@@ -112,6 +118,12 @@ export default function RemindersPage() {
             </Card>
           ))}
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex justify-center mt-4">
+            <Pagination total={totalPages} page={page} onChange={setPage} size="sm" showControls />
+          </div>
+        )}
 
         <Modal isOpen={modal} onClose={() => setModal(false)}>
           <ModalContent>

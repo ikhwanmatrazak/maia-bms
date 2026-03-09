@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
-  Button, Chip, Select, SelectItem, Input,
+  Button, Chip, Select, SelectItem, Input, Pagination,
 } from "@heroui/react";
 import Link from "next/link";
 import { Eye, Send, PackageCheck, FileDown, Copy, Trash2 } from "lucide-react";
@@ -16,19 +16,27 @@ import { Topbar } from "@/components/ui/Topbar";
 
 const STATUSES: PurchaseOrderStatus[] = ["draft", "sent", "received", "cancelled"];
 const PAGE_SIZE = 20;
+const thisMonth = new Date().toISOString().slice(0, 7);
 
 export default function PurchaseOrdersPage() {
   const [statusFilter, setStatusFilter] = useState<PurchaseOrderStatus | "">("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [month, setMonth] = useState(thisMonth);
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const { data: summary } = useQuery({
+    queryKey: ["purchase-orders-summary", month],
+    queryFn: () => purchaseOrdersApi.summary(month),
+  });
+
   const { data: orders = [], isLoading } = useQuery<PurchaseOrder[]>({
-    queryKey: ["purchase-orders", statusFilter, search, page],
+    queryKey: ["purchase-orders", statusFilter, search, page, month],
     queryFn: () => purchaseOrdersApi.list({
       ...(statusFilter ? { status: statusFilter } : {}),
       ...(search ? { search } : {}),
+      month,
       skip: (page - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
     }),
@@ -58,6 +66,32 @@ export default function PurchaseOrdersPage() {
     <div>
       <Topbar title="Purchase Orders" />
       <div className="p-6">
+        {/* Summary Bar */}
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <Input
+            type="month"
+            size="sm"
+            className="w-40"
+            variant="bordered"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+          />
+          {summary && (
+            <>
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-default-100 text-sm">
+                <span className="text-default-500">Total Value</span>
+                <span className="font-semibold ml-1">{formatCurrency(summary.total_value, "MYR")}</span>
+              </div>
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-default-100 text-sm">
+                <span className="text-default-500">{summary.count} orders</span>
+              </div>
+              {summary.by_status && Object.entries(summary.by_status).filter(([, v]) => (v as number) > 0).map(([s, v]) => (
+                <Chip key={s} size="sm" color={statusColor(s)} variant="flat" className="capitalize">{s}: {v as number}</Chip>
+              ))}
+            </>
+          )}
+        </div>
+
         <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
           <div className="flex gap-2 flex-wrap">
             <Input
@@ -85,6 +119,7 @@ export default function PurchaseOrdersPage() {
           </Button>
         </div>
 
+        <div className="overflow-x-auto -mx-1">
         <Table aria-label="Purchase Orders" isLoading={isLoading}>
           <TableHeader>
             <TableColumn>Number</TableColumn>
@@ -131,13 +166,16 @@ export default function PurchaseOrdersPage() {
             ))}
           </TableBody>
         </Table>
+        </div>
 
-        <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
-          <span>Page {page}</span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="flat" isDisabled={page === 1} onPress={() => setPage(p => p - 1)}>Previous</Button>
-            <Button size="sm" variant="flat" isDisabled={orders.length < PAGE_SIZE} onPress={() => setPage(p => p + 1)}>Next</Button>
-          </div>
+        <div className="flex justify-center mt-4">
+          <Pagination
+            total={page + (orders.length >= PAGE_SIZE ? 1 : 0)}
+            page={page}
+            onChange={setPage}
+            size="sm"
+            showControls
+          />
         </div>
       </div>
     </div>

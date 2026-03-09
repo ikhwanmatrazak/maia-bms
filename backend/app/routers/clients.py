@@ -17,7 +17,7 @@ from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, Clien
 from app.schemas.activity import ActivityCreate, ActivityResponse
 from app.schemas.reminder import ReminderCreate, ReminderResponse
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import require_admin, require_admin_or_manager, OwnershipChecker, apply_tenant_filter
+from app.middleware.rbac import require_admin, require_admin_or_manager, OwnershipChecker, apply_tenant_filter, get_effective_tenant_id
 from app.config import get_settings
 from datetime import datetime, timezone
 
@@ -50,13 +50,16 @@ async def list_clients(
     # Get outstanding balances in one query
     if clients:
         client_ids = [c.id for c in clients]
-        bal_result = await db.execute(
+        inv_query = (
             select(Invoice.client_id, func.sum(Invoice.balance_due).label("outstanding"))
             .where(Invoice.client_id.in_(client_ids))
             .where(Invoice.is_deleted != True)
             .where(Invoice.status.notin_([InvoiceStatus.paid, InvoiceStatus.cancelled]))
-            .group_by(Invoice.client_id)
         )
+        eff_tenant = get_effective_tenant_id(current_user)
+        if eff_tenant is not None:
+            inv_query = inv_query.where(Invoice.tenant_id == eff_tenant)
+        bal_result = await db.execute(inv_query.group_by(Invoice.client_id))
         balances = {row.client_id: row.outstanding for row in bal_result}
     else:
         balances = {}
@@ -75,7 +78,7 @@ async def create_client(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin_or_manager()),
 ):
-    client = Client(**body.model_dump(), created_by=current_user.id, tenant_id=current_user.tenant_id)
+    client = Client(**body.model_dump(), created_by=current_user.id, tenant_id=get_effective_tenant_id(current_user))
     db.add(client)
     await db.commit()
     await db.refresh(client)

@@ -1,11 +1,16 @@
 import axios, { AxiosError } from "axios";
 import { getAccessToken, getRefreshToken, setTokens, clearAuth } from "@/lib/auth";
 
-// Download a PDF via authenticated axios request (avoids "Not authenticated" on direct URL open)
+// Download a PDF via fetch (avoids axios baseURL double-path issue with relative API URLs)
 export async function downloadPdf(url: string, filename: string) {
   try {
-    const { data } = await api.get(url, { responseType: "blob" });
-    const href = URL.createObjectURL(data);
+    const token = getAccessToken();
+    const response = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const blob = await response.blob();
+    const href = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = href;
     a.download = filename;
@@ -140,6 +145,7 @@ export const quotationsApi = {
   softDelete: (id: number) => api.delete(`/quotations/${id}`),
   duplicate: (id: number) => api.post(`/quotations/${id}/duplicate`).then((r) => r.data),
   getPdfUrl: (id: number) => `${API_URL}/quotations/${id}/pdf`,
+  summary: (month?: string) => api.get("/quotations/summary", { params: month ? { month } : {} }).then((r) => r.data),
 };
 
 export const invoicesApi = {
@@ -155,6 +161,7 @@ export const invoicesApi = {
   recordPayment: (id: number, data: object) => api.post(`/invoices/${id}/payments`, data).then((r) => r.data),
   getPayments: (id: number) => api.get(`/invoices/${id}/payments`).then((r) => r.data),
   getPdfUrl: (id: number) => `${API_URL}/invoices/${id}/pdf`,
+  summary: (month?: string) => api.get("/invoices/summary", { params: month ? { month } : {} }).then((r) => r.data),
 };
 
 export const receiptsApi = {
@@ -164,10 +171,12 @@ export const receiptsApi = {
   email: (id: number, to_email: string) => api.post(`/receipts/${id}/email`, { to_email }).then((r) => r.data),
   softDelete: (id: number) => api.delete(`/receipts/${id}`),
   getPdfUrl: (id: number) => `${API_URL}/receipts/${id}/pdf`,
+  summary: (month?: string) => api.get("/receipts/summary", { params: month ? { month } : {} }).then((r) => r.data),
 };
 
 export const paymentsApi = {
   list: (params?: object) => api.get("/payments", { params }).then((r) => r.data),
+  summary: (month?: string) => api.get("/payments/summary", { params: month ? { month } : {} }).then((r) => r.data),
   uploadProof: (id: number, file: File) => {
     const form = new FormData();
     form.append("file", file);
@@ -191,6 +200,7 @@ export const expensesApi = {
   delete: (id: number) => api.delete(`/expenses/${id}`),
   getCategories: () => api.get("/expense-categories").then((r) => r.data),
   createCategory: (data: object) => api.post("/expense-categories", data).then((r) => r.data),
+  summary: (month?: string) => api.get("/expenses/summary", { params: month ? { month } : {} }).then((r) => r.data),
 };
 
 export const remindersApi = {
@@ -251,6 +261,7 @@ export const purchaseOrdersApi = {
   duplicate: (id: number) => api.post(`/purchase-orders/${id}/duplicate`).then((r) => r.data),
   softDelete: (id: number) => api.delete(`/purchase-orders/${id}`),
   getPdfUrl: (id: number) => `${API_URL}/purchase-orders/${id}/pdf`,
+  summary: (month?: string) => api.get("/purchase-orders/summary", { params: month ? { month } : {} }).then((r) => r.data),
 };
 
 export const deliveryOrdersApi = {
@@ -263,6 +274,7 @@ export const deliveryOrdersApi = {
   duplicate: (id: number) => api.post(`/delivery-orders/${id}/duplicate`).then((r) => r.data),
   softDelete: (id: number) => api.delete(`/delivery-orders/${id}`),
   getPdfUrl: (id: number) => `${API_URL}/delivery-orders/${id}/pdf`,
+  summary: (month?: string) => api.get("/delivery-orders/summary", { params: month ? { month } : {} }).then((r) => r.data),
 };
 
 export const usersApi = {
@@ -289,6 +301,24 @@ export const productsApi = {
   deletePricing: (id: number, pricingId: number) => api.delete(`/products/${id}/pricing/${pricingId}`),
 };
 
+export const prospectsApi = {
+  list: (params?: object) => api.get("/prospects", { params }).then((r) => r.data),
+  get: (id: number) => api.get(`/prospects/${id}`).then((r) => r.data),
+  create: (data: object) => api.post("/prospects", data).then((r) => r.data),
+  update: (id: number, data: object) => api.put(`/prospects/${id}`, data).then((r) => r.data),
+  delete: (id: number) => api.delete(`/prospects/${id}`),
+  convert: (id: number) => api.post(`/prospects/${id}/convert`).then((r) => r.data),
+  summary: () => api.get("/prospects/summary").then((r) => r.data),
+};
+
+export const vendorsApi = {
+  list: (params?: object) => api.get("/vendors", { params }).then((r) => r.data),
+  get: (id: number) => api.get(`/vendors/${id}`).then((r) => r.data),
+  create: (data: object) => api.post("/vendors", data).then((r) => r.data),
+  update: (id: number, data: object) => api.put(`/vendors/${id}`, data).then((r) => r.data),
+  delete: (id: number) => api.delete(`/vendors/${id}`),
+};
+
 export const superAdminApi = {
   getStats: () => api.get("/super-admin/stats").then((r) => r.data),
   listTenants: () => api.get("/super-admin/tenants").then((r) => r.data),
@@ -298,4 +328,6 @@ export const superAdminApi = {
   addTenantUser: (id: number, data: object) => api.post(`/super-admin/tenants/${id}/users`, data).then((r) => r.data),
   updateTenantUser: (tenantId: number, userId: number, data: object) => api.patch(`/super-admin/tenants/${tenantId}/users/${userId}`, data).then((r) => r.data),
   removeTenantUser: (tenantId: number, userId: number) => api.delete(`/super-admin/tenants/${tenantId}/users/${userId}`),
+  switchTenant: (tenantId: number) => api.post(`/super-admin/switch-tenant/${tenantId}`).then((r) => r.data),
+  exitTenant: () => api.post("/super-admin/exit-tenant").then((r) => r.data),
 };

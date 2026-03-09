@@ -8,6 +8,8 @@ from app.models.invoice import Invoice, InvoiceItem
 from app.models.receipt import Receipt
 from app.models.payment import Payment
 from app.models.expense import Expense, ExpenseCategory
+from app.models.vendor import Vendor
+from app.models.prospect import Prospect
 
 __all__ = [
     "User", "RefreshToken",
@@ -20,4 +22,6 @@ __all__ = [
     "Receipt",
     "Payment",
     "Expense", "ExpenseCategory",
+    "Vendor",
+    "Prospect",
 ]

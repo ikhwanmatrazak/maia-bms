@@ -38,6 +38,7 @@ def _load_po(po_id: int):
 async def list_purchase_orders(
     status: Optional[PurchaseOrderStatus] = Query(None),
     search: Optional[str] = Query(None),
+    month: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -48,6 +49,12 @@ async def list_purchase_orders(
     query = query.where(PurchaseOrder.is_deleted != True)
     if not OwnershipChecker.can_view_all(current_user):
         query = query.where(PurchaseOrder.created_by == current_user.id)
+    if month:
+        from datetime import timezone as _tz
+        y, m_n = int(month.split("-")[0]), int(month.split("-")[1])
+        _start = datetime(y, m_n, 1, tzinfo=_tz.utc)
+        _end = datetime(y + 1, 1, 1, tzinfo=_tz.utc) if m_n == 12 else datetime(y, m_n + 1, 1, tzinfo=_tz.utc)
+        query = query.where(PurchaseOrder.issue_date >= _start, PurchaseOrder.issue_date < _end)
     if status:
         query = query.where(PurchaseOrder.status == status)
     if search:
@@ -115,6 +122,36 @@ async def create_purchase_order(
     await db.commit()
     result = await db.execute(_load_po(po.id))
     return result.scalar_one()
+
+
+@router.get("/summary")
+async def purchase_orders_summary_route(
+    month: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from datetime import timezone as tz
+    if month:
+        y, m = int(month.split("-")[0]), int(month.split("-")[1])
+    else:
+        now = datetime.now(timezone.utc)
+        y, m = now.year, now.month
+    start = datetime(y, m, 1, tzinfo=tz.utc)
+    end = datetime(y + 1, 1, 1, tzinfo=tz.utc) if m == 12 else datetime(y, m + 1, 1, tzinfo=tz.utc)
+    q = select(PurchaseOrder).where(PurchaseOrder.issue_date >= start, PurchaseOrder.issue_date < end)
+    q = apply_tenant_filter(q, PurchaseOrder, current_user)
+    result = await db.execute(q)
+    rows = result.scalars().all()
+    by_status = {}
+    for r in rows:
+        k = r.status.value
+        by_status[k] = by_status.get(k, 0) + 1
+    return {
+        "count": len(rows),
+        "total_value": float(sum(Decimal(str(r.total)) for r in rows)),
+        "by_status": by_status,
+        "month": month or datetime.now(timezone.utc).strftime("%Y-%m"),
+    }
 
 
 @router.get("/{po_id}", response_model=PurchaseOrderResponse)

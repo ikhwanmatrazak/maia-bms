@@ -4,9 +4,19 @@ from app.middleware.auth import get_current_user
 from typing import List
 
 
+def get_effective_tenant_id(current_user: User):
+    """Return switched_tenant_id if set (super admin viewing a tenant), else own tenant_id."""
+    switched = getattr(current_user, "switched_tenant_id", None)
+    return switched if switched is not None else current_user.tenant_id
+
+
 def apply_tenant_filter(query, model, current_user: User):
-    """Filter query by tenant unless caller is super admin."""
-    if not current_user.is_super_admin and current_user.tenant_id is not None:
+    """Filter query by tenant unless caller is super admin (without switching)."""
+    switched = getattr(current_user, "switched_tenant_id", None)
+    if switched is not None:
+        # Super admin is viewing a specific tenant
+        query = query.where(model.tenant_id == switched)
+    elif not current_user.is_super_admin and current_user.tenant_id is not None:
         query = query.where(model.tenant_id == current_user.tenant_id)
     return query
 

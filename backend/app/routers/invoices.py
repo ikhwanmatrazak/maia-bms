@@ -32,6 +32,9 @@ async def _email_invoice(invoice, to_email: str, db):
     from app.services.pdf_service import generate_pdf
     settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == invoice.tenant_id).limit(1))
     company = settings_result.scalar_one_or_none()
+    if company is None:
+        _fb = await db.execute(select(CompanySettings).limit(1))
+        company = _fb.scalar_one_or_none()
     if not company or not company.smtp_host:
         raise ValueError("SMTP not configured in Settings")
     smtp_password = decrypt_smtp_password(company)
@@ -77,6 +80,7 @@ async def list_invoices(
     status: Optional[InvoiceStatus] = Query(None),
     client_id: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
+    month: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -87,6 +91,9 @@ async def list_invoices(
     query = query.where(Invoice.is_deleted != True)
     if not OwnershipChecker.can_view_all(current_user):
         query = query.where(Invoice.created_by == current_user.id)
+    if month:
+        start, end = _month_range_inv(month)
+        query = query.where(Invoice.issue_date >= start, Invoice.issue_date < end)
     if status:
         query = query.where(Invoice.status == status)
     if client_id:
@@ -160,6 +167,46 @@ async def create_invoice(
         select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client)).where(Invoice.id == invoice.id)
     )
     return result.scalar_one()
+
+
+def _month_range_inv(month):
+    from datetime import timezone as tz
+    if month:
+        y, m = int(month.split("-")[0]), int(month.split("-")[1])
+    else:
+        now = datetime.now(timezone.utc)
+        y, m = now.year, now.month
+    start = datetime(y, m, 1, tzinfo=tz.utc)
+    end = datetime(y + 1, 1, 1, tzinfo=tz.utc) if m == 12 else datetime(y, m + 1, 1, tzinfo=tz.utc)
+    return start, end
+
+
+@router.get("/summary")
+async def invoices_summary_route(
+    month: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    start, end = _month_range_inv(month)
+    q = select(Invoice).where(Invoice.issue_date >= start, Invoice.issue_date < end)
+    q = apply_tenant_filter(q, Invoice, current_user)
+    result = await db.execute(q)
+    rows = result.scalars().all()
+    by_status = {}
+    for r in rows:
+        k = r.status.value
+        by_status[k] = by_status.get(k, 0) + 1
+    total_billed = sum(Decimal(str(r.total or 0)) for r in rows)
+    total_paid = sum(Decimal(str(r.amount_paid or 0)) for r in rows)
+    total_outstanding = sum(Decimal(str(r.balance_due or 0)) for r in rows)
+    return {
+        "count": len(rows),
+        "total_billed": float(total_billed),
+        "total_paid": float(total_paid),
+        "total_outstanding": float(total_outstanding),
+        "by_status": by_status,
+        "month": month or datetime.now(timezone.utc).strftime("%Y-%m"),
+    }
 
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
@@ -504,6 +551,9 @@ async def get_invoice_pdf(
     import json as _json
     settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == invoice.tenant_id).limit(1))
     company = settings_result.scalar_one_or_none()
+    if company is None:
+        _fb = await db.execute(select(CompanySettings).limit(1))
+        company = _fb.scalar_one_or_none()
     template_style = "professional"
     if invoice.template_id:
         from app.models.settings import DocumentTemplate

@@ -17,6 +17,7 @@ import { Topbar } from "@/components/ui/Topbar";
 
 const STATUSES: QuotationStatus[] = ["draft", "sent", "accepted", "rejected", "expired"];
 const PAGE_SIZE = 10;
+const thisMonth = new Date().toISOString().slice(0, 7);
 
 interface BulkResult {
   quotation_number: string;
@@ -30,6 +31,7 @@ export default function QuotationsPage() {
   const [statusFilter, setStatusFilter] = useState<QuotationStatus | "">("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [month, setMonth] = useState(thisMonth);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkModal, setBulkModal] = useState(false);
   const [bulkResults, setBulkResults] = useState<BulkResult[]>([]);
@@ -37,11 +39,17 @@ export default function QuotationsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const { data: summary } = useQuery({
+    queryKey: ["quotations-summary", month],
+    queryFn: () => quotationsApi.summary(month),
+  });
+
   const { data: quotations = [], isLoading } = useQuery<Quotation[]>({
-    queryKey: ["quotations", statusFilter, search, page],
+    queryKey: ["quotations", statusFilter, search, page, month],
     queryFn: () => quotationsApi.list({
       ...(statusFilter ? { status: statusFilter } : {}),
       ...(search ? { search } : {}),
+      month,
       skip: (page - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
     }),
@@ -113,6 +121,33 @@ export default function QuotationsPage() {
     <div>
       <Topbar title="Quotations" />
       <div className="p-6">
+        {/* Summary Bar */}
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <Input
+            type="month"
+            size="sm"
+            className="w-40"
+            variant="bordered"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+          />
+          {summary && (
+            <>
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-default-100 text-sm">
+                <span className="text-default-500">Total</span>
+                <span className="font-semibold ml-1">{summary.count} docs</span>
+              </div>
+              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-default-100 text-sm">
+                <span className="text-default-500">Value</span>
+                <span className="font-semibold ml-1">{formatCurrency(summary.total_value, "MYR")}</span>
+              </div>
+              {summary.by_status && Object.entries(summary.by_status).filter(([, v]) => (v as number) > 0).map(([s, v]) => (
+                <Chip key={s} size="sm" color={statusColor(s)} variant="flat" className="capitalize">{s}: {v as number}</Chip>
+              ))}
+            </>
+          )}
+        </div>
+
         <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
           <div className="flex gap-2 flex-wrap items-center">
             <Input
@@ -145,6 +180,7 @@ export default function QuotationsPage() {
           </Button>
         </div>
 
+        <div className="overflow-x-auto -mx-1">
         <Table aria-label="Quotations" isLoading={isLoading}>
           <TableHeader>
             <TableColumn className="w-px">
@@ -206,6 +242,7 @@ export default function QuotationsPage() {
             ))}
           </TableBody>
         </Table>
+        </div>
 
         <div className="flex justify-center mt-4">
           <Pagination
