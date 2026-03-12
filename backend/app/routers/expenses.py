@@ -9,7 +9,7 @@ from app.models.expense import Expense, ExpenseCategory
 from app.models.user import User
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseResponse, ExpenseCategoryCreate, ExpenseCategoryResponse
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import require_admin, apply_tenant_filter
+from app.middleware.rbac import require_admin, apply_tenant_filter, get_effective_tenant_id
 from app.config import get_settings
 
 router = APIRouter(tags=["expenses"])
@@ -93,6 +93,9 @@ async def update_expense(
     expense = result.scalar_one_or_none()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and expense.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     for key, value in body.model_dump(exclude_unset=True).items():
         setattr(expense, key, value)
     await db.commit()
@@ -110,6 +113,9 @@ async def delete_expense(
     expense = result.scalar_one_or_none()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and expense.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     await db.delete(expense)
     await db.commit()
 

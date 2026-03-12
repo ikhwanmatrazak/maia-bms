@@ -49,6 +49,5 @@
 </div>
 {% if document.notes %}<div class="notes-section"><h4>Notes</h4><p>{{ document.notes }}</p></div>{% endif %}
 <div class="footer">
-  {% if qr_base64 %}<div class="qr-block"><img src="data:image/png;base64,{{ qr_base64 }}"><p>Verify</p></div>{% endif %}
 </div>
 {% endblock %}

@@ -72,8 +72,15 @@ export default function LoginPage() {
       });
       router.push("/dashboard");
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } } };
-      setError(e?.response?.data?.detail ?? "Login failed. Please try again.");
+      const e = err as { response?: { data?: { detail?: unknown } } };
+      const detail = e?.response?.data?.detail;
+      if (typeof detail === "string") {
+        setError(detail);
+      } else if (Array.isArray(detail)) {
+        setError((detail as Array<{ msg?: string }>).map((d) => d.msg ?? "").filter(Boolean).join(", ") || "Login failed.");
+      } else {
+        setError("Login failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

@@ -29,11 +29,6 @@ export default function DeliveryOrderDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["delivery-orders", id] }),
   });
 
-  const duplicateMutation = useMutation({
-    mutationFn: () => deliveryOrdersApi.duplicate(id),
-    onSuccess: (data) => router.push(`/delivery-orders/${data.id}`),
-  });
-
   const deleteMutation = useMutation({
     mutationFn: () => deliveryOrdersApi.softDelete(id),
     onSuccess: () => router.push("/delivery-orders"),
@@ -57,8 +52,8 @@ export default function DeliveryOrderDetailPage() {
             <Button size="sm" color="success" variant="flat" isLoading={deliverMutation.isPending}
               onPress={() => deliverMutation.mutate()} startContent={<Truck size={14} />}>Mark Delivered</Button>
           )}
-          <Button size="sm" variant="flat" isLoading={duplicateMutation.isPending}
-            onPress={() => duplicateMutation.mutate()} startContent={<Copy size={14} />}>Duplicate</Button>
+          <Button size="sm" variant="flat"
+            onPress={() => router.push(`/delivery-orders/new?from=${id}`)} startContent={<Copy size={14} />}>Duplicate</Button>
           <Button size="sm" variant="flat"
             onPress={() => downloadPdf(deliveryOrdersApi.getPdfUrl(id), order.do_number + ".pdf")}
             startContent={<FileDown size={14} />}>Download PDF</Button>

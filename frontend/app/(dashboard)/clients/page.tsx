@@ -7,7 +7,7 @@ import {
   Button, Input, Chip, Link as HeroLink,
 } from "@heroui/react";
 import Link from "next/link";
-import { Eye } from "lucide-react";
+import { Eye, Trash2 } from "lucide-react";
 import { clientsApi } from "@/lib/api";
 import { Client } from "@/types";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
@@ -91,6 +91,10 @@ export default function ClientsPage() {
                 <TableCell>
                   <div className="flex gap-1">
                     <Button as={Link} href={`/clients/${client.id}`} size="sm" variant="flat" isIconOnly title="View"><Eye size={15} /></Button>
+                    <Button size="sm" variant="flat" color="danger" isIconOnly title="Delete" isLoading={deleteMutation.isPending}
+                      onPress={() => { if (confirm(`Delete ${client.company_name}?`)) deleteMutation.mutate(client.id); }}>
+                      <Trash2 size={15} />
+                    </Button>
                   </div>
                 </TableCell>
               </TableRow>

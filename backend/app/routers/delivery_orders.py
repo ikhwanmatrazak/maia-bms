@@ -13,15 +13,18 @@ from app.models.settings import CompanySettings
 from app.models.user import User
 from app.schemas.delivery_order import DeliveryOrderCreate, DeliveryOrderUpdate, DeliveryOrderResponse
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import OwnershipChecker, apply_tenant_filter
+from app.middleware.rbac import OwnershipChecker, apply_tenant_filter, get_effective_tenant_id
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/delivery-orders", tags=["delivery-orders"])
 
 
-async def _generate_do_number(db: AsyncSession) -> str:
-    result = await db.execute(select(CompanySettings).limit(1))
+async def _generate_do_number(db: AsyncSession, tenant_id=None) -> str:
+    result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == tenant_id).limit(1))
     settings = result.scalar_one_or_none()
+    if settings is None:
+        result = await db.execute(select(CompanySettings).limit(1))
+        settings = result.scalar_one_or_none()
     prefix = (getattr(settings, "do_prefix", None) if settings else None) or "DO"
     year = datetime.now().year
     count_result = await db.execute(select(func.count(DeliveryOrder.id)))
@@ -79,7 +82,7 @@ async def create_delivery_order(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    number = await _generate_do_number(db)
+    number = await _generate_do_number(db, current_user.tenant_id)
     do = DeliveryOrder(
         do_number=number,
         client_id=body.client_id,
@@ -195,6 +198,9 @@ async def send_delivery_order(
     do = result.scalar_one_or_none()
     if not do:
         raise HTTPException(status_code=404, detail="Delivery order not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and do.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     do.status = DeliveryOrderStatus.sent
     do.sent_at = datetime.now(timezone.utc)
     await db.commit()
@@ -212,6 +218,9 @@ async def mark_delivered(
     do = result.scalar_one_or_none()
     if not do:
         raise HTTPException(status_code=404, detail="Delivery order not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and do.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     do.status = DeliveryOrderStatus.delivered
     do.delivered_at = datetime.now(timezone.utc)
     await db.commit()
@@ -229,10 +238,16 @@ async def get_delivery_order_pdf(
     do = result.scalar_one_or_none()
     if not do:
         raise HTTPException(status_code=404, detail="Delivery order not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and do.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     from app.services.pdf_service import generate_pdf
-    settings_result = await db.execute(select(CompanySettings).limit(1))
+    settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == do.tenant_id).limit(1))
     company = settings_result.scalar_one_or_none()
+    if company is None:
+        fb = await db.execute(select(CompanySettings).limit(1))
+        company = fb.scalar_one_or_none()
     pdf_bytes = await generate_pdf("delivery_order", do, company, "professional")
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
@@ -251,8 +266,11 @@ async def duplicate_delivery_order(
     original = result.scalar_one_or_none()
     if not original:
         raise HTTPException(status_code=404, detail="Delivery order not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and original.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
 
-    number = await _generate_do_number(db)
+    number = await _generate_do_number(db, current_user.tenant_id)
     new_do = DeliveryOrder(
         do_number=number,
         client_id=original.client_id,
@@ -261,6 +279,7 @@ async def duplicate_delivery_order(
         delivery_address=original.delivery_address,
         notes=original.notes,
         created_by=current_user.id,
+        tenant_id=get_effective_tenant_id(current_user),
     )
     db.add(new_do)
     await db.flush()

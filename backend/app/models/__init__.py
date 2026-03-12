@@ -10,6 +10,7 @@ from app.models.payment import Payment
 from app.models.expense import Expense, ExpenseCategory
 from app.models.vendor import Vendor
 from app.models.prospect import Prospect
+from app.models.credit_note import CreditNote, CreditNoteItem
 
 __all__ = [
     "User", "RefreshToken",
@@ -24,4 +25,5 @@ __all__ = [
     "Expense", "ExpenseCategory",
     "Vendor",
     "Prospect",
+    "CreditNote", "CreditNoteItem",
 ]

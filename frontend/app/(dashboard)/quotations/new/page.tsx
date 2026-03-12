@@ -1,10 +1,12 @@
 "use client";
 
+import { Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardBody, CardHeader, Button, Input, Select, SelectItem, Textarea } from "@heroui/react";
 import { useForm, Controller } from "react-hook-form";
+import { useSearchParams } from "next/navigation";
 import { clientsApi, quotationsApi, settingsApi } from "@/lib/api";
 import { Client, TaxRate, CompanySettings } from "@/types";
 import { LineItemsEditor } from "@/components/documents/LineItemsEditor";
@@ -19,13 +21,21 @@ type DocTemplate = {
 
 const CURRENCIES = ["MYR", "USD", "EUR", "GBP", "SGD"];
 
-export default function NewQuotationPage() {
+function NewQuotationForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromId = searchParams.get("from");
 
   const { data: clients = [] } = useQuery<Client[]>({ queryKey: ["clients"], queryFn: () => clientsApi.list() });
   const { data: taxRates = [] } = useQuery<TaxRate[]>({ queryKey: ["tax-rates"], queryFn: settingsApi.getTaxRates });
   const { data: templates = [] } = useQuery<DocTemplate[]>({ queryKey: ["templates"], queryFn: settingsApi.getTemplates });
   const { data: companySettings } = useQuery<CompanySettings>({ queryKey: ["settings", "company"], queryFn: settingsApi.getCompany });
+
+  const { data: sourceDoc } = useQuery({
+    queryKey: ["quotation", fromId],
+    queryFn: () => quotationsApi.get(Number(fromId)),
+    enabled: !!fromId,
+  });
 
   const quotationTemplates = templates.filter((t) => t.type === "quotation");
   const defaultTemplate = quotationTemplates.find((t) => t.is_default);
@@ -80,7 +90,7 @@ export default function NewQuotationPage() {
   }, [companySettings]);
 
   useEffect(() => {
-    if (!defaultApplied.current && defaultTemplate) {
+    if (!defaultApplied.current && defaultTemplate && !fromId) {
       defaultApplied.current = true;
       setValue("template_id", String(defaultTemplate.id));
       if (defaultTemplate.items.length > 0) {
@@ -102,6 +112,24 @@ export default function NewQuotationPage() {
       }
     }
   }, [defaultTemplate]);
+
+  useEffect(() => {
+    if (!sourceDoc || !fromId) return;
+    setValue("client_id", String(sourceDoc.client_id));
+    setValue("currency", sourceDoc.currency);
+    setValue("exchange_rate", String(sourceDoc.exchange_rate || "1"));
+    setValue("discount_amount", String(sourceDoc.discount_amount || "0"));
+    setValue("notes", sourceDoc.notes || "");
+    setValue("terms_conditions", sourceDoc.terms_conditions || "");
+    setValue("payment_terms", sourceDoc.payment_terms || "");
+    setValue("items", sourceDoc.items.map((i: any) => ({
+      description: i.description,
+      quantity: String(i.quantity),
+      unit_price: String(i.unit_price),
+      tax_rate_id: i.tax_rate_id ? String(i.tax_rate_id) : "",
+      sub_items: [],
+    })));
+  }, [sourceDoc]);
 
   const mutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => quotationsApi.create(data),
@@ -133,7 +161,7 @@ export default function NewQuotationPage() {
 
   return (
     <div>
-      <Topbar title="New Quotation" />
+      <Topbar title={fromId ? "Duplicate Quotation" : "New Quotation"} />
       <div className="p-6">
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-6">
@@ -204,5 +232,13 @@ export default function NewQuotationPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function NewQuotationPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-gray-400">Loading...</div>}>
+      <NewQuotationForm />
+    </Suspense>
   );
 }

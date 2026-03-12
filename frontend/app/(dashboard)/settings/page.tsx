@@ -35,6 +35,7 @@ export default function SettingsPage() {
         invoice_prefix: s.invoice_prefix ?? "",
         quotation_prefix: s.quotation_prefix ?? "",
         receipt_prefix: s.receipt_prefix ?? "",
+        company_registration_no: s.company_registration_no ?? "",
         sst_no: s.sst_no ?? "",
         address: s.address ?? "",
       });
@@ -144,7 +145,8 @@ export default function SettingsPage() {
                 <Input variant="bordered" labelPlacement="outside" label="Invoice Prefix" {...f(company, "invoice_prefix", setCompany)} />
                 <Input variant="bordered" labelPlacement="outside" label="Quotation Prefix" {...f(company, "quotation_prefix", setCompany)} />
                 <Input variant="bordered" labelPlacement="outside" label="Receipt Prefix" {...f(company, "receipt_prefix", setCompany)} />
-                <Input variant="bordered" labelPlacement="outside" label="SST Registration No." {...f(company, "sst_no", setCompany)} />
+                <Input variant="bordered" labelPlacement="outside" label="Company Reg. No." {...f(company, "company_registration_no", setCompany)} />
+                <Input variant="bordered" labelPlacement="outside" label="SST No." {...f(company, "sst_no", setCompany)} />
               </div>
               <Textarea variant="bordered" labelPlacement="outside" label="Address" {...f(company, "address", setCompany)} />
               <div>

@@ -17,7 +17,7 @@ from app.models.activity import Activity, ActivityType
 from app.models.user import User
 from app.schemas.document import QuotationCreate, QuotationUpdate, QuotationResponse
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import require_admin_or_manager, OwnershipChecker, apply_tenant_filter
+from app.middleware.rbac import require_admin_or_manager, OwnershipChecker, apply_tenant_filter, get_effective_tenant_id
 from app.utils.tax import calculate_line_total, calculate_document_totals
 from app.services.email_service import decrypt_smtp_password, render_template, send_email
 from datetime import datetime, timezone
@@ -63,9 +63,12 @@ async def _email_quotation(quotation, to_email: str, db):
 router = APIRouter(prefix="/quotations", tags=["quotations"])
 
 
-async def _generate_quotation_number(db: AsyncSession) -> str:
-    result = await db.execute(select(CompanySettings).limit(1))
+async def _generate_quotation_number(db: AsyncSession, tenant_id=None) -> str:
+    result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == tenant_id).limit(1))
     settings = result.scalar_one_or_none()
+    if settings is None:
+        result = await db.execute(select(CompanySettings).limit(1))
+        settings = result.scalar_one_or_none()
     prefix = (settings.quotation_prefix if settings else None) or "QT"
     year = datetime.now().year
     count_result = await db.execute(select(func.count(Quotation.id)))
@@ -138,7 +141,7 @@ async def create_quotation(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    number = await _generate_quotation_number(db)
+    number = await _generate_quotation_number(db, current_user.tenant_id)
     quotation = Quotation(
         quotation_number=number,
         client_id=body.client_id,
@@ -241,6 +244,9 @@ async def get_quotation(
     quotation = result.scalar_one_or_none()
     if not quotation:
         raise HTTPException(status_code=404, detail="Quotation not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and quotation.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     if not OwnershipChecker.can_edit(current_user, quotation.created_by):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     return quotation
@@ -259,6 +265,9 @@ async def update_quotation(
     quotation = result.scalar_one_or_none()
     if not quotation:
         raise HTTPException(status_code=404, detail="Quotation not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and quotation.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     if not OwnershipChecker.can_edit(current_user, quotation.created_by):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
@@ -314,6 +323,9 @@ async def send_quotation(
     quotation = result.scalar_one_or_none()
     if not quotation:
         raise HTTPException(status_code=404, detail="Quotation not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and quotation.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     quotation.status = QuotationStatus.sent
     quotation.sent_at = datetime.now(timezone.utc)
@@ -357,6 +369,9 @@ async def email_quotation(
     quotation = result.scalar_one_or_none()
     if not quotation:
         raise HTTPException(status_code=404, detail="Quotation not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and quotation.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     try:
         await _email_quotation(quotation, body.to_email, db)
     except ValueError as e:
@@ -378,6 +393,9 @@ async def convert_to_invoice(
     quotation = result.scalar_one_or_none()
     if not quotation:
         raise HTTPException(status_code=404, detail="Quotation not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and quotation.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     if quotation.status not in (QuotationStatus.sent, QuotationStatus.accepted):
         raise HTTPException(status_code=400, detail="Only sent or accepted quotations can be converted")
 
@@ -451,6 +469,9 @@ async def get_quotation_pdf(
     quotation = result.scalar_one_or_none()
     if not quotation:
         raise HTTPException(status_code=404, detail="Quotation not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and quotation.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     from app.services.pdf_service import generate_pdf
     import json as _json
@@ -489,8 +510,11 @@ async def duplicate_quotation(
     original = result.scalar_one_or_none()
     if not original:
         raise HTTPException(status_code=404, detail="Quotation not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and original.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
 
-    number = await _generate_quotation_number(db)
+    number = await _generate_quotation_number(db, current_user.tenant_id)
     new_q = Quotation(
         quotation_number=number,
         client_id=original.client_id,
@@ -541,6 +565,9 @@ async def delete_quotation(
     quotation = result.scalar_one_or_none()
     if not quotation:
         raise HTTPException(status_code=404, detail="Quotation not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and quotation.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     if not OwnershipChecker.can_edit(current_user, quotation.created_by):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     quotation.is_deleted = True

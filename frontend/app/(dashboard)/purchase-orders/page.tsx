@@ -52,11 +52,6 @@ export default function PurchaseOrdersPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["purchase-orders"] }),
   });
 
-  const duplicateMutation = useMutation({
-    mutationFn: (id: number) => purchaseOrdersApi.duplicate(id),
-    onSuccess: (data) => router.push(`/purchase-orders/${data.id}`),
-  });
-
   const deleteMutation = useMutation({
     mutationFn: (id: number) => purchaseOrdersApi.softDelete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["purchase-orders"] }),
@@ -157,7 +152,7 @@ export default function PurchaseOrdersPage() {
                         onPress={() => receiveMutation.mutate(po.id)}><PackageCheck size={15} /></Button>
                     )}
                     <Button size="sm" variant="flat" isIconOnly title="Download PDF" onPress={() => downloadPdf(purchaseOrdersApi.getPdfUrl(po.id), (po.po_number || "po-" + po.id) + ".pdf")}><FileDown size={15} /></Button>
-                    <Button size="sm" variant="flat" isIconOnly isLoading={duplicateMutation.isPending} title="Duplicate" onPress={() => duplicateMutation.mutate(po.id)}><Copy size={15} /></Button>
+                    <Button size="sm" variant="flat" isIconOnly title="Duplicate" onPress={() => router.push(`/purchase-orders/new?from=${po.id}`)}><Copy size={15} /></Button>
                     <Button size="sm" variant="flat" color="danger" isIconOnly isLoading={deleteMutation.isPending} title="Delete"
                       onPress={() => { if (confirm("Delete this purchase order?")) deleteMutation.mutate(po.id); }}><Trash2 size={15} /></Button>
                   </div>

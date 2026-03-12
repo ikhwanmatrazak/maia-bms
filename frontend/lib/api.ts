@@ -319,6 +319,17 @@ export const vendorsApi = {
   delete: (id: number) => api.delete(`/vendors/${id}`),
 };
 
+export const creditNotesApi = {
+  list: (params?: object) => api.get("/credit-notes", { params }).then((r) => r.data),
+  get: (id: number) => api.get(`/credit-notes/${id}`).then((r) => r.data),
+  create: (data: object) => api.post("/credit-notes", data).then((r) => r.data),
+  update: (id: number, data: object) => api.put(`/credit-notes/${id}`, data).then((r) => r.data),
+  issue: (id: number) => api.post(`/credit-notes/${id}/issue`).then((r) => r.data),
+  cancel: (id: number) => api.post(`/credit-notes/${id}/cancel`).then((r) => r.data),
+  delete: (id: number) => api.delete(`/credit-notes/${id}`),
+  getPdfUrl: (id: number) => `${API_URL}/credit-notes/${id}/pdf`,
+};
+
 export const superAdminApi = {
   getStats: () => api.get("/super-admin/stats").then((r) => r.data),
   listTenants: () => api.get("/super-admin/tenants").then((r) => r.data),

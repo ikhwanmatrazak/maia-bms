@@ -11,6 +11,7 @@
     {% if company.address %}<div class="company-address">{{ company.address }}</div>{% endif %}
     {% if company.phone %}<div>{{ company.phone }}</div>{% endif %}
     {% if company.email %}<div>{{ company.email }}</div>{% endif %}
+    {% if company.company_registration_no %}<div>Reg. No: {{ company.company_registration_no }}</div>{% endif %}
     {% if company.sst_no %}<div>SST No: {{ company.sst_no }}</div>{% endif %}
     {% endif %}
   </div>
@@ -126,12 +127,6 @@
   <div class="signature-block">
     <img src="data:image/png;base64,{{ signature_data }}" alt="Signature">
     <div class="signature-line">Authorized Signature</div>
-  </div>
-  {% endif %}
-  {% if qr_base64 %}
-  <div class="qr-block">
-    <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR Code">
-    <p>Scan to verify</p>
   </div>
   {% endif %}
 </div>

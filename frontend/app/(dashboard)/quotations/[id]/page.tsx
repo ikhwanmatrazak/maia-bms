@@ -38,11 +38,6 @@ export default function QuotationDetailPage() {
     onSuccess: (data) => router.push(`/invoices/${data.invoice_id}`),
   });
 
-  const duplicateMutation = useMutation({
-    mutationFn: () => quotationsApi.duplicate(id),
-    onSuccess: (data) => router.push(`/quotations/${data.id}`),
-  });
-
   const openEmailModal = () => {
     setEmailTo(q?.client_email || "");
     setEmailResult(null);
@@ -73,7 +68,7 @@ export default function QuotationDetailPage() {
             <Button size="sm" variant="flat" onPress={() => downloadPdf(quotationsApi.getPdfUrl(id), (q?.quotation_number || "quotation-" + id) + ".pdf")}>
               Download PDF
             </Button>
-            <Button size="sm" variant="flat" isLoading={duplicateMutation.isPending} onPress={() => duplicateMutation.mutate()}>
+            <Button size="sm" variant="flat" onPress={() => router.push(`/quotations/new?from=${id}`)}>
               Duplicate
             </Button>
           </div>

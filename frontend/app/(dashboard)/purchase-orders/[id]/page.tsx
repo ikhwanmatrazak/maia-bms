@@ -29,11 +29,6 @@ export default function PurchaseOrderDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["purchase-orders", id] }),
   });
 
-  const duplicateMutation = useMutation({
-    mutationFn: () => purchaseOrdersApi.duplicate(id),
-    onSuccess: (data) => router.push(`/purchase-orders/${data.id}`),
-  });
-
   const deleteMutation = useMutation({
     mutationFn: () => purchaseOrdersApi.softDelete(id),
     onSuccess: () => router.push("/purchase-orders"),
@@ -57,8 +52,8 @@ export default function PurchaseOrderDetailPage() {
             <Button size="sm" color="success" variant="flat" isLoading={receiveMutation.isPending}
               onPress={() => receiveMutation.mutate()} startContent={<PackageCheck size={14} />}>Mark Received</Button>
           )}
-          <Button size="sm" variant="flat" isLoading={duplicateMutation.isPending}
-            onPress={() => duplicateMutation.mutate()} startContent={<Copy size={14} />}>Duplicate</Button>
+          <Button size="sm" variant="flat"
+            onPress={() => router.push(`/purchase-orders/new?from=${id}`)} startContent={<Copy size={14} />}>Duplicate</Button>
           <Button size="sm" variant="flat"
             onPress={() => downloadPdf(purchaseOrdersApi.getPdfUrl(id), po.po_number + ".pdf")}
             startContent={<FileDown size={14} />}>Download PDF</Button>

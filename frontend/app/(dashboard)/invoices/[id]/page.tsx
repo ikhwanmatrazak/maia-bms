@@ -76,11 +76,6 @@ export default function InvoiceDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices", id] }),
   });
 
-  const duplicateMutation = useMutation({
-    mutationFn: () => invoicesApi.duplicate(id),
-    onSuccess: (data) => router.push(`/invoices/${data.id}`),
-  });
-
   if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
   if (!inv) return <div className="p-6">Invoice not found</div>;
 
@@ -139,7 +134,7 @@ export default function InvoiceDetailPage() {
             )}
             <Button size="sm" color="primary" variant="flat" onPress={openEmailModal}>Email PDF</Button>
             <Button size="sm" variant="flat" onPress={() => downloadPdf(invoicesApi.getPdfUrl(id), (inv?.invoice_number || "invoice-" + id) + ".pdf")}>PDF</Button>
-            <Button size="sm" variant="flat" isLoading={duplicateMutation.isPending} onPress={() => duplicateMutation.mutate()}>Duplicate</Button>
+            <Button size="sm" variant="flat" onPress={() => router.push(`/invoices/new?from=${id}`)}>Duplicate</Button>
             {!["paid", "cancelled"].includes(inv.status) && (
               <Button size="sm" color="danger" variant="flat" isLoading={cancelMutation.isPending}
                 onPress={() => cancelMutation.mutate()}>Cancel</Button>

@@ -56,11 +56,6 @@ export default function InvoicesPage() {
     }),
   });
 
-  const duplicateMutation = useMutation({
-    mutationFn: (id: number) => invoicesApi.duplicate(id),
-    onSuccess: (data) => router.push(`/invoices/${data.id}`),
-  });
-
   const deleteMutation = useMutation({
     mutationFn: (id: number) => invoicesApi.softDelete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices"] }),
@@ -246,7 +241,7 @@ export default function InvoicesPage() {
                     <Button size="sm" variant="flat" color="primary" isIconOnly isLoading={sendingId === inv.id} title="Send Invoice" onPress={() => handleSendOne(inv)}><Send size={15} /></Button>
                     <Button as={Link} href={`/invoices/${inv.id}?receipt=1`} size="sm" variant="flat" color="success" isIconOnly title="Create Receipt"><ReceiptText size={15} /></Button>
                     <Button size="sm" variant="flat" isIconOnly title="Download PDF" onPress={() => downloadPdf(invoicesApi.getPdfUrl(inv.id), (inv.invoice_number || "invoice-" + inv.id) + ".pdf")}><FileDown size={15} /></Button>
-                    <Button size="sm" variant="flat" isIconOnly isLoading={duplicateMutation.isPending} title="Duplicate" onPress={() => duplicateMutation.mutate(inv.id)}><Copy size={15} /></Button>
+                    <Button size="sm" variant="flat" isIconOnly title="Duplicate" onPress={() => router.push(`/invoices/new?from=${inv.id}`)}><Copy size={15} /></Button>
                     <Button size="sm" variant="flat" color="danger" isIconOnly isLoading={deleteMutation.isPending} title="Delete"
                       onPress={() => { if (confirm("Delete this invoice?")) deleteMutation.mutate(inv.id); }}><Trash2 size={15} /></Button>
                   </div>

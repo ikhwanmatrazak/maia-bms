@@ -1,23 +1,34 @@
 "use client";
 
+import { Suspense } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardBody, CardHeader, Button, Input, Select, SelectItem, Textarea } from "@heroui/react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
+import { useSearchParams } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import { deliveryOrdersApi, clientsApi } from "@/lib/api";
 import { Client } from "@/types";
 import { Topbar } from "@/components/ui/Topbar";
 
-export default function NewDeliveryOrderPage() {
+function NewDeliveryOrderForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromId = searchParams.get("from");
 
   const { data: clients = [] } = useQuery<Client[]>({
     queryKey: ["clients"],
     queryFn: () => clientsApi.list(),
   });
 
-  const { register, handleSubmit, control } = useForm({
+  const { data: sourceDoc } = useQuery({
+    queryKey: ["delivery-order", fromId],
+    queryFn: () => deliveryOrdersApi.get(Number(fromId)),
+    enabled: !!fromId,
+  });
+
+  const { register, handleSubmit, control, setValue } = useForm({
     defaultValues: {
       client_id: "",
       issue_date: new Date().toISOString().split("T")[0],
@@ -29,6 +40,18 @@ export default function NewDeliveryOrderPage() {
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
+
+  useEffect(() => {
+    if (!sourceDoc || !fromId) return;
+    setValue("client_id", String(sourceDoc.client_id));
+    setValue("delivery_address", sourceDoc.delivery_address || "");
+    setValue("notes", sourceDoc.notes || "");
+    setValue("items", sourceDoc.items.map((i: any) => ({
+      description: i.description,
+      quantity: String(i.quantity),
+      unit: i.unit || "pcs",
+    })));
+  }, [sourceDoc]);
 
   const mutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => deliveryOrdersApi.create(data),
@@ -52,7 +75,7 @@ export default function NewDeliveryOrderPage() {
 
   return (
     <div>
-      <Topbar title="New Delivery Order" />
+      <Topbar title={fromId ? "Duplicate Delivery Order" : "New Delivery Order"} />
       <div className="p-6">
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-6">
@@ -123,5 +146,13 @@ export default function NewDeliveryOrderPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function NewDeliveryOrderPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-gray-400">Loading...</div>}>
+      <NewDeliveryOrderForm />
+    </Suspense>
   );
 }

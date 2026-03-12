@@ -37,7 +37,8 @@ class CompanySettings(Base):
     smtp_from_email = Column(String(255), nullable=True)
     smtp_from_name = Column(String(255), nullable=True)
 
-    # SST
+    # Registration
+    company_registration_no = Column(String(50), nullable=True)
     sst_no = Column(String(50), nullable=True)
 
     # Payment

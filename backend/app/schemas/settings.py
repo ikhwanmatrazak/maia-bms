@@ -23,6 +23,7 @@ class CompanySettingsUpdate(BaseModel):
     smtp_password: Optional[str] = None  # Will be encrypted before storing
     smtp_from_email: Optional[str] = None
     smtp_from_name: Optional[str] = None
+    company_registration_no: Optional[str] = None
     sst_no: Optional[str] = None
     payment_terms_text: Optional[str] = None
     payment_info: Optional[str] = None
@@ -53,6 +54,7 @@ class CompanySettingsResponse(BaseModel):
     smtp_user: Optional[str]
     smtp_from_email: Optional[str]
     smtp_from_name: Optional[str]
+    company_registration_no: Optional[str]
     sst_no: Optional[str]
     payment_terms_text: Optional[str]
     payment_info: Optional[str]

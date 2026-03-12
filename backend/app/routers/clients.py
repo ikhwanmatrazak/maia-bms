@@ -95,6 +95,9 @@ async def get_client(
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and client.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     return client
 
 
@@ -109,6 +112,9 @@ async def update_client(
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and client.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     for key, value in body.model_dump(exclude_unset=True).items():
         setattr(client, key, value)
     await db.commit()
@@ -126,6 +132,9 @@ async def delete_client(
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and client.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     await db.delete(client)
     await db.commit()
 
@@ -136,6 +145,13 @@ async def list_activities(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    client_result = await db.execute(select(Client).where(Client.id == client_id))
+    client = client_result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and client.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     result = await db.execute(
         select(Activity)
         .where(Activity.client_id == client_id)
@@ -152,8 +168,12 @@ async def create_activity(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(Client).where(Client.id == client_id))
-    if not result.scalar_one_or_none():
+    client = result.scalar_one_or_none()
+    if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and client.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     activity = Activity(
         client_id=client_id,
@@ -174,6 +194,13 @@ async def list_client_reminders(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    client_result = await db.execute(select(Client).where(Client.id == client_id))
+    client = client_result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and client.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     result = await db.execute(
         select(Reminder)
         .where(Reminder.client_id == client_id)
@@ -190,8 +217,12 @@ async def create_client_reminder(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(Client).where(Client.id == client_id))
-    if not result.scalar_one_or_none():
+    client = result.scalar_one_or_none()
+    if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and client.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     reminder = Reminder(
         client_id=client_id,
@@ -223,8 +254,12 @@ async def list_client_documents(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(Client).where(Client.id == client_id))
-    if not result.scalar_one_or_none():
+    client = result.scalar_one_or_none()
+    if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and client.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     doc_dir = _doc_dir(client_id)
     docs = []
     if os.path.isdir(doc_dir):
@@ -251,8 +286,12 @@ async def upload_client_document(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(Client).where(Client.id == client_id))
-    if not result.scalar_one_or_none():
+    client = result.scalar_one_or_none()
+    if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and client.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     doc_dir = _doc_dir(client_id)
     safe_name = os.path.basename(file.filename or "file")
     filename = f"{uuid.uuid4().hex}_{safe_name}"
@@ -276,8 +315,12 @@ async def delete_client_document(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(Client).where(Client.id == client_id))
-    if not result.scalar_one_or_none():
+    client = result.scalar_one_or_none()
+    if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and client.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     doc_dir = _doc_dir(client_id)
     file_path = os.path.join(doc_dir, os.path.basename(filename))
     if not os.path.isfile(file_path):

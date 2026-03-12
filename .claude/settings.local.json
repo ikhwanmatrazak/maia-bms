@@ -12,7 +12,8 @@
       "Bash(done)",
       "Bash(python -c \":*)",
       "Bash(python -c \"from app.routers.vendors import router; print\\(''vendors router OK''\\)\")",
-      "Bash(ipconfig)"
+      "Bash(ipconfig)",
+      "Read(//c/Users/Surface/ Pro/ 8/Documents/maia-bms/backend/app/models/**)"
     ]
   }
 }

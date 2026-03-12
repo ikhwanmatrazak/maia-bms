@@ -2,7 +2,6 @@ import asyncio
 import logging
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pathlib import Path
-from app.services.qr_service import generate_qr_base64
 from app.services.signature_service import get_logo_base64, get_signature_base64
 
 logger = logging.getLogger(__name__)
@@ -27,8 +26,6 @@ jinja_env.filters["fmt"] = _fmt
 
 async def generate_pdf(doc_type: str, document, company, template_style: str = "professional") -> bytes:
     """Generate a PDF using Playwright (headless Chromium) — works on all platforms."""
-    doc_number = getattr(document, f"{doc_type}_number", "DOC")
-    qr_base64 = generate_qr_base64(doc_type, doc_number)
     logo_data = get_logo_base64(company.logo_url if company else None)
     signature_data = get_signature_base64(company.signature_image_url if company else None)
 
@@ -41,7 +38,6 @@ async def generate_pdf(doc_type: str, document, company, template_style: str = "
     context = {
         "document": document,
         "company": company,
-        "qr_base64": qr_base64,
         "logo_data": logo_data,
         "signature_data": signature_data,
         "doc_type": doc_type,

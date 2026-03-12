@@ -13,16 +13,19 @@ from app.models.settings import TaxRate, CompanySettings
 from app.models.user import User
 from app.schemas.purchase_order import PurchaseOrderCreate, PurchaseOrderUpdate, PurchaseOrderResponse
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import require_admin_or_manager, OwnershipChecker, apply_tenant_filter
+from app.middleware.rbac import require_admin_or_manager, OwnershipChecker, apply_tenant_filter, get_effective_tenant_id
 from app.utils.tax import calculate_line_total, calculate_document_totals
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/purchase-orders", tags=["purchase-orders"])
 
 
-async def _generate_po_number(db: AsyncSession) -> str:
-    result = await db.execute(select(CompanySettings).limit(1))
+async def _generate_po_number(db: AsyncSession, tenant_id=None) -> str:
+    result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == tenant_id).limit(1))
     settings = result.scalar_one_or_none()
+    if settings is None:
+        result = await db.execute(select(CompanySettings).limit(1))
+        settings = result.scalar_one_or_none()
     prefix = (getattr(settings, "po_prefix", None) if settings else None) or "PO"
     year = datetime.now().year
     count_result = await db.execute(select(func.count(PurchaseOrder.id)))
@@ -73,7 +76,7 @@ async def create_purchase_order(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    number = await _generate_po_number(db)
+    number = await _generate_po_number(db, current_user.tenant_id)
     po = PurchaseOrder(
         po_number=number,
         vendor_name=body.vendor_name,
@@ -231,6 +234,9 @@ async def send_purchase_order(
     po = result.scalar_one_or_none()
     if not po:
         raise HTTPException(status_code=404, detail="Purchase order not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and po.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     po.status = PurchaseOrderStatus.sent
     po.sent_at = datetime.now(timezone.utc)
     await db.commit()
@@ -248,6 +254,9 @@ async def receive_purchase_order(
     po = result.scalar_one_or_none()
     if not po:
         raise HTTPException(status_code=404, detail="Purchase order not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and po.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     po.status = PurchaseOrderStatus.received
     po.received_at = datetime.now(timezone.utc)
     await db.commit()
@@ -265,10 +274,16 @@ async def get_purchase_order_pdf(
     po = result.scalar_one_or_none()
     if not po:
         raise HTTPException(status_code=404, detail="Purchase order not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and po.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     from app.services.pdf_service import generate_pdf
-    settings_result = await db.execute(select(CompanySettings).limit(1))
+    settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == po.tenant_id).limit(1))
     company = settings_result.scalar_one_or_none()
+    if company is None:
+        fb = await db.execute(select(CompanySettings).limit(1))
+        company = fb.scalar_one_or_none()
     pdf_bytes = await generate_pdf("purchase_order", po, company, "professional")
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
@@ -287,8 +302,11 @@ async def duplicate_purchase_order(
     original = result.scalar_one_or_none()
     if not original:
         raise HTTPException(status_code=404, detail="Purchase order not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and original.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
 
-    number = await _generate_po_number(db)
+    number = await _generate_po_number(db, current_user.tenant_id)
     new_po = PurchaseOrder(
         po_number=number,
         vendor_name=original.vendor_name,
@@ -306,6 +324,7 @@ async def duplicate_purchase_order(
         notes=original.notes,
         terms_conditions=original.terms_conditions,
         created_by=current_user.id,
+        tenant_id=get_effective_tenant_id(current_user),
     )
     db.add(new_po)
     await db.flush()

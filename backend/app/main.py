@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 from app.config import get_settings
 from app.database import init_db
 from app.routers import auth, users, clients, quotations, invoices, receipts, payments, expenses, reminders, reports, settings, documents
-from app.routers import purchase_orders, delivery_orders, super_admin, products, analytics, vendors, prospects
+from app.routers import purchase_orders, delivery_orders, super_admin, products, analytics, vendors, prospects, credit_notes
 
 logging.basicConfig(
     level=logging.INFO,
@@ -86,6 +86,7 @@ app.include_router(products.router, prefix=prefix)
 app.include_router(analytics.router, prefix=prefix)
 app.include_router(vendors.router, prefix=prefix)
 app.include_router(prospects.router, prefix=prefix)
+app.include_router(credit_notes.router, prefix=prefix)
 
 
 @app.get("/health")

@@ -14,7 +14,7 @@ from app.schemas.product import (
     SubscriptionCreate, SubscriptionUpdate, SubscriptionResponse,
 )
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import apply_tenant_filter
+from app.middleware.rbac import apply_tenant_filter, get_effective_tenant_id
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -105,6 +105,9 @@ async def get_product(
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and product.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     return product
 
 
@@ -119,6 +122,9 @@ async def update_product(
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and product.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(product, k, v)
     await db.commit()
@@ -138,6 +144,9 @@ async def delete_product(
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and product.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     await db.delete(product)
     await db.commit()
 
@@ -149,6 +158,13 @@ async def list_subscriptions(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    prod_result = await db.execute(select(Product).where(Product.id == product_id))
+    product = prod_result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and product.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     query = (
         select(ProductSubscription)
         .options(selectinload(ProductSubscription.client), selectinload(ProductSubscription.product))
@@ -169,8 +185,12 @@ async def create_subscription(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(Product).where(Product.id == product_id))
-    if not result.scalar_one_or_none():
+    product = result.scalar_one_or_none()
+    if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and product.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     sub = ProductSubscription(**data.model_dump(), product_id=product_id, tenant_id=current_user.tenant_id)
     db.add(sub)
     await db.commit()
@@ -199,6 +219,9 @@ async def update_subscription(
     sub = result.scalar_one_or_none()
     if not sub:
         raise HTTPException(status_code=404, detail="Subscription not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and sub.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(sub, k, v)
     await db.commit()
@@ -226,6 +249,9 @@ async def delete_subscription(
     sub = result.scalar_one_or_none()
     if not sub:
         raise HTTPException(status_code=404, detail="Subscription not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and sub.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     await db.delete(sub)
     await db.commit()
 
@@ -238,6 +264,13 @@ async def list_pricing(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    prod_result = await db.execute(select(Product).where(Product.id == product_id))
+    product = prod_result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and product.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     result = await db.execute(
         select(ProductPricing)
         .where(ProductPricing.product_id == product_id)
@@ -254,8 +287,12 @@ async def create_pricing(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(Product).where(Product.id == product_id))
-    if not result.scalar_one_or_none():
+    product = result.scalar_one_or_none()
+    if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and product.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     pricing = ProductPricing(**data.model_dump(), product_id=product_id)
     db.add(pricing)
     await db.commit()
@@ -280,6 +317,11 @@ async def update_pricing(
     pricing = result.scalar_one_or_none()
     if not pricing:
         raise HTTPException(status_code=404, detail="Pricing not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    prod_result = await db.execute(select(Product).where(Product.id == product_id))
+    parent_product = prod_result.scalar_one_or_none()
+    if eff_tenant is not None and (parent_product is None or parent_product.tenant_id != eff_tenant):
+        raise HTTPException(status_code=403, detail="Access denied")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(pricing, k, v)
     await db.commit()
@@ -303,5 +345,10 @@ async def delete_pricing(
     pricing = result.scalar_one_or_none()
     if not pricing:
         raise HTTPException(status_code=404, detail="Pricing not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    prod_result = await db.execute(select(Product).where(Product.id == product_id))
+    parent_product = prod_result.scalar_one_or_none()
+    if eff_tenant is not None and (parent_product is None or parent_product.tenant_id != eff_tenant):
+        raise HTTPException(status_code=403, detail="Access denied")
     await db.delete(pricing)
     await db.commit()

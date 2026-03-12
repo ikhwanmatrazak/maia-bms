@@ -1,9 +1,12 @@
 "use client";
 
+import { Suspense } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardBody, CardHeader, Button, Input, Select, SelectItem, Textarea } from "@heroui/react";
 import { useForm, Controller } from "react-hook-form";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { purchaseOrdersApi, settingsApi, vendorsApi } from "@/lib/api";
 import { TaxRate } from "@/types";
@@ -26,14 +29,22 @@ interface Vendor {
   payment_terms: string | null;
 }
 
-export default function NewPurchaseOrderPage() {
+function NewPurchaseOrderForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromId = searchParams.get("from");
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
 
   const { data: taxRates = [] } = useQuery<TaxRate[]>({ queryKey: ["tax-rates"], queryFn: settingsApi.getTaxRates });
   const { data: vendors = [] } = useQuery<Vendor[]>({ queryKey: ["vendors-active"], queryFn: () => vendorsApi.list({ active_only: true }) });
 
-  const { register, handleSubmit, control, watch } = useForm({
+  const { data: sourceDoc } = useQuery({
+    queryKey: ["purchase-order", fromId],
+    queryFn: () => purchaseOrdersApi.get(Number(fromId)),
+    enabled: !!fromId,
+  });
+
+  const { register, handleSubmit, control, watch, setValue } = useForm({
     defaultValues: {
       currency: "MYR",
       exchange_rate: "1",
@@ -47,6 +58,40 @@ export default function NewPurchaseOrderPage() {
   });
 
   const currency = watch("currency");
+
+  useEffect(() => {
+    if (!sourceDoc || !fromId || vendors.length === 0) return;
+    setValue("currency", sourceDoc.currency);
+    setValue("exchange_rate", String(sourceDoc.exchange_rate || "1"));
+    setValue("discount_amount", String(sourceDoc.discount_amount || "0"));
+    setValue("notes", sourceDoc.notes || "");
+    setValue("terms_conditions", sourceDoc.terms_conditions || "");
+    setValue("items", sourceDoc.items.map((i: any) => ({
+      description: i.description,
+      quantity: String(i.quantity),
+      unit_price: String(i.unit_price),
+      tax_rate_id: i.tax_rate_id ? String(i.tax_rate_id) : "",
+      sub_items: [],
+    })));
+    const match = vendors.find((v) => v.name === sourceDoc.vendor_name);
+    if (match) {
+      setSelectedVendor(match);
+    } else {
+      setSelectedVendor({
+        id: -1,
+        name: sourceDoc.vendor_name,
+        contact_person: null,
+        email: sourceDoc.vendor_email,
+        phone: sourceDoc.vendor_phone,
+        address: sourceDoc.vendor_address,
+        city: null,
+        state: null,
+        country: null,
+        postal_code: null,
+        payment_terms: null,
+      });
+    }
+  }, [sourceDoc, vendors]);
 
   const mutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => purchaseOrdersApi.create(data),
@@ -84,7 +129,7 @@ export default function NewPurchaseOrderPage() {
 
   return (
     <div>
-      <Topbar title="New Purchase Order" />
+      <Topbar title={fromId ? "Duplicate Purchase Order" : "New Purchase Order"} />
       <div className="p-6">
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-6">
@@ -100,7 +145,7 @@ export default function NewPurchaseOrderPage() {
                     variant="bordered"
                     label="Select Vendor *"
                     placeholder="Choose a vendor..."
-                    selectedKeys={selectedVendor ? [String(selectedVendor.id)] : []}
+                    selectedKeys={selectedVendor && selectedVendor.id !== -1 ? [String(selectedVendor.id)] : []}
                     onSelectionChange={(keys) => {
                       const id = Array.from(keys)[0] as string;
                       setSelectedVendor(vendors.find((v) => String(v.id) === id) ?? null);
@@ -116,7 +161,11 @@ export default function NewPurchaseOrderPage() {
                     ))}
                   </Select>
                 )}
-
+                {selectedVendor && selectedVendor.id === -1 && (
+                  <p className="text-sm text-warning">
+                    Pre-filled vendor &quot;{selectedVendor.name}&quot; not found in your vendor list. Please select a vendor from the list or the original vendor details will be used.
+                  </p>
+                )}
               </CardBody>
             </Card>
 
@@ -164,5 +213,13 @@ export default function NewPurchaseOrderPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function NewPurchaseOrderPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-gray-400">Loading...</div>}>
+      <NewPurchaseOrderForm />
+    </Suspense>
   );
 }

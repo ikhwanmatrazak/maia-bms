@@ -19,7 +19,7 @@ from app.models.activity import Activity, ActivityType
 from app.models.user import User
 from app.schemas.document import InvoiceCreate, InvoiceUpdate, InvoiceResponse, PaymentCreate, PaymentResponse
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import OwnershipChecker, apply_tenant_filter
+from app.middleware.rbac import OwnershipChecker, apply_tenant_filter, get_effective_tenant_id
 from app.utils.tax import calculate_line_total, calculate_document_totals
 from app.services.email_service import decrypt_smtp_password, render_template, send_email
 
@@ -65,9 +65,12 @@ async def _email_invoice(invoice, to_email: str, db):
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 
-async def _generate_invoice_number(db: AsyncSession) -> str:
-    result = await db.execute(select(CompanySettings).limit(1))
+async def _generate_invoice_number(db: AsyncSession, tenant_id=None) -> str:
+    result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == tenant_id).limit(1))
     settings = result.scalar_one_or_none()
+    if settings is None:
+        result = await db.execute(select(CompanySettings).limit(1))
+        settings = result.scalar_one_or_none()
     prefix = (settings.invoice_prefix if settings else None) or "INV"
     year = datetime.now().year
     count_result = await db.execute(select(func.count(Invoice.id)))
@@ -115,7 +118,7 @@ async def create_invoice(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    number = await _generate_invoice_number(db)
+    number = await _generate_invoice_number(db, current_user.tenant_id)
     invoice = Invoice(
         invoice_number=number,
         client_id=body.client_id,
@@ -221,6 +224,9 @@ async def get_invoice(
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and invoice.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     return invoice
 
 
@@ -237,6 +243,9 @@ async def update_invoice(
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and invoice.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     if not OwnershipChecker.can_edit(current_user, invoice.created_by):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
@@ -293,6 +302,9 @@ async def send_invoice(
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and invoice.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     invoice.status = InvoiceStatus.sent
     invoice.sent_at = datetime.now(timezone.utc)
@@ -336,6 +348,9 @@ async def email_invoice(
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and invoice.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     try:
         await _email_invoice(invoice, body.to_email, db)
     except ValueError as e:
@@ -357,6 +372,9 @@ async def cancel_invoice(
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and invoice.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     if invoice.status == InvoiceStatus.paid:
         raise HTTPException(status_code=400, detail="Cannot cancel a paid invoice")
 
@@ -381,6 +399,9 @@ async def record_payment(
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and invoice.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     if invoice.status == InvoiceStatus.cancelled:
         raise HTTPException(status_code=400, detail="Cannot record payment for cancelled invoice")
     if invoice.status == InvoiceStatus.paid:
@@ -409,8 +430,11 @@ async def record_payment(
         invoice.paid_at = datetime.now(timezone.utc)
 
         if body.generate_receipt:
-            settings_result = await db.execute(select(CompanySettings).limit(1))
+            settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == invoice.tenant_id).limit(1))
             settings = settings_result.scalar_one_or_none()
+            if settings is None:
+                settings_result = await db.execute(select(CompanySettings).limit(1))
+                settings = settings_result.scalar_one_or_none()
             prefix = settings.receipt_prefix if settings else "RCP"
             year = datetime.now().year
             count_result = await db.execute(select(func.count(Receipt.id)))
@@ -455,6 +479,13 @@ async def list_payments(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    inv_result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
+    invoice = inv_result.scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and invoice.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     result = await db.execute(
         select(Payment).where(Payment.invoice_id == invoice_id).order_by(Payment.payment_date)
     )
@@ -473,8 +504,11 @@ async def duplicate_invoice(
     original = result.scalar_one_or_none()
     if not original:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and original.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
 
-    number = await _generate_invoice_number(db)
+    number = await _generate_invoice_number(db, current_user.tenant_id)
     new_inv = Invoice(
         invoice_number=number,
         client_id=original.client_id,
@@ -526,6 +560,9 @@ async def delete_invoice(
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and invoice.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
     if not OwnershipChecker.can_edit(current_user, invoice.created_by):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     invoice.is_deleted = True
@@ -546,6 +583,9 @@ async def get_invoice_pdf(
     invoice = result.scalar_one_or_none()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and invoice.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     from app.services.pdf_service import generate_pdf
     import json as _json

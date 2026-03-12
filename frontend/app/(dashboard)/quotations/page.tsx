@@ -65,11 +65,6 @@ export default function QuotationsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["quotations"] }),
   });
 
-  const duplicateMutation = useMutation({
-    mutationFn: (id: number) => quotationsApi.duplicate(id),
-    onSuccess: (data) => router.push(`/quotations/${data.id}`),
-  });
-
   const deleteMutation = useMutation({
     mutationFn: (id: number) => quotationsApi.softDelete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["quotations"] }),
@@ -233,7 +228,7 @@ export default function QuotationsPage() {
                         onPress={() => convertMutation.mutate(q.id)}><ArrowRightLeft size={15} /></Button>
                     )}
                     <Button size="sm" variant="flat" isIconOnly title="Download PDF" onPress={() => downloadPdf(quotationsApi.getPdfUrl(q.id), (q.quotation_number || "quotation-" + q.id) + ".pdf")}><FileDown size={15} /></Button>
-                    <Button size="sm" variant="flat" isIconOnly isLoading={duplicateMutation.isPending} title="Duplicate" onPress={() => duplicateMutation.mutate(q.id)}><Copy size={15} /></Button>
+                    <Button size="sm" variant="flat" isIconOnly title="Duplicate" onPress={() => router.push(`/quotations/new?from=${q.id}`)}><Copy size={15} /></Button>
                     <Button size="sm" variant="flat" color="danger" isIconOnly isLoading={deleteMutation.isPending} title="Delete"
                       onPress={() => { if (confirm("Delete this quotation?")) deleteMutation.mutate(q.id); }}><Trash2 size={15} /></Button>
                   </div>
