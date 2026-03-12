@@ -25,6 +25,7 @@ services:
       context: ./frontend
       args:
         NEXT_PUBLIC_API_URL: /api/v1
+        BACKEND_URL: http://bms-backend:8000
     restart: unless-stopped
     environment:
       BACKEND_URL: http://bms-backend:8000
