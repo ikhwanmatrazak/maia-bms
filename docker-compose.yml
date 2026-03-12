@@ -30,6 +30,7 @@ services:
       - backend
     networks:
       - app_network
+      - dokploy-network
 
 volumes:
   uploads_data:
@@ -37,3 +38,5 @@ volumes:
 networks:
   app_network:
     driver: bridge
+  dokploy-network:
+    external: true
