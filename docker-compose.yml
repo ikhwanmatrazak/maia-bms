@@ -17,6 +17,7 @@ services:
       - uploads_data:/app/uploads
     networks:
       - app_network
+      - dokploy-network
 
   frontend:
     build:
