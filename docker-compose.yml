@@ -3,6 +3,7 @@ version: "3.9"
 services:
   backend:
     build: ./backend
+    container_name: bms-backend
     restart: unless-stopped
     environment:
       DATABASE_URL: ${DATABASE_URL}
@@ -26,7 +27,7 @@ services:
         NEXT_PUBLIC_API_URL: /api/v1
     restart: unless-stopped
     environment:
-      BACKEND_URL: http://backend:8000
+      BACKEND_URL: http://bms-backend:8000
     depends_on:
       - backend
     networks:
