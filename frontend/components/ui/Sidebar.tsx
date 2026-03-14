@@ -151,7 +151,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navContent = (
     <>
       <div className="px-4 h-14 border-b border-white/10 flex items-center justify-between shrink-0">
-        <p className="text-sm font-semibold tracking-wide text-white">MAIA BMS</p>
+        <p className="text-sm font-semibold tracking-wide text-white">Ali Axis</p>
         <button
           onClick={onClose}
           className="lg:hidden p-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"

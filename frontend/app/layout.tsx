@@ -11,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "MAIA BMS",
-  description: "MAIA Business Management System",
+  title: "Ali Axis",
+  description: "Ali Axis Business Management System",
 };
 
 export default function RootLayout({
