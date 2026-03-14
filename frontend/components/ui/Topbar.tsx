@@ -100,10 +100,10 @@ export function Topbar({ title }: { title?: string }) {
   const overdueCount = reminders.length;
   const initials = (displayUser?.name ?? "U").split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
 
-  const ROLE_COLOR: Record<string, string> = {
-    admin: "text-primary bg-primary/10",
-    manager: "text-secondary bg-secondary/10",
-    staff: "text-default-600 bg-default-100",
+  const ROLE_LABEL: Record<string, string> = {
+    admin: "Admin",
+    manager: "Manager",
+    staff: "Sales",
   };
 
   return (
@@ -199,7 +199,7 @@ export function Topbar({ title }: { title?: string }) {
                 </div>
                 <div className="text-left hidden sm:block">
                   <p className="text-xs font-semibold text-gray-900 leading-tight">{displayUser?.name ?? "User"}</p>
-                  <p className="text-[11px] text-gray-400 leading-tight capitalize">{displayUser?.role ?? ""}</p>
+                  <p className="text-[11px] text-gray-400 leading-tight">{ROLE_LABEL[displayUser?.role ?? ""] ?? ""}</p>
                 </div>
                 <ChevronDown size={12} className="text-gray-400 hidden sm:block" />
               </button>
@@ -214,9 +214,6 @@ export function Topbar({ title }: { title?: string }) {
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900 truncate">{displayUser?.name}</p>
                     <p className="text-xs text-gray-400 truncate">{displayUser?.email}</p>
-                    <span className={`inline-block text-[10px] font-medium px-1.5 py-0.5 rounded-full capitalize mt-0.5 ${ROLE_COLOR[displayUser?.role ?? ""] ?? ""}`}>
-                      {displayUser?.role}
-                    </span>
                   </div>
                 </div>
               </div>
