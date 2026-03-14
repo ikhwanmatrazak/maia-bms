@@ -16,7 +16,7 @@ from app.models.activity import Activity, ActivityType
 from app.models.user import User
 from app.schemas.document import ReceiptResponse
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import apply_tenant_filter, get_effective_tenant_id
+from app.middleware.rbac import apply_tenant_filter, get_effective_tenant_id, OwnershipChecker
 
 
 class EmailRequest(BaseModel):
@@ -39,6 +39,8 @@ async def list_receipts(
     query = select(Receipt).options(selectinload(Receipt.client))
     query = apply_tenant_filter(query, Receipt, current_user)
     query = query.where(Receipt.is_deleted != True)
+    if not OwnershipChecker.can_view_all(current_user):
+        query = query.where(Receipt.created_by == current_user.id)
     if month:
         y, m_n = int(month.split("-")[0]), int(month.split("-")[1])
         start = _dt(y, m_n, 1, tzinfo=_tz.utc)
@@ -74,6 +76,8 @@ async def receipts_summary_route(
     end = _dt(y + 1, 1, 1, tzinfo=_tz.utc) if m == 12 else _dt(y, m + 1, 1, tzinfo=_tz.utc)
     q = select(Receipt).where(Receipt.payment_date >= start, Receipt.payment_date < end)
     q = apply_tenant_filter(q, Receipt, current_user)
+    if not OwnershipChecker.can_view_all(current_user):
+        q = q.where(Receipt.created_by == current_user.id)
     result = await db.execute(q)
     rows = result.scalars().all()
     return {
