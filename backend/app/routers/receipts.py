@@ -30,6 +30,7 @@ async def list_receipts(
     client_id: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
     month: Optional[str] = Query(None),
+    user_id: Optional[int] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -41,6 +42,8 @@ async def list_receipts(
     query = query.where(Receipt.is_deleted != True)
     if not OwnershipChecker.can_view_all(current_user):
         query = query.where(Receipt.created_by == current_user.id)
+    elif user_id:
+        query = query.where(Receipt.created_by == user_id)
     if month:
         y, m_n = int(month.split("-")[0]), int(month.split("-")[1])
         start = _dt(y, m_n, 1, tzinfo=_tz.utc)

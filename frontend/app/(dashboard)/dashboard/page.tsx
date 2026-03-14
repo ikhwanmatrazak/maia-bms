@@ -2,18 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { Card, CardBody, CardHeader, Chip } from "@heroui/react";
+import { Card, CardBody, CardHeader, Chip, Select, SelectItem } from "@heroui/react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  reportsApi, invoicesApi, remindersApi, quotationsApi, receiptsApi, prospectsApi,
+  reportsApi, invoicesApi, remindersApi, quotationsApi, receiptsApi, prospectsApi, usersApi,
 } from "@/lib/api";
 import { formatCurrency, formatDate, statusColor } from "@/lib/utils";
 import { Invoice, Reminder } from "@/types";
 import { Topbar } from "@/components/ui/Topbar";
 import { getUser } from "@/lib/auth";
-import { FileText, Receipt, TrendingUp, Users, DollarSign, AlertCircle } from "lucide-react";
+import { FileText, Receipt, Users, DollarSign } from "lucide-react";
 
 // ─── shared KPI card ──────────────────────────────────────────────────────────
 function KpiCard({
@@ -289,26 +289,237 @@ function SalesDashboard({ userName }: { userName: string }) {
   );
 }
 
+// ─── SALES PERFORMANCE TAB (admin / manager) ─────────────────────────────────
+function SalesPerformanceTab() {
+  const [month, setMonth] = useState(currentMonth());
+  const [selectedUser, setSelectedUser] = useState<string>("all");
+  const last6 = getLastNMonths(6);
+
+  const { data: allUsers = [] } = useQuery<any[]>({
+    queryKey: ["users"],
+    queryFn: usersApi.list,
+  });
+
+  // Only show staff (sales) users in the filter — exclude admins/managers if desired, or show all
+  const salesUsers = allUsers.filter((u: any) => !u.is_super_admin);
+
+  const userId = selectedUser === "all" ? undefined : Number(selectedUser);
+  const params = { month, limit: 200, ...(userId ? { user_id: userId } : {}) };
+
+  const { data: quotations = [] } = useQuery<any[]>({
+    queryKey: ["quotations", "perf", month, selectedUser],
+    queryFn: () => quotationsApi.list(params),
+  });
+
+  const { data: invoices = [] } = useQuery<any[]>({
+    queryKey: ["invoices", "perf", month, selectedUser],
+    queryFn: () => invoicesApi.list(params),
+  });
+
+  const { data: receipts = [] } = useQuery<any[]>({
+    queryKey: ["receipts", "perf", month, selectedUser],
+    queryFn: () => receiptsApi.list(params),
+  });
+
+  // 6-month invoice trend (overall or per user)
+  const trendQueries = useQueries({
+    queries: last6.map((m) => ({
+      queryKey: ["invoices", "perf-trend", m, selectedUser],
+      queryFn: () => invoicesApi.list({ month: m, limit: 200, ...(userId ? { user_id: userId } : {}) }),
+    })),
+  });
+
+  const trendData = last6.map((m, i) => {
+    const rows: any[] = trendQueries[i].data ?? [];
+    return {
+      period: monthLabel(m),
+      billed: rows.reduce((s: number, r: any) => s + (r.total ?? 0), 0),
+      paid: rows.reduce((s: number, r: any) => s + (r.amount_paid ?? 0), 0),
+    };
+  });
+
+  // KPIs
+  const qtTotal = quotations.length;
+  const qtValue = quotations.reduce((s: number, q: any) => s + (q.total ?? 0), 0);
+  const qtAccepted = quotations.filter((q: any) => q.status === "accepted").length;
+  const qtConvRate = qtTotal > 0 ? Math.round((qtAccepted / qtTotal) * 100) : 0;
+
+  const invBilled = invoices.reduce((s: number, i: any) => s + (i.total ?? 0), 0);
+  const invPaid = invoices.reduce((s: number, i: any) => s + (i.amount_paid ?? 0), 0);
+  const invOutstanding = invoices.reduce((s: number, i: any) => s + (i.balance_due ?? 0), 0);
+  const invOverdue = invoices.filter((i: any) => i.status === "overdue").length;
+
+  const recAmount = receipts.reduce((s: number, r: any) => s + (r.amount ?? 0), 0);
+
+  // Per-salesperson breakdown (only when "All" selected)
+  const perUser = selectedUser === "all"
+    ? salesUsers.map((u: any) => {
+        const uInv = invoices.filter((i: any) => i.created_by === u.id);
+        const uQt = quotations.filter((q: any) => q.created_by === u.id);
+        return {
+          id: u.id,
+          name: u.name,
+          quotations: uQt.length,
+          invoices: uInv.length,
+          billed: uInv.reduce((s: number, i: any) => s + (i.total ?? 0), 0),
+          collected: uInv.reduce((s: number, i: any) => s + (i.amount_paid ?? 0), 0),
+          outstanding: uInv.reduce((s: number, i: any) => s + (i.balance_due ?? 0), 0),
+        };
+      }).filter((u) => u.invoices > 0 || u.quotations > 0)
+    : [];
+
+  return (
+    <div className="space-y-5">
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-500">Month</label>
+          <input
+            type="month" value={month} onChange={(e) => setMonth(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-primary"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-500">Salesperson</label>
+          <select
+            value={selectedUser}
+            onChange={(e) => setSelectedUser(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-primary bg-white"
+          >
+            <option value="all">All Salespeople</option>
+            {salesUsers.map((u: any) => (
+              <option key={u.id} value={String(u.id)}>{u.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* KPI — Quotations */}
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <FileText size={12} /> Quotations
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <KpiCard label="Total Sent" value={String(qtTotal)} sub={formatCurrency(qtValue)} />
+          <KpiCard label="Accepted" value={String(qtAccepted)} color="success" sub={`${qtConvRate}% conversion`} />
+          <KpiCard label="Pending" value={String(quotations.filter((q: any) => q.status === "sent").length)} color="warning" />
+          <KpiCard label="Rejected / Expired" value={String(quotations.filter((q: any) => ["rejected","expired"].includes(q.status)).length)} color="danger" />
+        </div>
+      </div>
+
+      {/* KPI — Invoices */}
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <DollarSign size={12} /> Invoices
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <KpiCard label="Total Invoiced" value={String(invoices.length)} sub={formatCurrency(invBilled)} />
+          <KpiCard label="Collected" value={formatCurrency(invPaid)} color="success" sub={invBilled > 0 ? `${Math.round((invPaid/invBilled)*100)}% of billed` : undefined} />
+          <KpiCard label="Outstanding" value={formatCurrency(invOutstanding)} color="warning" />
+          <KpiCard label="Overdue" value={String(invOverdue)} color="danger" />
+        </div>
+      </div>
+
+      {/* KPI — Receipts */}
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <Receipt size={12} /> Receipts
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <KpiCard label="Receipts Issued" value={String(receipts.length)} />
+          <KpiCard label="Total Collected" value={formatCurrency(recAmount)} color="success" />
+        </div>
+      </div>
+
+      {/* Trend chart */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-0">
+          <h3 className="font-semibold text-sm">Invoice Trend — Last 6 Months</h3>
+        </CardHeader>
+        <CardBody>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={trendData} barGap={4}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `RM ${(v/1000).toFixed(0)}k`} />
+              <Tooltip formatter={(v: number, n: string) => [formatCurrency(v), n === "billed" ? "Billed" : "Collected"]} />
+              <Bar dataKey="billed" fill="#1a1a2e" radius={[3,3,0,0]} name="billed" />
+              <Bar dataKey="paid" fill="#22c55e" radius={[3,3,0,0]} name="paid" />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex gap-4 justify-center mt-1">
+            <span className="flex items-center gap-1.5 text-xs text-gray-500"><span className="w-3 h-3 rounded-sm bg-[#1a1a2e] inline-block" /> Billed</span>
+            <span className="flex items-center gap-1.5 text-xs text-gray-500"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block" /> Collected</span>
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Per-salesperson breakdown table (only when All is selected) */}
+      {selectedUser === "all" && perUser.length > 0 && (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <h3 className="font-semibold text-sm flex items-center gap-2"><Users size={14} /> Salesperson Breakdown</h3>
+          </CardHeader>
+          <CardBody className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500 uppercase">Name</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-medium text-gray-500 uppercase">Quotations</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-medium text-gray-500 uppercase">Invoices</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-medium text-gray-500 uppercase">Billed</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-medium text-gray-500 uppercase">Collected</th>
+                    <th className="text-right px-5 py-2.5 text-xs font-medium text-gray-500 uppercase">Outstanding</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {perUser.map((u) => (
+                    <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-5 py-3 font-medium text-gray-800">{u.name}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{u.quotations}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{u.invoices}</td>
+                      <td className="px-4 py-3 text-right font-medium">{formatCurrency(u.billed)}</td>
+                      <td className="px-4 py-3 text-right text-green-600 font-medium">{formatCurrency(u.collected)}</td>
+                      <td className={`px-5 py-3 text-right font-medium ${u.outstanding > 0 ? "text-warning-600" : "text-gray-400"}`}>{formatCurrency(u.outstanding)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardBody>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ─── COMPANY DASHBOARD (admin / manager) ─────────────────────────────────────
 function CompanyDashboard() {
+  const [tab, setTab] = useState<"overview" | "sales">("overview");
+
   const { data: revenueData } = useQuery({
     queryKey: ["reports", "revenue", "month"],
     queryFn: () => reportsApi.revenue({ group_by: "month" }),
+    enabled: tab === "overview",
   });
 
   const { data: overdueData } = useQuery({
     queryKey: ["reports", "overdue"],
     queryFn: reportsApi.overdue,
+    enabled: tab === "overview",
   });
 
   const { data: invoices = [] } = useQuery<Invoice[]>({
     queryKey: ["invoices", "recent"],
     queryFn: () => invoicesApi.list({ limit: 5 }),
+    enabled: tab === "overview",
   });
 
   const { data: reminders = [] } = useQuery<Reminder[]>({
     queryKey: ["reminders", "upcoming"],
     queryFn: () => remindersApi.list({ filter: "upcoming" }),
+    enabled: tab === "overview",
   });
 
   const chartData = revenueData?.data ?? [];
@@ -320,81 +531,104 @@ function CompanyDashboard() {
   return (
     <div>
       <Topbar title="Dashboard" />
-      <div className="p-6 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="Total Revenue (This Month)" value={formatCurrency(chartData[chartData.length - 1]?.total ?? 0)} />
-          <KpiCard label="Outstanding Invoices" value={formatCurrency(totalOverdue)} color="warning" />
-          <KpiCard label="Overdue Invoices" value={String(overdueInvoices.length)} sub="Require immediate attention" color="danger" />
-          <KpiCard label="Upcoming Reminders" value={String(reminders.length)} />
+      <div className="p-4 sm:p-6 space-y-5">
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-gray-200">
+          {(["overview", "sales"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
+                tab === t
+                  ? "border-primary text-primary"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {t === "overview" ? "Overview" : "Sales Performance"}
+            </button>
+          ))}
         </div>
 
-        <Card className="shadow-sm">
-          <CardHeader><h3 className="font-semibold">Revenue — Last 6 Months</h3></CardHeader>
-          <CardBody>
-            {chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="period" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(value: number) => [formatCurrency(value), "Revenue"]} />
-                  <Bar dataKey="total" fill="#1a1a2e" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-gray-400">No revenue data yet</div>
-            )}
-          </CardBody>
-        </Card>
+        {tab === "overview" && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <KpiCard label="Total Revenue (This Month)" value={formatCurrency(chartData[chartData.length - 1]?.total ?? 0)} />
+              <KpiCard label="Outstanding Invoices" value={formatCurrency(totalOverdue)} color="warning" />
+              <KpiCard label="Overdue Invoices" value={String(overdueInvoices.length)} sub="Require immediate attention" color="danger" />
+              <KpiCard label="Upcoming Reminders" value={String(reminders.length)} />
+            </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="shadow-sm">
-            <CardHeader><h3 className="font-semibold text-danger">Overdue Invoices</h3></CardHeader>
-            <CardBody>
-              {overdueInvoices.length === 0 ? (
-                <p className="text-gray-400 text-sm">No overdue invoices</p>
-              ) : (
-                <div className="space-y-3">
-                  {overdueInvoices.slice(0, 5).map((inv: any) => (
-                    <div key={inv.invoice_id} className="flex items-center justify-between text-sm">
-                      <div>
-                        <span className="font-medium">{inv.invoice_number}</span>
-                        <span className="text-gray-500 ml-2">{inv.client}</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-medium text-danger">{formatCurrency(inv.balance_due)}</div>
-                        <div className="text-xs text-gray-400">{inv.days_overdue}d overdue</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardBody>
-          </Card>
+            <Card className="shadow-sm">
+              <CardHeader><h3 className="font-semibold">Revenue — Last 6 Months</h3></CardHeader>
+              <CardBody>
+                {chartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="period" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip formatter={(value: number) => [formatCurrency(value), "Revenue"]} />
+                      <Bar dataKey="total" fill="#1a1a2e" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-64 flex items-center justify-center text-gray-400">No revenue data yet</div>
+                )}
+              </CardBody>
+            </Card>
 
-          <Card className="shadow-sm">
-            <CardHeader><h3 className="font-semibold">Upcoming Reminders</h3></CardHeader>
-            <CardBody>
-              {reminders.length === 0 ? (
-                <p className="text-gray-400 text-sm">No upcoming reminders</p>
-              ) : (
-                <div className="space-y-3">
-                  {reminders.slice(0, 5).map((r: Reminder) => (
-                    <div key={r.id} className="flex items-start gap-3 text-sm">
-                      <Chip size="sm" color={r.priority === "high" ? "danger" : r.priority === "medium" ? "warning" : "default"} variant="flat">
-                        {r.priority}
-                      </Chip>
-                      <div>
-                        <div className="font-medium">{r.title}</div>
-                        <div className="text-gray-400 text-xs">Due {formatDate(r.due_date)}</div>
-                      </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="shadow-sm">
+                <CardHeader><h3 className="font-semibold text-danger">Overdue Invoices</h3></CardHeader>
+                <CardBody>
+                  {overdueInvoices.length === 0 ? (
+                    <p className="text-gray-400 text-sm">No overdue invoices</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {overdueInvoices.slice(0, 5).map((inv: any) => (
+                        <div key={inv.invoice_id} className="flex items-center justify-between text-sm">
+                          <div>
+                            <span className="font-medium">{inv.invoice_number}</span>
+                            <span className="text-gray-500 ml-2">{inv.client}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-medium text-danger">{formatCurrency(inv.balance_due)}</div>
+                            <div className="text-xs text-gray-400">{inv.days_overdue}d overdue</div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardBody>
-          </Card>
-        </div>
+                  )}
+                </CardBody>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader><h3 className="font-semibold">Upcoming Reminders</h3></CardHeader>
+                <CardBody>
+                  {reminders.length === 0 ? (
+                    <p className="text-gray-400 text-sm">No upcoming reminders</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {reminders.slice(0, 5).map((r: Reminder) => (
+                        <div key={r.id} className="flex items-start gap-3 text-sm">
+                          <Chip size="sm" color={r.priority === "high" ? "danger" : r.priority === "medium" ? "warning" : "default"} variant="flat">
+                            {r.priority}
+                          </Chip>
+                          <div>
+                            <div className="font-medium">{r.title}</div>
+                            <div className="text-gray-400 text-xs">Due {formatDate(r.due_date)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardBody>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {tab === "sales" && <SalesPerformanceTab />}
       </div>
     </div>
   );

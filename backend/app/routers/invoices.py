@@ -84,6 +84,7 @@ async def list_invoices(
     client_id: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
     month: Optional[str] = Query(None),
+    user_id: Optional[int] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -94,6 +95,8 @@ async def list_invoices(
     query = query.where(Invoice.is_deleted != True)
     if not OwnershipChecker.can_view_all(current_user):
         query = query.where(Invoice.created_by == current_user.id)
+    elif user_id:
+        query = query.where(Invoice.created_by == user_id)
     if month:
         start, end = _month_range_inv(month)
         query = query.where(Invoice.issue_date >= start, Invoice.issue_date < end)

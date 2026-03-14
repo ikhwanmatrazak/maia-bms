@@ -107,6 +107,7 @@ async def list_quotations(
     client_id: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
     month: Optional[str] = Query(None),
+    user_id: Optional[int] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -117,6 +118,8 @@ async def list_quotations(
     query = query.where(Quotation.is_deleted != True)
     if not OwnershipChecker.can_view_all(current_user):
         query = query.where(Quotation.created_by == current_user.id)
+    elif user_id:
+        query = query.where(Quotation.created_by == user_id)
     if month:
         start, end = _month_range_q(month)
         query = query.where(Quotation.issue_date >= start, Quotation.issue_date < end)
