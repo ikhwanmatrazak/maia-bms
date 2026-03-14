@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { getUser } from "@/lib/auth";
 import { X, ChevronDown } from "lucide-react";
 
+// roles: which roles can see this item. undefined = all roles.
 const navGroups = [
   {
     label: "Overview",
@@ -16,7 +17,7 @@ const navGroups = [
     ),
     items: [
       { href: "/dashboard", label: "Dashboard" },
-      { href: "/analytics", label: "Analytics" },
+      { href: "/analytics", label: "Analytics", roles: ["admin"] },
     ],
   },
   {
@@ -42,8 +43,6 @@ const navGroups = [
       { href: "/quotations", label: "Quotations" },
       { href: "/invoices", label: "Invoices" },
       { href: "/receipts", label: "Receipts" },
-      { href: "/payments", label: "Payments" },
-      { href: "/credit-notes", label: "Credit Notes" },
     ],
   },
   {
@@ -62,12 +61,15 @@ const navGroups = [
   },
   {
     label: "Finance",
+    roles: ["admin", "manager"],
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5">
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
       </svg>
     ),
     items: [
+      { href: "/payments", label: "Payments" },
+      { href: "/credit-notes", label: "Credit Notes" },
       { href: "/expenses", label: "Expenses" },
       { href: "/reports", label: "Reports" },
     ],
@@ -82,7 +84,7 @@ const navGroups = [
     ),
     items: [
       { href: "/reminders", label: "Reminders" },
-      { href: "/settings", label: "Settings" },
+      { href: "/settings", label: "Settings", roles: ["admin"] },
     ],
   },
 ];
@@ -96,9 +98,30 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<ReturnType<typeof getUser>>(null);
 
+  useEffect(() => {
+    setUser(getUser());
+  }, []);
+
+  const role: string = user?.role ?? "staff";
+  const isSuperAdmin: boolean = user?.is_super_admin ?? false;
+
+  // Filter groups and items based on role
+  const visibleGroups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) => !item.roles || isSuperAdmin || item.roles.includes(role)
+      ),
+    }))
+    .filter(
+      (group) =>
+        group.items.length > 0 &&
+        (!group.roles || isSuperAdmin || group.roles.includes(role))
+    );
+
   // Determine which group is active based on current path
   const getActiveGroup = () => {
-    for (const group of navGroups) {
+    for (const group of visibleGroups) {
       for (const item of group.items) {
         if (pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))) {
           return group.label;
@@ -109,10 +132,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   };
 
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set([getActiveGroup()]));
-
-  useEffect(() => {
-    setUser(getUser());
-  }, []);
 
   // Auto-open group when navigating
   useEffect(() => {
@@ -142,7 +161,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       </div>
 
       <nav className="flex-1 py-2 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        {navGroups.map((group) => {
+        {visibleGroups.map((group) => {
           const isGroupOpen = openGroups.has(group.label);
           const isGroupActive = group.items.some(
             item => pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
