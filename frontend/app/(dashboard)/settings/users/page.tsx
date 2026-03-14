@@ -6,6 +6,7 @@ import {
   Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
   Button, Input, Select, SelectItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Chip,
 } from "@heroui/react";
+import { Eye, EyeOff } from "lucide-react";
 import { usersApi } from "@/lib/api";
 import { User } from "@/types";
 import { formatDate } from "@/lib/utils";
@@ -21,6 +22,8 @@ export default function UsersPage() {
   const [editModal, setEditModal] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", role: "staff", new_password: "" });
+  const [showCreatePw, setShowCreatePw] = useState(false);
+  const [showEditPw, setShowEditPw] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -34,6 +37,7 @@ export default function UsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setCreateModal(false);
+      setShowCreatePw(false);
       setForm({ name: "", email: "", password: "", role: "staff" });
     },
   });
@@ -44,6 +48,7 @@ export default function UsersPage() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setEditModal(false);
       setEditUser(null);
+      setShowEditPw(false);
     },
   });
 
@@ -130,7 +135,8 @@ export default function UsersPage() {
             <ModalBody className="flex flex-col gap-4">
               <Input variant="bordered" label="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               <Input variant="bordered" label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              <Input variant="bordered" label="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+              <Input variant="bordered" label="Password" type={showCreatePw ? "text" : "password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
+                endContent={<button type="button" onClick={() => setShowCreatePw(p => !p)} className="text-gray-400 hover:text-gray-600">{showCreatePw ? <EyeOff size={16} /> : <Eye size={16} />}</button>} />
               <Select variant="bordered" label="Role" selectedKeys={[form.role]} onSelectionChange={(k) => setForm({ ...form, role: Array.from(k)[0] as string })}>
                 {ROLES.map((r) => <SelectItem key={r}>{ROLE_LABELS[r]}</SelectItem>)}
               </Select>
@@ -156,10 +162,11 @@ export default function UsersPage() {
                 onSelectionChange={(k) => setEditForm({ ...editForm, role: Array.from(k)[0] as string })}>
                 {ROLES.map((r) => <SelectItem key={r}>{ROLE_LABELS[r]}</SelectItem>)}
               </Select>
-              <Input variant="bordered" label="New Password" type="password"
+              <Input variant="bordered" label="New Password" type={showEditPw ? "text" : "password"}
                 placeholder="Leave blank to keep current"
                 value={editForm.new_password}
-                onChange={(e) => setEditForm({ ...editForm, new_password: e.target.value })} />
+                onChange={(e) => setEditForm({ ...editForm, new_password: e.target.value })}
+                endContent={<button type="button" onClick={() => setShowEditPw(p => !p)} className="text-gray-400 hover:text-gray-600">{showEditPw ? <EyeOff size={16} /> : <Eye size={16} />}</button>} />
             </ModalBody>
             <ModalFooter>
               <Button variant="flat" onPress={() => setEditModal(false)}>Cancel</Button>
