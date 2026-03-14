@@ -208,22 +208,22 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const navContent = (
     <>
-      <div className="px-4 h-14 border-b border-white/10 flex items-center justify-between shrink-0">
+      <div className="px-5 h-16 border-b border-gray-100 flex items-center justify-between shrink-0">
         <div>
-          <p className="text-sm font-semibold tracking-wide">MAIA BMS</p>
+          <p className="text-base font-bold tracking-wide text-gray-900">MAIA BMS</p>
         </div>
         <button
           onClick={onClose}
-          className="lg:hidden p-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+          className="lg:hidden p-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
         >
           <X size={18} />
         </button>
       </div>
 
-      <nav className="flex-1 py-1 overflow-y-auto">
+      <nav className="flex-1 py-2 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {navGroups.map((group) => (
-          <div key={group.label}>
-            <p className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-widest text-white/35">
+          <div key={group.label} className="mb-1">
+            <p className="px-5 pt-4 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
               {group.label}
             </p>
             {group.items.map((item) => {
@@ -235,14 +235,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   key={item.href}
                   href={item.href}
                   onClick={onClose}
-                  className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${
+                  className={`flex items-center gap-3 mx-2 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                     isActive
-                      ? "bg-white/15 text-white font-medium"
-                      : "text-white/65 hover:text-white hover:bg-white/8"
+                      ? "bg-blue-50 text-blue-600 font-semibold"
+                      : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                   }`}
                 >
-                  {item.icon}
+                  <span className={isActive ? "text-blue-500" : "text-gray-400"}>{item.icon}</span>
                   {item.label}
+                  {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-500" />}
                 </Link>
               );
             })}
@@ -250,24 +251,24 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         ))}
 
         {user?.is_super_admin && (
-          <div className="mt-1 border-t border-white/10 pt-1">
-            <p className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-widest text-purple-300/50">
+          <div className="mt-2 border-t border-gray-100 pt-2">
+            <p className="px-5 pt-4 pb-1.5 text-[11px] font-semibold uppercase tracking-widest text-purple-400">
               Admin
             </p>
             <Link
               href="/admin"
               onClick={onClose}
-              className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${
+              className={`flex items-center gap-3 mx-2 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                 pathname.startsWith("/admin")
-                  ? "bg-purple-600/40 text-white font-medium"
-                  : "text-purple-300/70 hover:text-purple-200 hover:bg-purple-600/20"
+                  ? "bg-purple-50 text-purple-600 font-semibold"
+                  : "text-gray-500 hover:text-purple-600 hover:bg-purple-50"
               }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0H3" />
               </svg>
               Super Admin
-
+              {pathname.startsWith("/admin") && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-purple-500" />}
             </Link>
           </div>
         )}
@@ -277,7 +278,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   return (
     <>
-      <aside className="hidden lg:flex w-60 h-screen sticky top-0 bg-[#1a1a2e] text-white flex-col shrink-0">
+      <aside className="hidden lg:flex w-64 h-screen sticky top-0 bg-white border-r border-gray-100 text-gray-800 flex-col shrink-0">
         {navContent}
       </aside>
 
@@ -289,7 +290,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       )}
 
       <aside
-        className={`lg:hidden fixed top-0 left-0 h-full w-72 bg-[#1a1a2e] text-white flex flex-col z-50 transition-transform duration-300 ${
+        className={`lg:hidden fixed top-0 left-0 h-full w-72 bg-white border-r border-gray-100 text-gray-800 flex flex-col z-50 transition-transform duration-300 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
