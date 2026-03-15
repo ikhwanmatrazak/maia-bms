@@ -15,11 +15,18 @@ depends_on = None
 
 
 def upgrade():
-    # Use IF NOT EXISTS so this is safe to re-run if it previously failed silently
-    op.execute(text(
-        "ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS tin_no VARCHAR(50) NULL"
+    conn = op.get_bind()
+    result = conn.execute(text(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS "
+        "WHERE TABLE_SCHEMA = DATABASE() "
+        "AND TABLE_NAME = 'company_settings' "
+        "AND COLUMN_NAME = 'tin_no'"
     ))
+    if result.scalar() == 0:
+        conn.execute(text(
+            "ALTER TABLE company_settings ADD COLUMN tin_no VARCHAR(50) NULL"
+        ))
 
 
 def downgrade():
-    op.drop_column('company_settings', 'tin_no')
+    pass
