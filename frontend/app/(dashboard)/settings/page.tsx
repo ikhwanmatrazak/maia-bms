@@ -67,6 +67,11 @@ export default function SettingsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings"] }),
   });
 
+  const signatureMutation = useMutation({
+    mutationFn: (file: File) => settingsApi.uploadSignature(file),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings"] }),
+  });
+
   const smtpTestMutation = useMutation({
     mutationFn: (email: string) => settingsApi.testSmtp(email),
     onSuccess: () => setSmtpTestResult("Test email sent successfully!"),
@@ -158,22 +163,48 @@ export default function SettingsPage() {
           </CardBody>
         </Card>
 
-        {/* Logo Upload */}
+        {/* Logo & Signature Upload */}
         <Card>
-          <CardHeader><h3 className="font-semibold">Company Logo</h3></CardHeader>
-          <CardBody className="flex flex-col gap-3">
-            {settings?.logo_url && (
-              <img src={`${process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "")}${settings.logo_url}`} alt="Logo" className="h-16 object-contain" />
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              className="text-sm"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) logoMutation.mutate(file);
-              }}
-            />
+          <CardHeader><h3 className="font-semibold">Branding</h3></CardHeader>
+          <CardBody className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium">Company Logo</p>
+              {settings?.logo_url && (
+                <img src={settings.logo_url} alt="Logo" className="h-16 object-contain border rounded p-1 w-fit" />
+              )}
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="text-sm"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) logoMutation.mutate(file);
+                  }}
+                />
+                {logoMutation.isPending && <span className="text-sm text-default-400">Uploading...</span>}
+                {logoMutation.isSuccess && <span className="text-sm text-success">Uploaded!</span>}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium">Signature Image</p>
+              {settings?.signature_image_url && (
+                <img src={settings.signature_image_url} alt="Signature" className="h-16 object-contain border rounded p-1 w-fit" />
+              )}
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="text-sm"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) signatureMutation.mutate(file);
+                  }}
+                />
+                {signatureMutation.isPending && <span className="text-sm text-default-400">Uploading...</span>}
+                {signatureMutation.isSuccess && <span className="text-sm text-success">Uploaded!</span>}
+              </div>
+            </div>
           </CardBody>
         </Card>
 
