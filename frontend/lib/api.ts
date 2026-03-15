@@ -247,6 +247,7 @@ export const settingsApi = {
   updateTaxRate: (id: number, data: object) => api.put(`/settings/tax-rates/${id}`, data).then((r) => r.data),
   testSmtp: (to_email: string) => api.post("/settings/smtp/test", { to_email }).then((r) => r.data),
   getTemplates: () => api.get("/settings/templates").then((r) => r.data),
+  createTemplate: (data: object) => api.post("/settings/templates", data).then((r) => r.data),
   getEmailTemplates: () => api.get("/settings/email-templates").then((r) => r.data),
   updateEmailTemplate: (doc_type: string, data: object) => api.put(`/settings/email-templates/${doc_type}`, data).then((r) => r.data),
 };

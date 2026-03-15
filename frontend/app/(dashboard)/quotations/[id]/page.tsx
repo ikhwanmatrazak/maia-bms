@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardBody, CardHeader, Button, Chip, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input } from "@heroui/react";
-import { quotationsApi, downloadPdf } from "@/lib/api";
+import { quotationsApi, settingsApi, downloadPdf } from "@/lib/api";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
 
@@ -16,6 +16,9 @@ export default function QuotationDetailPage() {
   const [emailModal, setEmailModal] = useState(false);
   const [emailTo, setEmailTo] = useState("");
   const [emailResult, setEmailResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [templateModal, setTemplateModal] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateSaved, setTemplateSaved] = useState(false);
 
   const { data: q, isLoading } = useQuery({
     queryKey: ["quotations", id],
@@ -31,6 +34,11 @@ export default function QuotationDetailPage() {
     mutationFn: (to: string) => quotationsApi.email(id, to),
     onSuccess: () => setEmailResult({ ok: true, msg: `Email sent to ${emailTo}` }),
     onError: (e: any) => setEmailResult({ ok: false, msg: e?.response?.data?.detail || "Failed to send email" }),
+  });
+
+  const saveTemplateMutation = useMutation({
+    mutationFn: (data: object) => settingsApi.createTemplate(data),
+    onSuccess: () => { setTemplateSaved(true); setTimeout(() => { setTemplateModal(false); setTemplateSaved(false); }, 1500); },
   });
 
   const convertMutation = useMutation({
@@ -70,6 +78,9 @@ export default function QuotationDetailPage() {
             </Button>
             <Button size="sm" variant="flat" onPress={() => router.push(`/quotations/new?from=${id}`)}>
               Duplicate
+            </Button>
+            <Button size="sm" variant="flat" onPress={() => { setTemplateName(q.quotation_number); setTemplateSaved(false); setTemplateModal(true); }}>
+              Save as Template
             </Button>
           </div>
         </div>
@@ -136,6 +147,35 @@ export default function QuotationDetailPage() {
           </Card>
         )}
       </div>
+
+      {/* Save as Template Modal */}
+      <Modal isOpen={templateModal} onClose={() => setTemplateModal(false)}>
+        <ModalContent>
+          <ModalHeader>Save as Template</ModalHeader>
+          <ModalBody className="flex flex-col gap-4">
+            <Input variant="bordered" label="Template Name" value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)} />
+            {templateSaved && <p className="text-sm text-success">Template saved successfully!</p>}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => setTemplateModal(false)}>Cancel</Button>
+            <Button color="primary" isLoading={saveTemplateMutation.isPending}
+              onPress={() => saveTemplateMutation.mutate({
+                name: templateName,
+                type: "quotation",
+                style: "professional",
+                items: q.items.map((i: any) => ({ description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price) })),
+                notes: q.notes ?? "",
+                terms_conditions: q.terms_conditions ?? "",
+                currency: q.currency,
+                exchange_rate: Number(q.exchange_rate),
+                discount_amount: Number(q.discount_amount),
+              })}>
+              Save Template
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       <Modal isOpen={emailModal} onClose={() => setEmailModal(false)}>
         <ModalContent>

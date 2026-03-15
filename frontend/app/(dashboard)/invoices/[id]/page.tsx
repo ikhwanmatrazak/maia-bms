@@ -7,7 +7,7 @@ import {
   Card, CardBody, CardHeader, Button, Chip, Modal, ModalContent,
   ModalHeader, ModalBody, ModalFooter, Input, Select, SelectItem,
 } from "@heroui/react";
-import { invoicesApi, paymentsApi, downloadPdf } from "@/lib/api";
+import { invoicesApi, paymentsApi, settingsApi, downloadPdf } from "@/lib/api";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
 import { Payment } from "@/types";
@@ -34,6 +34,9 @@ export default function InvoiceDetailPage() {
   });
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [templateModal, setTemplateModal] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateSaved, setTemplateSaved] = useState(false);
 
   const { data: inv, isLoading } = useQuery({
     queryKey: ["invoices", id],
@@ -74,6 +77,11 @@ export default function InvoiceDetailPage() {
   const cancelMutation = useMutation({
     mutationFn: () => invoicesApi.cancel(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["invoices", id] }),
+  });
+
+  const saveTemplateMutation = useMutation({
+    mutationFn: (data: object) => settingsApi.createTemplate(data),
+    onSuccess: () => { setTemplateSaved(true); setTimeout(() => { setTemplateModal(false); setTemplateSaved(false); }, 1500); },
   });
 
   if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
@@ -135,6 +143,9 @@ export default function InvoiceDetailPage() {
             <Button size="sm" color="primary" variant="flat" onPress={openEmailModal}>Email PDF</Button>
             <Button size="sm" variant="flat" onPress={() => downloadPdf(invoicesApi.getPdfUrl(id), (inv?.invoice_number || "invoice-" + id) + ".pdf")}>PDF</Button>
             <Button size="sm" variant="flat" onPress={() => router.push(`/invoices/new?from=${id}`)}>Duplicate</Button>
+            <Button size="sm" variant="flat" onPress={() => { setTemplateName(inv.invoice_number); setTemplateSaved(false); setTemplateModal(true); }}>
+              Save as Template
+            </Button>
             {!["paid", "cancelled"].includes(inv.status) && (
               <Button size="sm" color="danger" variant="flat" isLoading={cancelMutation.isPending}
                 onPress={() => cancelMutation.mutate()}>Cancel</Button>
@@ -224,6 +235,35 @@ export default function InvoiceDetailPage() {
             </CardBody>
           </Card>
         )}
+
+        {/* Save as Template Modal */}
+        <Modal isOpen={templateModal} onClose={() => setTemplateModal(false)}>
+          <ModalContent>
+            <ModalHeader>Save as Template</ModalHeader>
+            <ModalBody className="flex flex-col gap-4">
+              <Input variant="bordered" label="Template Name" value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)} />
+              {templateSaved && <p className="text-sm text-success">Template saved successfully!</p>}
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="flat" onPress={() => setTemplateModal(false)}>Cancel</Button>
+              <Button color="primary" isLoading={saveTemplateMutation.isPending}
+                onPress={() => saveTemplateMutation.mutate({
+                  name: templateName,
+                  type: "invoice",
+                  style: "professional",
+                  items: inv.items.map((i: any) => ({ description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price) })),
+                  notes: inv.notes ?? "",
+                  terms_conditions: inv.terms_conditions ?? "",
+                  currency: inv.currency,
+                  exchange_rate: Number(inv.exchange_rate),
+                  discount_amount: Number(inv.discount_amount),
+                })}>
+                Save Template
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
 
         {/* Payment Modal */}
         <Modal isOpen={paymentModal} onClose={() => setPaymentModal(false)}>
