@@ -23,6 +23,14 @@ def _resolve_upload_path(url: str | None) -> Path | None:
 
 
 def get_signature_base64(signature_url: str | None) -> str | None:
+    if not signature_url:
+        return None
+    # Already a data URI (stored in DB as base64)
+    if signature_url.startswith("data:"):
+        # PDF template expects raw base64, not a data URI
+        if ";base64," in signature_url:
+            return signature_url.split(";base64,", 1)[1]
+        return None
     path = _resolve_upload_path(signature_url)
     if path:
         return base64.b64encode(path.read_bytes()).decode("utf-8")
@@ -30,6 +38,11 @@ def get_signature_base64(signature_url: str | None) -> str | None:
 
 
 def get_logo_base64(logo_url: str | None) -> str | None:
+    if not logo_url:
+        return None
+    # Already a data URI (stored in DB as base64)
+    if logo_url.startswith("data:"):
+        return logo_url
     path = _resolve_upload_path(logo_url)
     if not path:
         return None

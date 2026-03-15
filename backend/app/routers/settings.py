@@ -103,16 +103,12 @@ async def upload_logo(
     if len(content) > app_settings.max_file_size_mb * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large")
 
-    upload_dir = os.path.join(app_settings.upload_dir, "logos")
-    os.makedirs(upload_dir, exist_ok=True)
-    ext = os.path.splitext(file.filename or "logo")[1] or ".png"
-    filename = f"company_logo{ext}"
-    file_path = os.path.join(upload_dir, filename)
-    with open(file_path, "wb") as f:
-        f.write(content)
+    import base64
+    mime = file.content_type or "image/png"
+    data_uri = f"data:{mime};base64,{base64.b64encode(content).decode()}"
 
     settings = await _get_or_create_settings(db, tenant_id=get_effective_tenant_id(current_user))
-    settings.logo_url = f"/uploads/logos/{filename}"
+    settings.logo_url = data_uri
     await db.commit()
     await db.refresh(settings)
     return settings
@@ -131,14 +127,12 @@ async def upload_signature(
     if len(content) > app_settings.max_file_size_mb * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large")
 
-    upload_dir = os.path.join(app_settings.upload_dir, "signatures")
-    os.makedirs(upload_dir, exist_ok=True)
-    filename = "company_signature.png"
-    with open(os.path.join(upload_dir, filename), "wb") as f:
-        f.write(content)
+    import base64
+    mime = file.content_type or "image/png"
+    data_uri = f"data:{mime};base64,{base64.b64encode(content).decode()}"
 
     settings = await _get_or_create_settings(db, tenant_id=get_effective_tenant_id(current_user))
-    settings.signature_image_url = f"/uploads/signatures/{filename}"
+    settings.signature_image_url = data_uri
     await db.commit()
     await db.refresh(settings)
     return settings

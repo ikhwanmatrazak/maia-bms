@@ -16,7 +16,7 @@ class CompanySettings(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, unique=True, index=True)
     name = Column(String(255), nullable=False, default="MAIA")
-    logo_url = Column(String(500), nullable=True)
+    logo_url = Column(Text, nullable=True)
     address = Column(Text, nullable=True)
     phone = Column(String(50), nullable=True)
     email = Column(String(255), nullable=True)
@@ -52,7 +52,7 @@ class CompanySettings(Base):
     bank_account_name = Column(String(255), nullable=True)
 
     # Branding
-    signature_image_url = Column(String(500), nullable=True)
+    signature_image_url = Column(Text, nullable=True)
     primary_color = Column(String(7), default="#1a1a2e")
     accent_color = Column(String(7), default="#16213e")
 
