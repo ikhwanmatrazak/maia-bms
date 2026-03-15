@@ -147,12 +147,13 @@ export default function InvoiceDetailPage() {
             )}
             {inv.status === "paid" && (() => {
               const receiptId = payments.find((p) => p.receipt_id)?.receipt_id;
-              return receiptId ? (
-                <Button size="sm" color="primary" onPress={() => router.push(`/receipts/${receiptId}`)}>View Receipt</Button>
-              ) : (
-                <Button size="sm" color="primary" isLoading={generateReceiptMutation.isPending}
+              return (<>
+                {receiptId && (
+                  <Button size="sm" color="primary" onPress={() => router.push(`/receipts/${receiptId}`)}>View Receipt</Button>
+                )}
+                <Button size="sm" color="primary" variant={receiptId ? "flat" : "solid"} isLoading={generateReceiptMutation.isPending}
                   onPress={() => generateReceiptMutation.mutate()}>Create Receipt</Button>
-              );
+              </>);
             })()}
             <Button size="sm" color="primary" variant="flat" onPress={openEmailModal}>Email PDF</Button>
             <Button size="sm" variant="flat" onPress={() => downloadPdf(invoicesApi.getPdfUrl(id), (inv?.invoice_number || "invoice-" + id) + ".pdf")}>PDF</Button>
