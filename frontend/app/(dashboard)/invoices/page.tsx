@@ -242,8 +242,10 @@ export default function InvoicesPage() {
                     <Button as={Link} href={`/invoices/${inv.id}?receipt=1`} size="sm" variant="flat" color="success" isIconOnly title="Create Receipt"><ReceiptText size={15} /></Button>
                     <Button size="sm" variant="flat" isIconOnly title="Download PDF" onPress={() => downloadPdf(invoicesApi.getPdfUrl(inv.id), (inv.invoice_number || "invoice-" + inv.id) + ".pdf")}><FileDown size={15} /></Button>
                     <Button size="sm" variant="flat" isIconOnly title="Duplicate" onPress={() => router.push(`/invoices/new?from=${inv.id}`)}><Copy size={15} /></Button>
-                    <Button size="sm" variant="flat" color="danger" isIconOnly isLoading={deleteMutation.isPending} title="Delete"
-                      onPress={() => { if (confirm("Delete this invoice?")) deleteMutation.mutate(inv.id); }}><Trash2 size={15} /></Button>
+                    {inv.status !== "paid" && (
+                      <Button size="sm" variant="flat" color="danger" isIconOnly isLoading={deleteMutation.isPending} title="Delete"
+                        onPress={() => { if (confirm("Delete this invoice?")) deleteMutation.mutate(inv.id); }}><Trash2 size={15} /></Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
