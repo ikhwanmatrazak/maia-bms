@@ -164,7 +164,15 @@ export default function QuotationDetailPage() {
                 name: templateName,
                 type: "quotation",
                 style: "professional",
-                items: q.items.map((i: any) => ({ description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price) })),
+                items: q.items.map((i: any) => {
+                  const lines = i.description.split("\n");
+                  return {
+                    description: lines[0],
+                    quantity: Number(i.quantity),
+                    unit_price: Number(i.unit_price),
+                    sub_items: lines.slice(1).map((s: string) => s.replace(/^•\s*/, "")),
+                  };
+                }),
                 notes: q.notes ?? "",
                 terms_conditions: q.terms_conditions ?? "",
                 currency: q.currency,

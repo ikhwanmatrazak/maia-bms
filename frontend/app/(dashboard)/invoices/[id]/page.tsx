@@ -252,7 +252,15 @@ export default function InvoiceDetailPage() {
                   name: templateName,
                   type: "invoice",
                   style: "professional",
-                  items: inv.items.map((i: any) => ({ description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price) })),
+                  items: inv.items.map((i: any) => {
+                    const lines = i.description.split("\n");
+                    return {
+                      description: lines[0],
+                      quantity: Number(i.quantity),
+                      unit_price: Number(i.unit_price),
+                      sub_items: lines.slice(1).map((s: string) => s.replace(/^•\s*/, "")),
+                    };
+                  }),
                   notes: inv.notes ?? "",
                   terms_conditions: inv.terms_conditions ?? "",
                   currency: inv.currency,
