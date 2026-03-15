@@ -14,6 +14,7 @@ from app.models.quotation import Quotation, QuotationItem, QuotationStatus
 from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus
 from app.models.settings import TaxRate, CompanySettings, EmailTemplate
 from app.models.activity import Activity, ActivityType
+from app.models.reminder import Reminder, ReminderPriority
 from app.models.user import User
 from app.schemas.document import QuotationCreate, QuotationUpdate, QuotationResponse
 from app.middleware.auth import get_current_user
@@ -29,6 +30,7 @@ class EmailRequest(BaseModel):
 
 async def _email_quotation(quotation, to_email: str, db):
     from app.services.pdf_service import generate_pdf
+    from app.routers.tracking import create_tracking
     settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == quotation.tenant_id).limit(1))
     company = settings_result.scalar_one_or_none()
     if company is None:
@@ -56,7 +58,17 @@ async def _email_quotation(quotation, to_email: str, db):
     }
     subject = render_template(subject_tpl, vars_map)
     body_text = render_template(body_tpl, vars_map)
-    html_body = f"<html><body><pre style='font-family:sans-serif;white-space:pre-wrap'>{body_text}</pre></body></html>"
+
+    # Create email tracking pixel
+    try:
+        token = await create_tracking(db, "quotation", quotation.id, to_email, quotation.tenant_id)
+        import os as _os
+        pixel_url = f"{_os.environ.get('BACKEND_URL', 'http://localhost:8000').rstrip('/')}/api/v1/track/{token}.gif"
+        tracking_pixel = f'<img src="{pixel_url}" width="1" height="1" style="display:none" alt="">'
+    except Exception:
+        tracking_pixel = ""
+
+    html_body = f"<html><body><pre style='font-family:sans-serif;white-space:pre-wrap'>{body_text}</pre>{tracking_pixel}</body></html>"
     pdf_bytes = await generate_pdf("quotation", quotation, company, "professional")
     await send_email(company, smtp_password, to_email, subject, html_body, pdf_bytes=pdf_bytes, pdf_filename=f"{quotation.quotation_number}.pdf")
 
@@ -366,6 +378,7 @@ async def email_quotation(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from datetime import timedelta
     result = await db.execute(
         select(Quotation).options(selectinload(Quotation.items), selectinload(Quotation.client)).where(Quotation.id == quotation_id)
     )
@@ -381,6 +394,24 @@ async def email_quotation(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+
+    # Auto-create follow-up reminder 3 days later
+    try:
+        client_name = quotation.client.company_name if quotation.client else "client"
+        reminder = Reminder(
+            client_id=quotation.client_id,
+            user_id=current_user.id,
+            tenant_id=eff_tenant,
+            title=f"Follow up on quotation {quotation.quotation_number}",
+            description=f"Follow up on quotation {quotation.quotation_number} sent to {client_name}",
+            due_date=datetime.now(timezone.utc) + timedelta(days=3),
+            priority=ReminderPriority.medium,
+        )
+        db.add(reminder)
+        await db.commit()
+    except Exception:
+        pass  # Non-critical — don't fail the email send
+
     return {"message": f"Email sent to {body.to_email}"}
 
 
@@ -456,6 +487,32 @@ async def convert_to_invoice(
     quotation.accepted_at = datetime.now(timezone.utc)
     await db.commit()
     return {"invoice_id": invoice.id, "invoice_number": invoice_number}
+
+
+@router.get("/{quotation_id}/email-tracking")
+async def get_quotation_email_tracking(
+    quotation_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.email_tracking import EmailTracking
+    result = await db.execute(
+        select(EmailTracking)
+        .where(EmailTracking.doc_type == "quotation", EmailTracking.doc_id == quotation_id)
+        .order_by(EmailTracking.sent_at.desc())
+        .limit(1)
+    )
+    tracking = result.scalar_one_or_none()
+    if not tracking:
+        return {"sent": False}
+    return {
+        "sent": True,
+        "sent_at": tracking.sent_at,
+        "opened": tracking.opened_at is not None,
+        "opened_at": tracking.opened_at,
+        "open_count": tracking.open_count,
+        "recipient_email": tracking.recipient_email,
+    }
 
 
 @router.get("/{quotation_id}/pdf")

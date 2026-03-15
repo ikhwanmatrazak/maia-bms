@@ -8,6 +8,7 @@ import {
   ModalHeader, ModalBody, ModalFooter, Input, Select, SelectItem,
 } from "@heroui/react";
 import { invoicesApi, paymentsApi, settingsApi, downloadPdf } from "@/lib/api";
+import { Mail as MailIcon, Eye as EyeIcon } from "lucide-react";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
 import { Payment } from "@/types";
@@ -46,6 +47,11 @@ export default function InvoiceDetailPage() {
   const { data: payments = [] } = useQuery<Payment[]>({
     queryKey: ["invoices", id, "payments"],
     queryFn: () => invoicesApi.getPayments(id),
+  });
+
+  const { data: emailTracking } = useQuery({
+    queryKey: ["invoices", id, "email-tracking"],
+    queryFn: () => invoicesApi.getEmailTracking(id),
   });
 
   const sendMutation = useMutation({
@@ -270,6 +276,33 @@ export default function InvoiceDetailPage() {
         {inv.payment_terms && (
           <Card><CardHeader><h3 className="font-semibold">Payment Terms</h3></CardHeader>
             <CardBody><p className="text-sm text-gray-600 whitespace-pre-line">{inv.payment_terms}</p></CardBody>
+          </Card>
+        )}
+
+        {emailTracking?.sent && (
+          <Card>
+            <CardHeader><h3 className="font-semibold flex items-center gap-2"><MailIcon size={16} /> Email Tracking</h3></CardHeader>
+            <CardBody>
+              <div className="flex items-center gap-4 text-sm flex-wrap">
+                <div className="flex items-center gap-2">
+                  <MailIcon size={14} className="text-gray-400" />
+                  <span className="text-gray-500">Sent to</span>
+                  <span className="font-medium">{emailTracking.recipient_email || "—"}</span>
+                  {emailTracking.sent_at && <span className="text-gray-400 text-xs">{new Date(emailTracking.sent_at).toLocaleString()}</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <EyeIcon size={14} className={emailTracking.opened ? "text-success" : "text-gray-300"} />
+                  {emailTracking.opened ? (
+                    <span className="text-success font-medium">
+                      Opened {emailTracking.open_count > 1 ? `(${emailTracking.open_count}x)` : ""}
+                      {emailTracking.opened_at && <span className="text-gray-400 font-normal ml-1 text-xs">· {new Date(emailTracking.opened_at).toLocaleString()}</span>}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">Not yet opened</span>
+                  )}
+                </div>
+              </div>
+            </CardBody>
           </Card>
         )}
 

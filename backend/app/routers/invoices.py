@@ -30,6 +30,8 @@ class EmailRequest(BaseModel):
 
 async def _email_invoice(invoice, to_email: str, db):
     from app.services.pdf_service import generate_pdf
+    from app.routers.tracking import create_tracking
+    from app.config import get_settings as _get_settings
     settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == invoice.tenant_id).limit(1))
     company = settings_result.scalar_one_or_none()
     if company is None:
@@ -58,7 +60,22 @@ async def _email_invoice(invoice, to_email: str, db):
     }
     subject = render_template(subject_tpl, vars_map)
     body_text = render_template(body_tpl, vars_map)
-    html_body = f"<html><body><pre style='font-family:sans-serif;white-space:pre-wrap'>{body_text}</pre></body></html>"
+
+    # Create email tracking pixel
+    try:
+        token = await create_tracking(db, "invoice", invoice.id, to_email, invoice.tenant_id)
+        _app_settings = _get_settings()
+        backend_base = _app_settings.frontend_url.rstrip("/").replace(":3000", ":8000") if ":3000" in _app_settings.frontend_url else _app_settings.frontend_url.rstrip("/")
+        # Use the API prefix path
+        pixel_url = f"{_app_settings.frontend_url.rstrip('/')}/api/v1/track/{token}.gif" if hasattr(_app_settings, 'backend_url') else f"http://localhost:8000/api/v1/track/{token}.gif"
+        # Try to build from a backend_url env if available, otherwise use a sensible default
+        import os as _os
+        pixel_url = f"{_os.environ.get('BACKEND_URL', 'http://localhost:8000').rstrip('/')}/api/v1/track/{token}.gif"
+        tracking_pixel = f'<img src="{pixel_url}" width="1" height="1" style="display:none" alt="">'
+    except Exception:
+        tracking_pixel = ""
+
+    html_body = f"<html><body><pre style='font-family:sans-serif;white-space:pre-wrap'>{body_text}</pre>{tracking_pixel}</body></html>"
     pdf_bytes = await generate_pdf("invoice", invoice, company, "professional")
     await send_email(company, smtp_password, to_email, subject, html_body, pdf_bytes=pdf_bytes, pdf_filename=f"{invoice.invoice_number}.pdf")
 
@@ -637,6 +654,32 @@ async def delete_invoice(
     invoice.is_deleted = True
     await db.execute(delete(Payment).where(Payment.invoice_id == invoice_id))
     await db.commit()
+
+
+@router.get("/{invoice_id}/email-tracking")
+async def get_invoice_email_tracking(
+    invoice_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.email_tracking import EmailTracking
+    result = await db.execute(
+        select(EmailTracking)
+        .where(EmailTracking.doc_type == "invoice", EmailTracking.doc_id == invoice_id)
+        .order_by(EmailTracking.sent_at.desc())
+        .limit(1)
+    )
+    tracking = result.scalar_one_or_none()
+    if not tracking:
+        return {"sent": False}
+    return {
+        "sent": True,
+        "sent_at": tracking.sent_at,
+        "opened": tracking.opened_at is not None,
+        "opened_at": tracking.opened_at,
+        "open_count": tracking.open_count,
+        "recipient_email": tracking.recipient_email,
+    }
 
 
 @router.get("/{invoice_id}/pdf")

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
+from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from decimal import Decimal
 import os
@@ -13,9 +14,11 @@ from app.models.invoice import Invoice, InvoiceStatus
 from app.models.activity import Activity, ActivityType
 from app.models.reminder import Reminder
 from app.models.user import User, UserRole
+from app.models.contact import ClientContact
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientListResponse
 from app.schemas.activity import ActivityCreate, ActivityResponse
 from app.schemas.reminder import ReminderCreate, ReminderResponse
+from app.schemas.contact import ContactCreate, ContactUpdate, ContactResponse
 from app.middleware.auth import get_current_user
 from app.middleware.rbac import require_admin, require_admin_or_manager, OwnershipChecker, apply_tenant_filter, get_effective_tenant_id
 from app.config import get_settings
@@ -28,6 +31,9 @@ router = APIRouter(prefix="/clients", tags=["clients"])
 async def list_clients(
     search: Optional[str] = Query(None),
     status: Optional[ClientStatus] = Query(None),
+    industry: Optional[str] = Query(None),
+    tags: Optional[str] = Query(None),
+    region: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -43,6 +49,12 @@ async def list_clients(
         )
     if status:
         query = query.where(Client.status == status)
+    if industry:
+        query = query.where(Client.industry.ilike(f"%{industry}%"))
+    if tags:
+        query = query.where(Client.tags.ilike(f"%{tags}%"))
+    if region:
+        query = query.where(Client.region.ilike(f"%{region}%"))
     query = query.order_by(Client.company_name).offset(skip).limit(limit)
     result = await db.execute(query)
     clients = result.scalars().all()
@@ -154,6 +166,7 @@ async def list_activities(
         raise HTTPException(status_code=403, detail="Access denied")
     result = await db.execute(
         select(Activity)
+        .options(selectinload(Activity.user))
         .where(Activity.client_id == client_id)
         .order_by(Activity.occurred_at.desc())
     )
@@ -184,8 +197,10 @@ async def create_activity(
     )
     db.add(activity)
     await db.commit()
-    await db.refresh(activity)
-    return activity
+    result = await db.execute(
+        select(Activity).options(selectinload(Activity.user)).where(Activity.id == activity.id)
+    )
+    return result.scalar_one()
 
 
 @router.get("/{client_id}/reminders", response_model=List[ReminderResponse])
@@ -236,6 +251,83 @@ async def create_client_reminder(
     await db.commit()
     await db.refresh(reminder)
     return reminder
+
+
+# --- Client Contacts ---
+
+@router.get("/{client_id}/contacts", response_model=List[ContactResponse])
+async def list_contacts(
+    client_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(ClientContact)
+        .where(ClientContact.client_id == client_id)
+        .order_by(ClientContact.is_primary.desc(), ClientContact.created_at)
+    )
+    return result.scalars().all()
+
+
+@router.post("/{client_id}/contacts", response_model=ContactResponse, status_code=201)
+async def create_contact(
+    client_id: int,
+    body: ContactCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    eff_tenant = get_effective_tenant_id(current_user)
+    if body.is_primary:
+        await db.execute(
+            update(ClientContact).where(ClientContact.client_id == client_id).values(is_primary=False)
+        )
+    contact = ClientContact(**body.model_dump(), client_id=client_id, tenant_id=eff_tenant)
+    db.add(contact)
+    await db.commit()
+    await db.refresh(contact)
+    return contact
+
+
+@router.put("/{client_id}/contacts/{contact_id}", response_model=ContactResponse)
+async def update_contact(
+    client_id: int,
+    contact_id: int,
+    body: ContactUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(ClientContact).where(ClientContact.id == contact_id, ClientContact.client_id == client_id)
+    )
+    contact = result.scalar_one_or_none()
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+    if body.is_primary:
+        await db.execute(
+            update(ClientContact).where(ClientContact.client_id == client_id).values(is_primary=False)
+        )
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(contact, k, v)
+    await db.commit()
+    await db.refresh(contact)
+    return contact
+
+
+@router.delete("/{client_id}/contacts/{contact_id}", status_code=204)
+async def delete_contact(
+    client_id: int,
+    contact_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(ClientContact).where(ClientContact.id == contact_id, ClientContact.client_id == client_id)
+    )
+    contact = result.scalar_one_or_none()
+    if not contact:
+        raise HTTPException(404, "Contact not found")
+    await db.delete(contact)
+    await db.commit()
 
 
 # --- Client Documents ---

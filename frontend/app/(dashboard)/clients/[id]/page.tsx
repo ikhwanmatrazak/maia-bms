@@ -8,7 +8,7 @@ import {
   Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Input, Select, SelectItem, Textarea, Pagination,
 } from "@heroui/react";
-import { Pencil, Upload, Trash2, FileText, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { Pencil, Upload, Trash2, FileText, Download, Plus, Star, Phone, Mail, User as UserIcon } from "lucide-react";
 import { clientsApi, invoicesApi, quotationsApi, productsApi } from "@/lib/api";
 import { formatDate, formatCurrency, statusColor, formatRelative } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
@@ -17,6 +17,8 @@ import Link from "next/link";
 
 const CURRENCIES = ["MYR", "USD", "EUR", "GBP", "SGD"];
 const PAGE_SIZE = 5;
+const ACTIVITY_TYPES = ["call", "email", "meeting", "note", "quote_sent", "invoice_sent", "payment_received"];
+const COMPANY_SIZES = ["1-10", "11-50", "51-200", "200+"];
 
 const CYCLE_LABEL: Record<string, string> = {
   one_time: "One-time", monthly: "Monthly", quarterly: "Quarterly", annually: "Annually",
@@ -26,6 +28,16 @@ const CYCLE_COLOR: Record<string, "default" | "primary" | "secondary" | "success
 };
 const SUB_STATUS_COLOR: Record<string, "success" | "warning" | "danger"> = {
   active: "success", paused: "warning", cancelled: "danger",
+};
+
+const ACTIVITY_COLOR: Record<string, "default" | "primary" | "success" | "warning" | "secondary" | "danger"> = {
+  call: "primary",
+  email: "secondary",
+  meeting: "success",
+  note: "default",
+  quote_sent: "warning",
+  invoice_sent: "warning",
+  payment_received: "success",
 };
 
 function formatBytes(bytes: number) {
@@ -49,6 +61,19 @@ type ClientDocument = {
   url: string;
 };
 
+type Contact = {
+  id: number;
+  client_id: number;
+  name: string;
+  role: string | null;
+  email: string | null;
+  phone: string | null;
+  is_primary: boolean;
+  created_at: string;
+};
+
+const EMPTY_CONTACT = { name: "", role: "", email: "", phone: "", is_primary: false };
+
 export default function ClientDetailPage() {
   const params = useParams();
   const clientId = Number(params.id);
@@ -56,6 +81,15 @@ export default function ClientDetailPage() {
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+
+  // Contact modal state
+  const [contactModal, setContactModal] = useState(false);
+  const [editContact, setEditContact] = useState<Contact | null>(null);
+  const [contactForm, setContactForm] = useState({ ...EMPTY_CONTACT });
+
+  // Activity modal state
+  const [activityModal, setActivityModal] = useState(false);
+  const [activityForm, setActivityForm] = useState({ type: "note", description: "" });
 
   const { data: client, isLoading } = useQuery({
     queryKey: ["clients", clientId],
@@ -92,6 +126,11 @@ export default function ClientDetailPage() {
     queryFn: () => clientsApi.getDocuments(clientId),
   });
 
+  const { data: contacts = [] } = useQuery<Contact[]>({
+    queryKey: ["client-contacts", clientId],
+    queryFn: () => clientsApi.getContacts(clientId),
+  });
+
   // Pagination state per tab
   const invPager = usePage(invoices);
   const quotPager = usePage(quotations);
@@ -119,6 +158,36 @@ export default function ClientDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["client-documents", clientId] }),
   });
 
+  const createContactMutation = useMutation({
+    mutationFn: (data: object) => clientsApi.createContact(clientId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-contacts", clientId] });
+      setContactModal(false);
+    },
+  });
+
+  const updateContactMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: object }) => clientsApi.updateContact(clientId, id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-contacts", clientId] });
+      setContactModal(false);
+    },
+  });
+
+  const deleteContactMutation = useMutation({
+    mutationFn: (contactId: number) => clientsApi.deleteContact(clientId, contactId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["client-contacts", clientId] }),
+  });
+
+  const createActivityMutation = useMutation({
+    mutationFn: (data: object) => clientsApi.addActivity(clientId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clients", clientId, "activities"] });
+      setActivityModal(false);
+      setActivityForm({ type: "note", description: "" });
+    },
+  });
+
   const openEdit = () => {
     setEditForm({
       company_name: client?.company_name ?? "",
@@ -131,8 +200,30 @@ export default function ClientDetailPage() {
       currency: client?.currency ?? "MYR",
       status: client?.status ?? "active",
       notes: client?.notes ?? "",
+      industry: client?.industry ?? "",
+      tags: client?.tags ?? "",
+      region: client?.region ?? "",
+      company_size: client?.company_size ?? "",
     });
     setEditModal(true);
+  };
+
+  const openCreateContact = () => {
+    setEditContact(null);
+    setContactForm({ ...EMPTY_CONTACT });
+    setContactModal(true);
+  };
+
+  const openEditContact = (c: Contact) => {
+    setEditContact(c);
+    setContactForm({
+      name: c.name,
+      role: c.role ?? "",
+      email: c.email ?? "",
+      phone: c.phone ?? "",
+      is_primary: c.is_primary,
+    });
+    setContactModal(true);
   };
 
   if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
@@ -154,6 +245,8 @@ export default function ClientDetailPage() {
             <div className="flex items-center gap-3">
               <h3 className="font-semibold text-lg">{client.company_name}</h3>
               <Chip size="sm" color={statusColor(client.status)} variant="flat">{client.status}</Chip>
+              {client.industry && <Chip size="sm" variant="flat" color="default">{client.industry}</Chip>}
+              {client.company_size && <Chip size="sm" variant="flat" color="default">{client.company_size}</Chip>}
             </div>
             <Button size="sm" variant="flat" onPress={openEdit} startContent={<Pencil size={13} />}>Edit</Button>
           </CardHeader>
@@ -174,6 +267,19 @@ export default function ClientDetailPage() {
               )}
               {(client.city || client.country) && (
                 <div><span className="text-gray-400 block text-xs mb-0.5">Location</span><span className="font-medium">{[client.city, client.country].filter(Boolean).join(", ")}</span></div>
+              )}
+              {client.region && (
+                <div><span className="text-gray-400 block text-xs mb-0.5">Region</span><span className="font-medium">{client.region}</span></div>
+              )}
+              {client.tags && (
+                <div className="sm:col-span-2">
+                  <span className="text-gray-400 block text-xs mb-0.5">Tags</span>
+                  <div className="flex flex-wrap gap-1">
+                    {client.tags.split(",").map((t: string) => t.trim()).filter(Boolean).map((tag: string) => (
+                      <Chip key={tag} size="sm" variant="flat" color="secondary">{tag}</Chip>
+                    ))}
+                  </div>
+                </div>
               )}
               {client.notes && (
                 <div className="sm:col-span-4"><span className="text-gray-400 block text-xs mb-0.5">Notes</span><span className="text-gray-600">{client.notes}</span></div>
@@ -314,23 +420,94 @@ export default function ClientDetailPage() {
             </div>
           </Tab>
 
+          {/* Contacts */}
+          <Tab key="contacts" title={`Contacts${contacts.length > 0 ? ` (${contacts.length})` : ""}`}>
+            <div className="mt-3 space-y-3">
+              <div className="flex justify-end">
+                <Button size="sm" color="primary" startContent={<Plus size={13} />} onPress={openCreateContact}>
+                  Add Contact
+                </Button>
+              </div>
+              {contacts.length === 0 ? (
+                <p className="text-gray-400 text-sm">No contacts yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {contacts.map((c) => (
+                    <div key={c.id} className="flex items-center gap-3 p-3 rounded-lg border bg-white">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{c.name}</span>
+                          {c.is_primary && (
+                            <Chip size="sm" color="warning" variant="flat" startContent={<Star size={10} />}>Primary</Chip>
+                          )}
+                          {c.role && <span className="text-xs text-gray-400">{c.role}</span>}
+                        </div>
+                        <div className="flex gap-4 mt-0.5">
+                          {c.email && (
+                            <a href={`mailto:${c.email}`} className="text-xs text-primary flex items-center gap-1 hover:underline">
+                              <Mail size={10} />{c.email}
+                            </a>
+                          )}
+                          {c.phone && (
+                            <a href={`tel:${c.phone}`} className="text-xs text-gray-500 flex items-center gap-1">
+                              <Phone size={10} />{c.phone}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button isIconOnly size="sm" variant="light" onPress={() => openEditContact(c)}>
+                          <Pencil size={13} />
+                        </Button>
+                        <Button isIconOnly size="sm" variant="light" color="danger"
+                          isLoading={deleteContactMutation.isPending}
+                          onPress={() => { if (confirm(`Delete contact ${c.name}?`)) deleteContactMutation.mutate(c.id); }}>
+                          <Trash2 size={13} />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Tab>
+
           {/* Activity */}
           <Tab key="activity" title="Activity">
             <div className="space-y-3 mt-2">
+              <div className="flex justify-end">
+                <Button size="sm" color="primary" variant="flat" startContent={<Plus size={13} />} onPress={() => setActivityModal(true)}>
+                  Log Activity
+                </Button>
+              </div>
               {activities.length === 0 ? (
                 <p className="text-gray-400 text-sm">No activity yet</p>
               ) : (
                 <>
-                  {actPager.paged.map((a) => (
-                    <div key={a.id} className="flex gap-3 text-sm">
-                      <div className="w-2 h-2 rounded-full bg-gray-300 mt-1.5 shrink-0" />
-                      <div>
-                        <span className="font-medium capitalize">{a.type.replace("_", " ")}</span>
-                        <span className="text-gray-500 ml-2">{a.description}</span>
-                        <div className="text-xs text-gray-400">{formatRelative(a.occurred_at)}</div>
+                  <div className="space-y-3">
+                    {actPager.paged.map((a) => (
+                      <div key={a.id} className="flex gap-3 text-sm">
+                        <div className="flex flex-col items-center">
+                          <div className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 bg-${ACTIVITY_COLOR[a.type] ?? "gray"}-400`} />
+                          <div className="w-px flex-1 bg-gray-100 mt-1" />
+                        </div>
+                        <div className="pb-3 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Chip size="sm" color={ACTIVITY_COLOR[a.type] ?? "default"} variant="flat" className="capitalize text-xs">
+                              {a.type.replace(/_/g, " ")}
+                            </Chip>
+                            {(a as any).user_name && (
+                              <span className="text-xs text-gray-400 flex items-center gap-1">
+                                <UserIcon size={10} />{(a as any).user_name}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-gray-700 mt-1">{a.description}</p>
+                          <div className="text-xs text-gray-400 mt-0.5">{formatRelative(a.occurred_at)}</div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                   {actPager.total > 1 && (
                     <div className="flex justify-center pt-2">
                       <Pagination total={actPager.total} page={actPager.page} onChange={actPager.setPage} size="sm" />
@@ -425,7 +602,7 @@ export default function ClientDetailPage() {
       </div>
 
       {/* Edit Modal */}
-      <Modal isOpen={editModal} onClose={() => setEditModal(false)} size="lg">
+      <Modal isOpen={editModal} onClose={() => setEditModal(false)} size="lg" scrollBehavior="inside">
         <ModalContent>
           <ModalHeader>Edit Client</ModalHeader>
           <ModalBody className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -447,6 +624,18 @@ export default function ClientDetailPage() {
               value={editForm.city} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} />
             <Input variant="bordered" label="Country"
               value={editForm.country} onChange={(e) => setEditForm({ ...editForm, country: e.target.value })} />
+            <Input variant="bordered" label="Region"
+              value={editForm.region} onChange={(e) => setEditForm({ ...editForm, region: e.target.value })} />
+            <Input variant="bordered" label="Industry"
+              value={editForm.industry} onChange={(e) => setEditForm({ ...editForm, industry: e.target.value })} />
+            <Select variant="bordered" label="Company Size" selectedKeys={editForm.company_size ? [editForm.company_size] : []}
+              onSelectionChange={(k) => setEditForm({ ...editForm, company_size: Array.from(k)[0] as string || "" })}>
+              <SelectItem key="">— Not specified —</SelectItem>
+              {COMPANY_SIZES.map((s) => <SelectItem key={s}>{s}</SelectItem>)}
+            </Select>
+            <Input variant="bordered" label="Tags (comma-separated)"
+              value={editForm.tags} onChange={(e) => setEditForm({ ...editForm, tags: e.target.value })}
+              placeholder="e.g. retail, vip, referral" />
             <Select variant="bordered" label="Status" selectedKeys={[editForm.status]}
               onSelectionChange={(k) => setEditForm({ ...editForm, status: Array.from(k)[0] as string })}>
               <SelectItem key="active">Active</SelectItem>
@@ -459,6 +648,85 @@ export default function ClientDetailPage() {
             <Button variant="flat" onPress={() => setEditModal(false)}>Cancel</Button>
             <Button color="primary" isLoading={updateMutation.isPending}
               onPress={() => updateMutation.mutate(editForm)}>Save Changes</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Contact Modal */}
+      <Modal isOpen={contactModal} onClose={() => setContactModal(false)} size="md">
+        <ModalContent>
+          <ModalHeader>{editContact ? "Edit Contact" : "Add Contact Person"}</ModalHeader>
+          <ModalBody className="space-y-3">
+            <Input variant="bordered" label="Name *"
+              value={contactForm.name} onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })} />
+            <Input variant="bordered" label="Role / Title"
+              value={contactForm.role} onChange={(e) => setContactForm({ ...contactForm, role: e.target.value })}
+              placeholder="e.g. CEO, Finance Manager" />
+            <Input variant="bordered" label="Email" type="email"
+              value={contactForm.email} onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })} />
+            <Input variant="bordered" label="Phone"
+              value={contactForm.phone} onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })} />
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is_primary"
+                checked={contactForm.is_primary}
+                onChange={(e) => setContactForm({ ...contactForm, is_primary: e.target.checked })}
+                className="rounded"
+              />
+              <label htmlFor="is_primary" className="text-sm text-gray-700">Set as primary contact</label>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => setContactModal(false)}>Cancel</Button>
+            <Button color="primary"
+              isLoading={createContactMutation.isPending || updateContactMutation.isPending}
+              isDisabled={!contactForm.name.trim()}
+              onPress={() => {
+                const payload = {
+                  name: contactForm.name,
+                  role: contactForm.role || null,
+                  email: contactForm.email || null,
+                  phone: contactForm.phone || null,
+                  is_primary: contactForm.is_primary,
+                };
+                if (editContact) {
+                  updateContactMutation.mutate({ id: editContact.id, data: payload });
+                } else {
+                  createContactMutation.mutate(payload);
+                }
+              }}>
+              {editContact ? "Save Changes" : "Add Contact"}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Log Activity Modal */}
+      <Modal isOpen={activityModal} onClose={() => setActivityModal(false)} size="md">
+        <ModalContent>
+          <ModalHeader>Log Activity</ModalHeader>
+          <ModalBody className="space-y-3">
+            <Select variant="bordered" label="Activity Type"
+              selectedKeys={[activityForm.type]}
+              onSelectionChange={(k) => setActivityForm({ ...activityForm, type: Array.from(k)[0] as string })}>
+              {ACTIVITY_TYPES.map((t) => (
+                <SelectItem key={t} className="capitalize">{t.replace(/_/g, " ")}</SelectItem>
+              ))}
+            </Select>
+            <Textarea variant="bordered" label="Description *" minRows={3}
+              value={activityForm.description}
+              onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
+              placeholder="Describe what happened..." />
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => setActivityModal(false)}>Cancel</Button>
+            <Button color="primary"
+              isLoading={createActivityMutation.isPending}
+              isDisabled={!activityForm.description.trim()}
+              onPress={() => createActivityMutation.mutate(activityForm)}>
+              Log Activity
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

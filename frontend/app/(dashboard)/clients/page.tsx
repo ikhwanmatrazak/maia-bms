@@ -17,13 +17,17 @@ const PAGE_SIZE = 20;
 
 export default function ClientsPage() {
   const [search, setSearch] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [region, setRegion] = useState("");
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
 
   const { data: clients = [], isLoading } = useQuery<Client[]>({
-    queryKey: ["clients", search, page],
+    queryKey: ["clients", search, industry, region, page],
     queryFn: () => clientsApi.list({
       ...(search ? { search } : {}),
+      ...(industry ? { industry } : {}),
+      ...(region ? { region } : {}),
       skip: (page - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
     }),
@@ -39,14 +43,32 @@ export default function ClientsPage() {
       <Topbar title="Clients" />
       <div className="p-6">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <Input
-            variant="bordered"
-            placeholder="Search clients..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="w-full sm:max-w-xs"
-            size="sm"
-          />
+          <div className="flex gap-2 flex-wrap">
+            <Input
+              variant="bordered"
+              placeholder="Search clients..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="w-full sm:max-w-xs"
+              size="sm"
+            />
+            <Input
+              variant="bordered"
+              placeholder="Filter by industry..."
+              value={industry}
+              onChange={(e) => { setIndustry(e.target.value); setPage(1); }}
+              className="w-full sm:max-w-[160px]"
+              size="sm"
+            />
+            <Input
+              variant="bordered"
+              placeholder="Filter by region..."
+              value={region}
+              onChange={(e) => { setRegion(e.target.value); setPage(1); }}
+              className="w-full sm:max-w-[160px]"
+              size="sm"
+            />
+          </div>
           <Button as={Link} href="/clients/new" color="primary">
             + New Client
           </Button>

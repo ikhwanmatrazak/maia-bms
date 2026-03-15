@@ -18,5 +18,6 @@ class ActivityResponse(BaseModel):
     description: str
     occurred_at: datetime
     created_at: datetime
+    user_name: str = ""
 
     model_config = {"from_attributes": True}

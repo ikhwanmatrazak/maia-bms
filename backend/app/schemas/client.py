@@ -16,6 +16,10 @@ class ClientCreate(BaseModel):
     currency: str = "MYR"
     notes: Optional[str] = None
     status: ClientStatus = ClientStatus.active
+    industry: Optional[str] = None
+    tags: Optional[str] = None
+    region: Optional[str] = None
+    company_size: Optional[str] = None
 
 
 class ClientUpdate(BaseModel):
@@ -29,6 +33,10 @@ class ClientUpdate(BaseModel):
     currency: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[ClientStatus] = None
+    industry: Optional[str] = None
+    tags: Optional[str] = None
+    region: Optional[str] = None
+    company_size: Optional[str] = None
 
 
 class ClientResponse(BaseModel):
@@ -46,6 +54,10 @@ class ClientResponse(BaseModel):
     created_by: Optional[int]
     created_at: datetime
     updated_at: datetime
+    industry: Optional[str] = None
+    tags: Optional[str] = None
+    region: Optional[str] = None
+    company_size: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -60,5 +72,9 @@ class ClientListResponse(BaseModel):
     status: ClientStatus
     created_at: datetime
     outstanding_balance: Decimal = Decimal("0.00")
+    industry: Optional[str] = None
+    tags: Optional[str] = None
+    region: Optional[str] = None
+    company_size: Optional[str] = None
 
     model_config = {"from_attributes": True}

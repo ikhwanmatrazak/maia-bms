@@ -29,3 +29,7 @@ class Activity(Base):
     # Relationships
     client = relationship("Client", back_populates="activities")
     user = relationship("User", back_populates="activities")
+
+    @property
+    def user_name(self) -> str:
+        return self.user.full_name if self.user else ""

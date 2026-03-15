@@ -132,6 +132,10 @@ export const clientsApi = {
     return api.post(`/clients/${id}/documents`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
   },
   deleteDocument: (id: number, filename: string) => api.delete(`/clients/${id}/documents/${filename}`),
+  getContacts: (id: number) => api.get(`/clients/${id}/contacts`).then((r) => r.data),
+  createContact: (id: number, data: object) => api.post(`/clients/${id}/contacts`, data).then((r) => r.data),
+  updateContact: (clientId: number, contactId: number, data: object) => api.put(`/clients/${clientId}/contacts/${contactId}`, data).then((r) => r.data),
+  deleteContact: (clientId: number, contactId: number) => api.delete(`/clients/${clientId}/contacts/${contactId}`),
 };
 
 export const quotationsApi = {
@@ -146,6 +150,7 @@ export const quotationsApi = {
   duplicate: (id: number) => api.post(`/quotations/${id}/duplicate`).then((r) => r.data),
   getPdfUrl: (id: number) => `${API_URL}/quotations/${id}/pdf`,
   summary: (month?: string) => api.get("/quotations/summary", { params: month ? { month } : {} }).then((r) => r.data),
+  getEmailTracking: (id: number) => api.get(`/quotations/${id}/email-tracking`).then((r) => r.data),
 };
 
 export const invoicesApi = {
@@ -163,6 +168,7 @@ export const invoicesApi = {
   getPayments: (id: number) => api.get(`/invoices/${id}/payments`).then((r) => r.data),
   getPdfUrl: (id: number) => `${API_URL}/invoices/${id}/pdf`,
   summary: (month?: string) => api.get("/invoices/summary", { params: month ? { month } : {} }).then((r) => r.data),
+  getEmailTracking: (id: number) => api.get(`/invoices/${id}/email-tracking`).then((r) => r.data),
 };
 
 export const receiptsApi = {
