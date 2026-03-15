@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.client import Client
+from app.models.invoice import Invoice
 from app.models.receipt import Receipt
 from app.models.settings import CompanySettings
 from app.models.activity import Activity, ActivityType
@@ -149,7 +150,7 @@ async def email_receipt(
     from app.models.email_template import EmailTemplate
 
     result = await db.execute(
-        select(Receipt).options(selectinload(Receipt.client)).where(Receipt.id == receipt_id)
+        select(Receipt).options(selectinload(Receipt.client), selectinload(Receipt.invoice)).where(Receipt.id == receipt_id)
     )
     receipt = result.scalar_one_or_none()
     if not receipt:
@@ -227,7 +228,7 @@ async def get_receipt_pdf(
 ):
     result = await db.execute(
         select(Receipt)
-        .options(selectinload(Receipt.client), selectinload(Receipt.payments))
+        .options(selectinload(Receipt.client), selectinload(Receipt.payments), selectinload(Receipt.invoice))
         .where(Receipt.id == receipt_id)
     )
     receipt = result.scalar_one_or_none()
