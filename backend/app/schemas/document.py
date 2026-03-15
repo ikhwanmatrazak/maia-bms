@@ -144,6 +144,8 @@ class InvoiceResponse(BaseModel):
     paid_at: Optional[datetime]
     client_name: str = ""
     client_email: str = ""
+    client_phone: str = ""
+    client_address: str = ""
     created_at: datetime
     updated_at: datetime
     items: List[DocumentItemResponse] = []

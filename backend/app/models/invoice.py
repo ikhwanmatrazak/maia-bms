@@ -55,6 +55,14 @@ class Invoice(Base):
     def client_email(self) -> str:
         return self.client.email if self.client else ""
 
+    @property
+    def client_phone(self) -> str:
+        return self.client.phone if self.client else ""
+
+    @property
+    def client_address(self) -> str:
+        return self.client.address if self.client else ""
+
     quotation = relationship("Quotation", back_populates="invoices")
     items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan",
                          order_by="InvoiceItem.sort_order")

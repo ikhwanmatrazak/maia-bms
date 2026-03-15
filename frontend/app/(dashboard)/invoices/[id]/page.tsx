@@ -140,6 +140,12 @@ export default function InvoiceDetailPage() {
             {!["paid", "cancelled"].includes(inv.status) && (
               <Button size="sm" color="primary" onPress={() => setPaymentModal(true)}>Create Receipt</Button>
             )}
+            {inv.status === "paid" && (() => {
+              const receiptId = payments.find((p) => p.receipt_id)?.receipt_id;
+              return receiptId ? (
+                <Button size="sm" color="primary" onPress={() => router.push(`/receipts/${receiptId}`)}>View Receipt</Button>
+              ) : null;
+            })()}
             <Button size="sm" color="primary" variant="flat" onPress={openEmailModal}>Email PDF</Button>
             <Button size="sm" variant="flat" onPress={() => downloadPdf(invoicesApi.getPdfUrl(id), (inv?.invoice_number || "invoice-" + id) + ".pdf")}>PDF</Button>
             <Button size="sm" variant="flat" onPress={() => router.push(`/invoices/new?from=${id}`)}>Duplicate</Button>
@@ -168,6 +174,46 @@ export default function InvoiceDetailPage() {
             </Card>
           ))}
         </div>
+
+        <Card>
+          <CardHeader><h3 className="font-semibold">Client Information</h3></CardHeader>
+          <CardBody>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Client</p>
+                <p className="font-medium">{(inv as any).client_name || "—"}</p>
+              </div>
+              {(inv as any).client_email && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Email</p>
+                  <p>{(inv as any).client_email}</p>
+                </div>
+              )}
+              {(inv as any).client_phone && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Phone</p>
+                  <p>{(inv as any).client_phone}</p>
+                </div>
+              )}
+              {(inv as any).client_address && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Address</p>
+                  <p className="whitespace-pre-line">{(inv as any).client_address}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Issue Date</p>
+                <p>{formatDate(inv.issue_date)}</p>
+              </div>
+              {inv.due_date && (
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Due Date</p>
+                  <p>{formatDate(inv.due_date)}</p>
+                </div>
+              )}
+            </div>
+          </CardBody>
+        </Card>
 
         <Card>
           <CardHeader><h3 className="font-semibold">Line Items</h3></CardHeader>
