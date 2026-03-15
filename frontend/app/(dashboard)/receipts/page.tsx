@@ -193,8 +193,6 @@ export default function ReceiptsPage() {
                     <Button as={Link} href={`/receipts/${r.id}`} size="sm" variant="flat" isIconOnly title="View"><Eye size={15} /></Button>
                     <Button size="sm" variant="flat" color="primary" isIconOnly isLoading={sendingId === r.id} title="Send Email" onPress={() => handleSendOne(r)}><Send size={15} /></Button>
                     <Button size="sm" variant="flat" isIconOnly title="Download PDF" onPress={() => downloadPdf(receiptsApi.getPdfUrl(r.id), (r.receipt_number || "receipt-" + r.id) + ".pdf")}><FileDown size={15} /></Button>
-                    <Button size="sm" variant="flat" color="danger" isIconOnly isLoading={deleteMutation.isPending} title="Delete"
-                      onPress={() => { if (confirm("Delete this receipt?")) deleteMutation.mutate(r.id); }}><Trash2 size={15} /></Button>
                   </div>
                 </TableCell>
               </TableRow>
