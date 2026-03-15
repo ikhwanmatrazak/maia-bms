@@ -25,7 +25,7 @@ jinja_env.filters["fmt"] = _fmt
 
 
 async def generate_pdf(doc_type: str, document, company, template_style: str = "professional") -> bytes:
-    """Generate a PDF using Playwright (headless Chromium) — works on all platforms."""
+    """Generate a PDF using WeasyPrint."""
     logo_data = get_logo_base64(company.logo_url if company else None)
     signature_data = get_signature_base64(company.signature_image_url if company else None)
 
@@ -50,11 +50,5 @@ async def generate_pdf(doc_type: str, document, company, template_style: str = "
 
 
 def _render_pdf(html_content: str) -> bytes:
-    from playwright.sync_api import sync_playwright
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page()
-        page.set_content(html_content, wait_until="networkidle")
-        pdf_bytes = page.pdf(format="A4", print_background=True)
-        browser.close()
-    return pdf_bytes
+    from weasyprint import HTML
+    return HTML(string=html_content).write_pdf()
