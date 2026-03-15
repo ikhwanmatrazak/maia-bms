@@ -473,8 +473,12 @@ async def record_payment(
     )
     db.add(activity)
     await db.commit()
-    await db.refresh(payment)
-    return payment
+    payment_result = await db.execute(
+        select(Payment).options(
+            selectinload(Payment.invoice).selectinload(Invoice.client)
+        ).where(Payment.id == payment.id)
+    )
+    return payment_result.scalar_one()
 
 
 @router.get("/{invoice_id}/payments", response_model=List[PaymentResponse])
@@ -491,7 +495,9 @@ async def list_payments(
     if eff_tenant is not None and invoice.tenant_id != eff_tenant:
         raise HTTPException(status_code=403, detail="Access denied")
     result = await db.execute(
-        select(Payment).where(Payment.invoice_id == invoice_id).order_by(Payment.payment_date)
+        select(Payment).options(
+            selectinload(Payment.invoice).selectinload(Invoice.client)
+        ).where(Payment.invoice_id == invoice_id).order_by(Payment.payment_date)
     )
     return result.scalars().all()
 

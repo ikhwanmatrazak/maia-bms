@@ -81,8 +81,12 @@ async def upload_proof(
 
     payment.proof_file_url = f"/uploads/payment_proofs/{filename}"
     await db.commit()
-    await db.refresh(payment)
-    return payment
+    result = await db.execute(
+        select(Payment).options(
+            selectinload(Payment.invoice).selectinload(Invoice.client)
+        ).where(Payment.id == payment_id)
+    )
+    return result.scalar_one()
 
 
 @router.post("/analyze-proof")
