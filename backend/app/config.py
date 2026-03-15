@@ -10,8 +10,8 @@ class Settings(BaseSettings):
     # JWT
     jwt_secret: str
     jwt_refresh_secret: str
-    access_token_expire_minutes: int = 15
-    refresh_token_expire_days: int = 7
+    access_token_expire_minutes: int = 300  # 5 hours
+    refresh_token_expire_days: int = 30
 
     # Application
     environment: str = "development"
