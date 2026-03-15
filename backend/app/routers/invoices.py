@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from decimal import Decimal
@@ -382,6 +382,7 @@ async def cancel_invoice(
         raise HTTPException(status_code=400, detail="Cannot cancel a paid invoice")
 
     invoice.status = InvoiceStatus.cancelled
+    await db.execute(delete(Payment).where(Payment.invoice_id == invoice_id))
     await db.commit()
     result = await db.execute(
         select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client)).where(Invoice.id == invoice_id)
@@ -569,6 +570,7 @@ async def delete_invoice(
     if not OwnershipChecker.can_edit(current_user, invoice.created_by):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     invoice.is_deleted = True
+    await db.execute(delete(Payment).where(Payment.invoice_id == invoice_id))
     await db.commit()
 
 
