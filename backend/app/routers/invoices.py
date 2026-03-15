@@ -553,8 +553,11 @@ async def generate_receipt(
         tenant_id=invoice.tenant_id,
     )
     db.add(receipt)
+    await db.flush()
+    # Link the receipt back to the most recent payment so the frontend can detect it
+    if last_payment:
+        last_payment.receipt_id = receipt.id
     await db.commit()
-    await db.refresh(receipt)
     return {"receipt_id": receipt.id}
 
 

@@ -86,7 +86,10 @@ export default function InvoiceDetailPage() {
 
   const generateReceiptMutation = useMutation({
     mutationFn: () => invoicesApi.generateReceipt(id),
-    onSuccess: (data) => router.push(`/receipts/${data.receipt_id}`),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["invoices", id, "payments"] });
+      router.push(`/receipts/${data.receipt_id}`);
+    },
   });
 
   if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
