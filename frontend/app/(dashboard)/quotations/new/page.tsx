@@ -57,6 +57,9 @@ function NewQuotationForm() {
   });
 
   const currency = watch("currency");
+  const notesValue = watch("notes");
+  const termsValue = watch("terms_conditions");
+  const paymentTermsValue = watch("payment_terms");
   const defaultApplied = useRef(false);
 
   const applyTemplate = (templateId: string) => {
@@ -217,9 +220,9 @@ function NewQuotationForm() {
             <Card>
               <CardHeader><h3 className="font-semibold">Notes</h3></CardHeader>
               <CardBody className="gap-4 flex flex-col">
-                <Textarea variant="bordered" label="Notes" {...register("notes")} />
-                <Textarea variant="bordered" label="Terms & Conditions" {...register("terms_conditions")} />
-                <Textarea variant="bordered" label="Payment Terms" {...register("payment_terms")} />
+                <Textarea variant="bordered" label="Notes" value={notesValue} {...register("notes")} />
+                <Textarea variant="bordered" label="Terms & Conditions" value={termsValue} {...register("terms_conditions")} />
+                <Textarea variant="bordered" label="Payment Terms" value={paymentTermsValue} {...register("payment_terms")} />
               </CardBody>
             </Card>
 
