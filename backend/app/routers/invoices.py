@@ -502,6 +502,62 @@ async def list_payments(
     return result.scalars().all()
 
 
+@router.post("/{invoice_id}/generate-receipt", status_code=status.HTTP_201_CREATED)
+async def generate_receipt(
+    invoice_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a receipt for a paid invoice (e.g. when one wasn't auto-generated)."""
+    result = await db.execute(
+        select(Invoice).options(selectinload(Invoice.items), selectinload(Invoice.client)).where(Invoice.id == invoice_id)
+    )
+    invoice = result.scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    eff_tenant = get_effective_tenant_id(current_user)
+    if eff_tenant is not None and invoice.tenant_id != eff_tenant:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if invoice.status != InvoiceStatus.paid:
+        raise HTTPException(status_code=400, detail="Receipt can only be generated for paid invoices")
+
+    settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == invoice.tenant_id).limit(1))
+    settings = settings_result.scalar_one_or_none()
+    if settings is None:
+        settings_result = await db.execute(select(CompanySettings).limit(1))
+        settings = settings_result.scalar_one_or_none()
+    prefix = settings.receipt_prefix if settings else "RCP"
+    year = datetime.now().year
+    count_result = await db.execute(select(func.count(Receipt.id)))
+    count = (count_result.scalar() or 0) + 1
+    receipt_number = f"{prefix}-{year}-{count:04d}"
+
+    # Find most recent payment method
+    pay_result = await db.execute(
+        select(Payment).where(Payment.invoice_id == invoice_id).order_by(Payment.payment_date.desc()).limit(1)
+    )
+    last_payment = pay_result.scalar_one_or_none()
+    payment_method = last_payment.payment_method if last_payment else PaymentMethod.bank_transfer
+    payment_date = last_payment.payment_date if last_payment else invoice.paid_at or datetime.now(timezone.utc)
+
+    receipt = Receipt(
+        receipt_number=receipt_number,
+        invoice_id=invoice_id,
+        client_id=invoice.client_id,
+        currency=invoice.currency,
+        exchange_rate=invoice.exchange_rate,
+        amount=invoice.amount_paid,
+        payment_method=payment_method,
+        payment_date=payment_date,
+        created_by=current_user.id,
+        tenant_id=invoice.tenant_id,
+    )
+    db.add(receipt)
+    await db.commit()
+    await db.refresh(receipt)
+    return {"receipt_id": receipt.id}
+
+
 @router.post("/{invoice_id}/duplicate", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED)
 async def duplicate_invoice(
     invoice_id: int,

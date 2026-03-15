@@ -84,6 +84,11 @@ export default function InvoiceDetailPage() {
     onSuccess: () => { setTemplateSaved(true); setTimeout(() => { setTemplateModal(false); setTemplateSaved(false); }, 1500); },
   });
 
+  const generateReceiptMutation = useMutation({
+    mutationFn: () => invoicesApi.generateReceipt(id),
+    onSuccess: (data) => router.push(`/receipts/${data.receipt_id}`),
+  });
+
   if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
   if (!inv) return <div className="p-6">Invoice not found</div>;
 
@@ -144,7 +149,10 @@ export default function InvoiceDetailPage() {
               const receiptId = payments.find((p) => p.receipt_id)?.receipt_id;
               return receiptId ? (
                 <Button size="sm" color="primary" onPress={() => router.push(`/receipts/${receiptId}`)}>View Receipt</Button>
-              ) : null;
+              ) : (
+                <Button size="sm" color="primary" isLoading={generateReceiptMutation.isPending}
+                  onPress={() => generateReceiptMutation.mutate()}>Create Receipt</Button>
+              );
             })()}
             <Button size="sm" color="primary" variant="flat" onPress={openEmailModal}>Email PDF</Button>
             <Button size="sm" variant="flat" onPress={() => downloadPdf(invoicesApi.getPdfUrl(id), (inv?.invoice_number || "invoice-" + id) + ".pdf")}>PDF</Button>

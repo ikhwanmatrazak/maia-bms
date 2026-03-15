@@ -159,6 +159,7 @@ export const invoicesApi = {
   softDelete: (id: number) => api.delete(`/invoices/${id}`),
   duplicate: (id: number) => api.post(`/invoices/${id}/duplicate`).then((r) => r.data),
   recordPayment: (id: number, data: object) => api.post(`/invoices/${id}/payments`, data).then((r) => r.data),
+  generateReceipt: (id: number) => api.post(`/invoices/${id}/generate-receipt`).then((r) => r.data),
   getPayments: (id: number) => api.get(`/invoices/${id}/payments`).then((r) => r.data),
   getPdfUrl: (id: number) => `${API_URL}/invoices/${id}/pdf`,
   summary: (month?: string) => api.get("/invoices/summary", { params: month ? { month } : {} }).then((r) => r.data),
