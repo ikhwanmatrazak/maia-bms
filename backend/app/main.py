@@ -24,8 +24,26 @@ app_settings = get_settings()
 limiter = Limiter(key_func=get_remote_address)
 
 
+async def _ensure_logo_columns():
+    """Widen logo/signature columns to LONGTEXT on every startup — safe to run repeatedly."""
+    from app.database import engine
+    from sqlalchemy import text
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text(
+                "ALTER TABLE company_settings MODIFY COLUMN logo_url LONGTEXT NULL"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE company_settings MODIFY COLUMN signature_image_url LONGTEXT NULL"
+            ))
+        logger.info("logo/signature columns ensured as LONGTEXT")
+    except Exception as e:
+        logger.warning(f"_ensure_logo_columns: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await _ensure_logo_columns()
     await init_db()
     upload_dir = app_settings.upload_dir
     os.makedirs(f"{upload_dir}/payment_proofs", exist_ok=True)
