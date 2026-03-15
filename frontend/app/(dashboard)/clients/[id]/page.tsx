@@ -306,7 +306,7 @@ export default function ClientDetailPage() {
         </div>
 
         {/* Tabs */}
-        <Tabs aria-label="Client details">
+        <Tabs aria-label="Client details" classNames={{ base: "w-full", tabList: "w-full" }}>
 
           {/* Quotations — first */}
           <Tab key="quotations" title={`Quotations${quotations.length > 0 ? ` (${quotations.length})` : ""}`}>
