@@ -117,7 +117,7 @@ async def analytics_summary(
     ]
 
     # --- Outstanding invoices ---
-    inv_q = select(Invoice).where(Invoice.status.in_([InvoiceStatus.sent, InvoiceStatus.partial, InvoiceStatus.overdue]))
+    inv_q = select(Invoice).where(Invoice.status.in_([InvoiceStatus.sent, InvoiceStatus.partial, InvoiceStatus.overdue]), Invoice.is_deleted != True)
     inv_q = _tenant_filter(inv_q, Invoice, current_user)
     inv_result = await db.execute(inv_q)
     outstanding_invoices = inv_result.scalars().all()

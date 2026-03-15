@@ -194,7 +194,7 @@ async def invoices_summary_route(
     current_user: User = Depends(get_current_user),
 ):
     start, end = _month_range_inv(month)
-    q = select(Invoice).where(Invoice.issue_date >= start, Invoice.issue_date < end)
+    q = select(Invoice).where(Invoice.issue_date >= start, Invoice.issue_date < end, Invoice.is_deleted != True)
     q = apply_tenant_filter(q, Invoice, current_user)
     result = await db.execute(q)
     rows = result.scalars().all()
