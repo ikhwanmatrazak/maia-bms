@@ -14,7 +14,6 @@
     <div style="font-weight:bold">{{ company.name if company else 'MAIA' }}</div>
     <div style="margin-top:8px">
       <div style="font-size:10px;color:#999">Issue Date: {{ document.issue_date.strftime('%d %b %Y') }}</div>
-      {% if document.due_date %}<div style="font-size:10px;color:#999">Due Date: {{ document.due_date.strftime('%d %b %Y') }}</div>{% endif %}
     </div>
   </div>
 </div>

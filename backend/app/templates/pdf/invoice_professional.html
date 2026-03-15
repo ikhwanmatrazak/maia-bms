@@ -28,10 +28,6 @@
     <h4>Issue Date</h4>
     <p>{{ document.issue_date.strftime('%d %b %Y') }}</p>
   </div>
-  <div class="meta-block">
-    <h4>Due Date</h4>
-    <p>{{ document.due_date.strftime('%d %b %Y') if document.due_date else 'N/A' }}</p>
-  </div>
 </div>
 
 <div class="bill-to">
