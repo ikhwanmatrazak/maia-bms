@@ -104,8 +104,18 @@ async def upload_logo(
         raise HTTPException(status_code=400, detail="File too large")
 
     import base64
-    mime = file.content_type or "image/png"
-    data_uri = f"data:{mime};base64,{base64.b64encode(content).decode()}"
+    import io
+    from PIL import Image
+    # Resize to max 400x150 and re-encode as PNG to keep DB size small (~20-40KB)
+    try:
+        img = Image.open(io.BytesIO(content)).convert("RGBA")
+        img.thumbnail((400, 150), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG", optimize=True)
+        content = buf.getvalue()
+    except Exception:
+        pass  # fallback: use original content
+    data_uri = f"data:image/png;base64,{base64.b64encode(content).decode()}"
 
     settings = await _get_or_create_settings(db, tenant_id=get_effective_tenant_id(current_user))
     settings.logo_url = data_uri
