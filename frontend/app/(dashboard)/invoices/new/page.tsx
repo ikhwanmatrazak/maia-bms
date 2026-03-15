@@ -124,13 +124,16 @@ function NewInvoiceForm() {
     setValue("notes", sourceDoc.notes || "");
     setValue("terms_conditions", sourceDoc.terms_conditions || "");
     setValue("payment_terms", sourceDoc.payment_terms || "");
-    setValue("items", sourceDoc.items.map((i: any) => ({
-      description: i.description,
-      quantity: String(i.quantity),
-      unit_price: String(i.unit_price),
-      tax_rate_id: i.tax_rate_id ? String(i.tax_rate_id) : "",
-      sub_items: [],
-    })));
+    setValue("items", sourceDoc.items.map((i: any) => {
+      const lines = (i.description as string).split("\n");
+      return {
+        description: lines[0],
+        quantity: String(i.quantity),
+        unit_price: String(i.unit_price),
+        tax_rate_id: i.tax_rate_id ? String(i.tax_rate_id) : "",
+        sub_items: lines.slice(1).map((l: string) => ({ text: l.replace(/^•\s*/, "").trim() })).filter((s: { text: string }) => s.text),
+      };
+    }));
   }, [sourceDoc]);
 
   const mutation = useMutation({
