@@ -41,9 +41,57 @@ async def _ensure_logo_columns():
         logger.warning(f"_ensure_logo_columns: {e}")
 
 
+async def _ensure_crm_columns():
+    """Add CRM columns and tables on every startup — safe to run repeatedly."""
+    from app.database import engine
+    from sqlalchemy import text
+    stmts = [
+        # Client segmentation columns
+        "ALTER TABLE clients ADD COLUMN IF NOT EXISTS industry VARCHAR(100) NULL",
+        "ALTER TABLE clients ADD COLUMN IF NOT EXISTS tags VARCHAR(500) NULL",
+        "ALTER TABLE clients ADD COLUMN IF NOT EXISTS region VARCHAR(100) NULL",
+        "ALTER TABLE clients ADD COLUMN IF NOT EXISTS company_size VARCHAR(50) NULL",
+        # Client contacts table
+        """CREATE TABLE IF NOT EXISTS client_contacts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            client_id INT NOT NULL,
+            tenant_id INT NULL,
+            name VARCHAR(255) NOT NULL,
+            role VARCHAR(100) NULL,
+            email VARCHAR(255) NULL,
+            phone VARCHAR(50) NULL,
+            is_primary TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            INDEX ix_client_contacts_client_id (client_id),
+            FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+        )""",
+        # Email tracking table
+        """CREATE TABLE IF NOT EXISTS email_tracking (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            token VARCHAR(64) NOT NULL UNIQUE,
+            doc_type VARCHAR(50) NOT NULL,
+            doc_id INT NOT NULL,
+            recipient_email VARCHAR(255) NULL,
+            tenant_id INT NULL,
+            sent_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            opened_at DATETIME(6) NULL,
+            open_count INT NOT NULL DEFAULT 0,
+            INDEX ix_email_tracking_token (token)
+        )""",
+    ]
+    async with engine.begin() as conn:
+        for stmt in stmts:
+            try:
+                await conn.execute(text(stmt))
+            except Exception as e:
+                logger.warning(f"_ensure_crm_columns stmt skipped: {e}")
+    logger.info("CRM columns/tables ensured")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await _ensure_logo_columns()
+    await _ensure_crm_columns()
     await init_db()
     upload_dir = app_settings.upload_dir
     os.makedirs(f"{upload_dir}/payment_proofs", exist_ok=True)
