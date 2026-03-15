@@ -6,7 +6,7 @@ import {
   Button, Input, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Popover, PopoverTrigger, PopoverContent,
 } from "@heroui/react";
-import { Bell, User, LogOut, Settings, ChevronDown, Check, Building2, X, Menu } from "lucide-react";
+import { Bell, User, LogOut, Settings, ChevronDown, Check, Building2, X, Menu, Eye, EyeOff } from "lucide-react";
 import { remindersApi, authApi, usersApi, superAdminApi } from "@/lib/api";
 import { clearAuth, getSwitchedTenant, setSwitchedTenant, setTokens } from "@/lib/auth";
 import { useRouter } from "next/navigation";
@@ -39,6 +39,8 @@ export function Topbar({ title }: { title?: string }) {
   const [editModal, setEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", new_password: "", confirm_password: "" });
   const [pwError, setPwError] = useState("");
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
@@ -80,6 +82,8 @@ export function Topbar({ title }: { title?: string }) {
   const openEdit = () => {
     setEditForm({ name: me?.name ?? "", new_password: "", confirm_password: "" });
     setPwError("");
+    setShowNewPw(false);
+    setShowConfirmPw(false);
     setProfileOpen(false);
     setEditModal(true);
   };
@@ -253,14 +257,18 @@ export function Topbar({ title }: { title?: string }) {
             <div className="border-t pt-1">
               <p className="text-xs text-gray-400 mb-3">Leave blank to keep your current password.</p>
               <div className="flex flex-col gap-3">
-                <Input variant="bordered" labelPlacement="outside" label="New Password" type="password"
+                <Input variant="bordered" labelPlacement="outside" label="New Password"
+                  type={showNewPw ? "text" : "password"}
                   placeholder="••••••••"
                   value={editForm.new_password}
-                  onChange={(e) => setEditForm({ ...editForm, new_password: e.target.value })} />
-                <Input variant="bordered" labelPlacement="outside" label="Confirm Password" type="password"
+                  onChange={(e) => setEditForm({ ...editForm, new_password: e.target.value })}
+                  endContent={<button type="button" onClick={() => setShowNewPw(p => !p)} className="text-gray-400 hover:text-gray-600">{showNewPw ? <EyeOff size={16} /> : <Eye size={16} />}</button>} />
+                <Input variant="bordered" labelPlacement="outside" label="Confirm Password"
+                  type={showConfirmPw ? "text" : "password"}
                   placeholder="••••••••"
                   value={editForm.confirm_password}
-                  onChange={(e) => setEditForm({ ...editForm, confirm_password: e.target.value })} />
+                  onChange={(e) => setEditForm({ ...editForm, confirm_password: e.target.value })}
+                  endContent={<button type="button" onClick={() => setShowConfirmPw(p => !p)} className="text-gray-400 hover:text-gray-600">{showConfirmPw ? <EyeOff size={16} /> : <Eye size={16} />}</button>} />
               </div>
               {pwError && <p className="text-xs text-danger mt-2">{pwError}</p>}
             </div>

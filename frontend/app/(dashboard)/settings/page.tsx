@@ -37,6 +37,7 @@ export default function SettingsPage() {
         receipt_prefix: s.receipt_prefix ?? "",
         company_registration_no: s.company_registration_no ?? "",
         sst_no: s.sst_no ?? "",
+        tin_no: s.tin_no ?? "",
         address: s.address ?? "",
       });
       setPayment({
@@ -147,6 +148,7 @@ export default function SettingsPage() {
                 <Input variant="bordered" labelPlacement="outside" label="Receipt Prefix" {...f(company, "receipt_prefix", setCompany)} />
                 <Input variant="bordered" labelPlacement="outside" label="Company Reg. No." {...f(company, "company_registration_no", setCompany)} />
                 <Input variant="bordered" labelPlacement="outside" label="SST No." {...f(company, "sst_no", setCompany)} />
+                <Input variant="bordered" labelPlacement="outside" label="TIN No." {...f(company, "tin_no", setCompany)} />
               </div>
               <Textarea variant="bordered" labelPlacement="outside" label="Address" {...f(company, "address", setCompany)} />
               <div>

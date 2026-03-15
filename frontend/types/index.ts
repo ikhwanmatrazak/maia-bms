@@ -172,6 +172,7 @@ export interface CompanySettings {
   smtp_from_name?: string;
   company_registration_no?: string;
   sst_no?: string;
+  tin_no?: string;
   payment_terms_text?: string;
   payment_info?: string;
   bank_name?: string;

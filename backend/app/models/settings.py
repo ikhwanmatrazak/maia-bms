@@ -40,6 +40,7 @@ class CompanySettings(Base):
     # Registration
     company_registration_no = Column(String(50), nullable=True)
     sst_no = Column(String(50), nullable=True)
+    tin_no = Column(String(50), nullable=True)
 
     # Payment
     payment_terms_text = Column(Text, nullable=True)
