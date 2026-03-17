@@ -6,41 +6,44 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  @page { size: A4; margin: 14mm 16mm; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Poppins', 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #333; }
-  .page { padding: 40px; max-width: 800px; margin: auto; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; }
-  .logo img { max-height: 90px; max-width: 240px; }
-  .company-info { text-align: right; font-size: 11px; color: #555; max-width: 320px; line-height: 1.7; }
-  .company-name { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
-  .company-address { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .doc-title { font-size: 28px; font-weight: 700; color: {{ company.primary_color if company else '#1a1a2e' }}; margin-bottom: 5px; text-transform: uppercase; }
-  .doc-meta { display: flex; justify-content: space-between; margin-bottom: 25px; }
-  .meta-block h4 { font-size: 10px; text-transform: uppercase; color: #999; margin-bottom: 4px; letter-spacing: 1px; }
-  .meta-block p { font-size: 12px; font-weight: 500; }
-  .bill-to { margin-bottom: 25px; }
-  .bill-to h4 { font-size: 10px; text-transform: uppercase; color: #999; margin-bottom: 6px; letter-spacing: 1px; }
-  .bill-to-name { font-size: 14px; font-weight: 600; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-  thead th { background: {{ company.primary_color if company else '#1a1a2e' }}; color: white; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  body { font-family: 'Poppins', 'Helvetica Neue', Arial, sans-serif; font-size: 10.5px; color: #333; }
+  .page { width: 100%; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+  .logo img { max-height: 70px; max-width: 200px; }
+  .company-info { text-align: right; font-size: 9.5px; color: #555; max-width: 280px; line-height: 1.6; }
+  .company-name { font-size: 13px; font-weight: 700; color: #1a1a2e; margin-bottom: 3px; }
+  .company-address { line-height: 1.5; }
+  .doc-title { font-size: 24px; font-weight: 700; color: {{ company.primary_color if company else '#1a1a2e' }}; margin-bottom: 4px; text-transform: uppercase; }
+  .doc-meta { display: flex; justify-content: space-between; margin-bottom: 16px; }
+  .meta-block h4 { font-size: 9px; text-transform: uppercase; color: #999; margin-bottom: 3px; letter-spacing: 1px; }
+  .meta-block p { font-size: 10.5px; font-weight: 500; }
+  .bill-to { margin-bottom: 16px; }
+  .bill-to h4 { font-size: 9px; text-transform: uppercase; color: #999; margin-bottom: 4px; letter-spacing: 1px; }
+  .bill-to-name { font-size: 12px; font-weight: 600; }
+  .bill-to div { font-size: 9.5px; line-height: 1.6; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+  thead th { background: {{ company.primary_color if company else '#1a1a2e' }}; color: white; padding: 7px 10px; text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
   thead th:nth-child(3), thead th:nth-child(4), thead th:nth-child(5), thead th:nth-child(6) { text-align: right; }
-  tbody td { padding: 10px 12px; border-bottom: 1px solid #eee; vertical-align: top; }
+  tbody td { padding: 7px 10px; border-bottom: 1px solid #eee; vertical-align: top; font-size: 10px; }
   tbody td:nth-child(3), tbody td:nth-child(4), tbody td:nth-child(5), tbody td:nth-child(6) { white-space: nowrap; text-align: right; }
   tbody tr:nth-child(even) { background: #f9f9f9; }
-  .totals { margin-left: auto; width: 260px; }
+  .totals { margin-left: auto; width: 240px; }
   .totals table { margin-bottom: 0; }
-  .totals td { padding: 6px 12px; border: none; font-size: 12px; }
-  .totals tr.total-row td { font-size: 14px; font-weight: bold; border-top: 2px solid #333; }
-  .notes-section { margin-top: 25px; }
-  .notes-section h4 { font-size: 10px; text-transform: uppercase; color: #999; margin-bottom: 6px; letter-spacing: 1px; }
-  .footer { margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #eee; padding-top: 20px; }
+  .totals td { padding: 4px 10px; border: none; font-size: 10.5px; }
+  .totals tr.total-row td { font-size: 12px; font-weight: bold; border-top: 2px solid #333; }
+  .notes-section { margin-top: 14px; }
+  .notes-section h4 { font-size: 9px; text-transform: uppercase; color: #999; margin-bottom: 4px; letter-spacing: 1px; }
+  .notes-section p { font-size: 10px; line-height: 1.6; white-space: pre-line; }
+  .footer { margin-top: 20px; display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #eee; padding-top: 12px; }
   .signature-block { text-align: center; }
-  .signature-block img { max-height: 50px; display: block; margin: 0 auto 5px; }
-  .signature-line { border-top: 1px solid #333; width: 150px; margin: 0 auto; padding-top: 4px; font-size: 10px; color: #666; }
+  .signature-block img { max-height: 45px; display: block; margin: 0 auto 4px; }
+  .signature-line { border-top: 1px solid #333; width: 140px; margin: 0 auto; padding-top: 3px; font-size: 9px; color: #666; }
   .qr-block { text-align: center; }
-  .qr-block img { width: 70px; height: 70px; }
-  .qr-block p { font-size: 8px; color: #999; margin-top: 3px; }
-  .status-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+  .qr-block img { width: 60px; height: 60px; }
+  .qr-block p { font-size: 7px; color: #999; margin-top: 2px; }
+  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 9px; font-weight: bold; text-transform: uppercase; }
   .status-draft { background: #fef3c7; color: #92400e; }
   .status-sent { background: #dbeafe; color: #1e40af; }
   .status-paid { background: #d1fae5; color: #065f46; }
