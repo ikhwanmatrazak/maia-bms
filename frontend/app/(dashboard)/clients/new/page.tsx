@@ -11,9 +11,9 @@ import { Topbar } from "@/components/ui/Topbar";
 
 const schema = z.object({
   company_name: z.string().min(1, "Company name is required"),
-  contact_person: z.string().min(1, "Contact person is required"),
+  contact_person: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
-  phone: z.string().min(1, "Phone is required"),
+  phone: z.string().optional(),
   address: z.string().optional(),
   city: z.string().optional(),
   country: z.string().optional(),
@@ -56,9 +56,7 @@ export default function NewClientPage() {
               <div className="grid grid-cols-2 gap-4">
                 <Input
                   variant="bordered"
-                  label="Contact Person *"
-                  isInvalid={!!errors.contact_person}
-                  errorMessage={errors.contact_person?.message}
+                  label="Contact Person"
                   {...register("contact_person")}
                 />
                 <Input variant="bordered" label="Email" type="email" {...register("email")} />
@@ -66,9 +64,7 @@ export default function NewClientPage() {
               <div className="grid grid-cols-2 gap-4">
                 <Input
                   variant="bordered"
-                  label="Phone *"
-                  isInvalid={!!errors.phone}
-                  errorMessage={errors.phone?.message}
+                  label="Phone"
                   {...register("phone")}
                 />
                 <Controller
