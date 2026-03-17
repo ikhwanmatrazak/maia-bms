@@ -8,7 +8,12 @@
   <div>
     <div style="font-size:10px;color:#999;text-transform:uppercase;margin-bottom:4px">Bill To</div>
     <div style="font-weight:bold">{{ document.client.company_name if document.client else 'Client' }}</div>
-    {% if document.client %}<div style="color:#666">{{ document.client.email or '' }}</div>{% endif %}
+    {% if document.client %}
+    {% if document.client.contact_person %}<div style="color:#666">{{ document.client.contact_person }}</div>{% endif %}
+    {% if document.client.address %}<div style="color:#666">{{ document.client.address }}</div>{% endif %}
+    {% if document.client.phone %}<div style="color:#666">{{ document.client.phone }}</div>{% endif %}
+    {% if document.client.email %}<div style="color:#666">{{ document.client.email }}</div>{% endif %}
+    {% endif %}
   </div>
   <div style="text-align:right">
     <div style="font-weight:bold">{{ company.name if company else 'MAIA' }}</div>
