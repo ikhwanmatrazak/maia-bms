@@ -32,6 +32,7 @@ class DocumentItemResponse(BaseModel):
 # --- Quotation ---
 class QuotationCreate(BaseModel):
     client_id: int
+    subject: Optional[str] = None
     currency: str = "MYR"
     exchange_rate: Decimal = Decimal("1.0")
     issue_date: datetime
@@ -46,6 +47,7 @@ class QuotationCreate(BaseModel):
 
 class QuotationUpdate(BaseModel):
     client_id: Optional[int] = None
+    subject: Optional[str] = None
     status: Optional[QuotationStatus] = None
     currency: Optional[str] = None
     exchange_rate: Optional[Decimal] = None
@@ -63,6 +65,7 @@ class QuotationResponse(BaseModel):
     id: int
     quotation_number: str
     client_id: int
+    subject: Optional[str] = None
     status: QuotationStatus
     currency: str
     exchange_rate: Decimal
@@ -92,6 +95,7 @@ class QuotationResponse(BaseModel):
 class InvoiceCreate(BaseModel):
     client_id: int
     quotation_id: Optional[int] = None
+    subject: Optional[str] = None
     currency: str = "MYR"
     exchange_rate: Decimal = Decimal("1.0")
     issue_date: datetime
@@ -106,6 +110,7 @@ class InvoiceCreate(BaseModel):
 
 class InvoiceUpdate(BaseModel):
     client_id: Optional[int] = None
+    subject: Optional[str] = None
     status: Optional[InvoiceStatus] = None
     currency: Optional[str] = None
     exchange_rate: Optional[Decimal] = None
@@ -124,6 +129,7 @@ class InvoiceResponse(BaseModel):
     invoice_number: str
     quotation_id: Optional[int]
     client_id: int
+    subject: Optional[str] = None
     status: InvoiceStatus
     currency: str
     exchange_rate: Decimal

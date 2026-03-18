@@ -29,6 +29,7 @@ class Quotation(Base):
     discount_amount = Column(Numeric(15, 2), default=0.00)
     tax_total = Column(Numeric(15, 2), default=0.00)
     total = Column(Numeric(15, 2), default=0.00)
+    subject = Column(String(500), nullable=True)
     notes = Column(Text, nullable=True)
     terms_conditions = Column(Text, nullable=True)
     payment_terms = Column(Text, nullable=True)

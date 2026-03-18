@@ -30,6 +30,7 @@
   </div>
 </div>
 
+{% if document.subject %}<div style="margin-bottom:8px;font-size:13px;"><strong>Subject:</strong> {{ document.subject }}</div>{% endif %}
 <div class="bill-to">
   <h4>Prepared For</h4>
   <div class="bill-to-name">{{ document.client.company_name if document.client else 'Client' }}</div>

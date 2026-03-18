@@ -46,6 +46,9 @@ async def _ensure_crm_columns():
     from app.database import engine
     from sqlalchemy import text
     stmts = [
+        # Invoice/Quotation subject column
+        "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS subject VARCHAR(500) NULL",
+        "ALTER TABLE quotations ADD COLUMN IF NOT EXISTS subject VARCHAR(500) NULL",
         # Client segmentation columns
         "ALTER TABLE clients ADD COLUMN IF NOT EXISTS industry VARCHAR(100) NULL",
         "ALTER TABLE clients ADD COLUMN IF NOT EXISTS tags VARCHAR(500) NULL",

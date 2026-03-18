@@ -33,6 +33,7 @@ class Invoice(Base):
     total = Column(Numeric(15, 2), default=0.00)
     amount_paid = Column(Numeric(15, 2), default=0.00)
     balance_due = Column(Numeric(15, 2), default=0.00)
+    subject = Column(String(500), nullable=True)
     notes = Column(Text, nullable=True)
     terms_conditions = Column(Text, nullable=True)
     payment_terms = Column(Text, nullable=True)

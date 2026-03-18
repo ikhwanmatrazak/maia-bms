@@ -43,6 +43,7 @@ function NewInvoiceForm() {
     defaultValues: {
       client_id: "",
       template_id: "",
+      subject: "",
       currency: "MYR",
       exchange_rate: "1",
       issue_date: new Date().toISOString().split("T")[0],
@@ -222,6 +223,7 @@ function NewInvoiceForm() {
             <Card>
               <CardHeader><h3 className="font-semibold">Notes</h3></CardHeader>
               <CardBody className="gap-4 flex flex-col">
+                <Input variant="bordered" label="Subject (optional)" {...register("subject")} />
                 <Textarea variant="bordered" label="Notes" value={notesValue} {...register("notes")} />
                 <Textarea variant="bordered" label="Terms & Conditions" value={termsValue} {...register("terms_conditions")} />
                 <Textarea variant="bordered" label="Payment Terms" value={paymentTermsValue} {...register("payment_terms")} />
