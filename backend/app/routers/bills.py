@@ -1,6 +1,8 @@
 import base64
+import io
 import json
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -98,60 +100,271 @@ async def _save_file(file: UploadFile) -> str:
     return f"/uploads/bills/{filename}", content
 
 
-# ── AI extraction ─────────────────────────────────────────────────────────────
+# ── Local OCR extraction (free, no API key needed) ────────────────────────────
 
-EXTRACT_PROMPT = (
-    "This is a vendor invoice / bill. Extract ALL relevant information and respond ONLY with a JSON object "
-    "(no markdown, no explanation). Use null for fields you cannot find.\n\n"
-    "Return this exact structure:\n"
-    '{"vendor_name": "<company name>", '
-    '"vendor_address": "<full address>", '
-    '"vendor_email": "<email or null>", '
-    '"vendor_phone": "<phone or null>", '
-    '"vendor_reg_no": "<company reg number or null>", '
-    '"bank_name": "<bank name or null>", '
-    '"bank_account_no": "<account number or null>", '
-    '"bank_account_name": "<account holder name or null>", '
-    '"bill_number": "<invoice/bill number or null>", '
-    '"description": "<brief description of what the bill is for or null>", '
-    '"issue_date": "<YYYY-MM-DD or null>", '
-    '"due_date": "<YYYY-MM-DD or null>", '
-    '"amount": <total amount as number or null>, '
-    '"currency": "<3-letter code, default MYR>"}'
-)
+KNOWN_BANKS = [
+    "Maybank", "CIMB", "Public Bank", "RHB", "Hong Leong", "AmBank",
+    "Bank Rakyat", "BSN", "HSBC", "Standard Chartered", "OCBC", "UOB",
+    "Alliance Bank", "Affin Bank", "Bank Islam", "Bank Muamalat",
+]
+
+
+def _extract_text_from_pdf(content: bytes) -> str:
+    import pdfplumber
+    text = ""
+    with pdfplumber.open(io.BytesIO(content)) as pdf:
+        for page in pdf.pages:
+            text += (page.extract_text() or "") + "\n"
+    return text
+
+
+def _extract_text_from_image(content: bytes) -> str:
+    import pytesseract
+    from PIL import Image
+    img = Image.open(io.BytesIO(content))
+    return pytesseract.image_to_string(img)
+
+
+def _normalize_date(raw: str) -> Optional[str]:
+    """Convert various date formats to YYYY-MM-DD."""
+    raw = raw.strip()
+    # DD/MM/YYYY or DD-MM-YYYY
+    m = re.match(r"(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$", raw)
+    if m:
+        d, mo, y = m.groups()
+        if len(y) == 2:
+            y = "20" + y
+        return f"{y}-{mo.zfill(2)}-{d.zfill(2)}"
+    # YYYY-MM-DD
+    m = re.match(r"(\d{4})[/\-.](\d{2})[/\-.](\d{2})$", raw)
+    if m:
+        return raw
+    # "15 March 2024" or "15 Mar 2024"
+    months = {"jan": "01", "feb": "02", "mar": "03", "apr": "04",
+               "may": "05", "jun": "06", "jul": "07", "aug": "08",
+               "sep": "09", "oct": "10", "nov": "11", "dec": "12"}
+    m = re.match(r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})", raw)
+    if m:
+        d, mon, y = m.groups()
+        mo = months.get(mon[:3].lower())
+        if mo:
+            return f"{y}-{mo}-{d.zfill(2)}"
+    return None
+
+
+def _parse_text(text: str) -> dict:
+    result: dict = {
+        "vendor_name": None, "vendor_address": None,
+        "vendor_email": None, "vendor_phone": None, "vendor_reg_no": None,
+        "bank_name": None, "bank_account_no": None, "bank_account_name": None,
+        "bill_number": None, "description": None,
+        "issue_date": None, "due_date": None,
+        "amount": None, "currency": "MYR",
+    }
+
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+    # Email
+    m = re.search(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", text)
+    if m:
+        result["vendor_email"] = m.group()
+
+    # Phone (Malaysian: starts with +60 / 60 / 01x / 03)
+    m = re.search(
+        r"(?:Tel|Phone|H/?P|Mobile|Fax)?[:\s]*"
+        r"(\+?6?0[\s\-]?\d{1,2}[\s\-]?\d{3,4}[\s\-]?\d{4})",
+        text, re.IGNORECASE,
+    )
+    if m:
+        result["vendor_phone"] = re.sub(r"\s+", "", m.group(1))
+
+    # Registration / Company No
+    m = re.search(
+        r"(?:Reg(?:istration)?\.?\s*(?:No\.?)?|Co(?:mpany)?\.?\s*No\.?|SST\s*(?:Reg\.?\s*No\.?)?)"
+        r"[:\s]*([A-Z0-9][\w\-]{3,20})",
+        text, re.IGNORECASE,
+    )
+    if m:
+        result["vendor_reg_no"] = m.group(1).strip()
+
+    # Invoice / Bill number
+    m = re.search(
+        r"(?:Invoice|Bill|Inv|Receipt|Tax\s+Invoice)\s*(?:No\.?|Number|#)?[:\s]+"
+        r"([A-Z0-9][\w/\-]{1,25})",
+        text, re.IGNORECASE,
+    )
+    if m:
+        result["bill_number"] = m.group(1).strip()
+
+    # Dates: labelled
+    issue_m = re.search(
+        r"(?:Invoice|Issue|Inv\.?)\s*Date[:\s]+"
+        r"(\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{2,4}"
+        r"|\d{4}[/\-\.]\d{2}[/\-\.]\d{2}"
+        r"|\d{1,2}\s+[A-Za-z]+\s+\d{4})",
+        text, re.IGNORECASE,
+    )
+    due_m = re.search(
+        r"(?:Due|Payment|Pay\s+by|Pay\s+Before)\s*(?:Date)?[:\s]+"
+        r"(\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{2,4}"
+        r"|\d{4}[/\-\.]\d{2}[/\-\.]\d{2}"
+        r"|\d{1,2}\s+[A-Za-z]+\s+\d{4})",
+        text, re.IGNORECASE,
+    )
+    if issue_m:
+        result["issue_date"] = _normalize_date(issue_m.group(1))
+    if due_m:
+        result["due_date"] = _normalize_date(due_m.group(1))
+
+    # Fallback: grab all standalone dates and assign first two
+    if not result["issue_date"] or not result["due_date"]:
+        all_dates = re.findall(
+            r"\b(\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{2,4}|\d{4}[/\-\.]\d{2}[/\-\.]\d{2})\b",
+            text,
+        )
+        normalized = [_normalize_date(d) for d in all_dates if _normalize_date(d)]
+        unique_dates = list(dict.fromkeys(normalized))
+        if unique_dates and not result["issue_date"]:
+            result["issue_date"] = unique_dates[0]
+        if len(unique_dates) > 1 and not result["due_date"]:
+            result["due_date"] = unique_dates[1]
+
+    # Amount (Total / Grand Total / Amount Due)
+    m = re.search(
+        r"(?:Grand\s+Total|Total\s+(?:Due|Amount)?|Amount\s+Due|TOTAL)[:\s]+"
+        r"(?:RM|MYR|USD|SGD|EUR)?\s*([\d,]+(?:\.\d{1,2})?)",
+        text, re.IGNORECASE,
+    )
+    if not m:
+        # Last RM/MYR amount as fallback
+        m = re.search(
+            r"(?:RM|MYR)\s*([\d,]+(?:\.\d{1,2})?)", text, re.IGNORECASE
+        )
+    if m:
+        try:
+            result["amount"] = float(m.group(1).replace(",", ""))
+        except ValueError:
+            pass
+
+    # Currency
+    if re.search(r"\bUSD\b|\$", text):
+        result["currency"] = "USD"
+    elif re.search(r"\bSGD\b", text):
+        result["currency"] = "SGD"
+    elif re.search(r"\bEUR\b|€", text):
+        result["currency"] = "EUR"
+
+    # Bank name
+    for bank in KNOWN_BANKS:
+        if re.search(r"\b" + re.escape(bank) + r"\b", text, re.IGNORECASE):
+            result["bank_name"] = bank
+            break
+
+    # Bank account number
+    m = re.search(
+        r"(?:Acc(?:ount)?\.?\s*(?:No\.?)?|A/C)[:\s]*(\d[\d\s\-]{6,18}\d)",
+        text, re.IGNORECASE,
+    )
+    if m:
+        result["bank_account_no"] = re.sub(r"[\s\-]", "", m.group(1))
+
+    # Account holder name (line after "Account Name" or "Beneficiary")
+    m = re.search(
+        r"(?:Account\s*(?:Holder|Name)|Beneficiary|Payee)[:\s]+(.+)",
+        text, re.IGNORECASE,
+    )
+    if m:
+        result["bank_account_name"] = m.group(1).strip()
+
+    # Vendor name — first meaningful line (skip common header words)
+    skip = re.compile(
+        r"^(invoice|bill|receipt|quotation|tax|page|date|no\.?|to:|from:|dear|"
+        r"statement|delivery|purchase|order)\b",
+        re.IGNORECASE,
+    )
+    for line in lines[:8]:
+        if len(line) < 3:
+            continue
+        if skip.match(line):
+            continue
+        if re.search(r"@|Tel|Fax|www\.|http|Reg\s*No", line, re.IGNORECASE):
+            continue
+        if re.search(r"^\d", line):  # starts with digit (probably a date/number)
+            continue
+        result["vendor_name"] = line
+        break
+
+    # Address: lines between vendor name and first labelled section
+    addr_lines = []
+    collecting = result["vendor_name"] is not None
+    for line in lines:
+        if line == result["vendor_name"]:
+            continue
+        if collecting:
+            if re.match(r"(?:Invoice|Bill|Date|Tel|Email|Ref|To:|Attn)", line, re.IGNORECASE):
+                break
+            if len(line) > 3 and not re.search(r"@", line):
+                addr_lines.append(line)
+        if len(addr_lines) >= 4:
+            break
+    if addr_lines:
+        result["vendor_address"] = "\n".join(addr_lines)
+
+    return result
+
+
+async def _local_extract(content: bytes, mime_type: str) -> dict:
+    try:
+        if mime_type == "application/pdf":
+            text = _extract_text_from_pdf(content)
+        else:
+            text = _extract_text_from_image(content)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"OCR failed: {str(e)}")
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="Could not extract text from the document. Try a clearer image.")
+    return _parse_text(text)
 
 
 async def _ai_extract(content: bytes, mime_type: str) -> dict:
+    """Try Anthropic AI first; fall back to local OCR if no API key."""
     settings = get_settings()
-    if not settings.anthropic_api_key:
-        raise HTTPException(status_code=503, detail="AI extraction not configured (ANTHROPIC_API_KEY missing)")
+    if settings.anthropic_api_key:
+        try:
+            import anthropic as _anthropic
+            PROMPT = (
+                "This is a vendor invoice/bill. Extract ALL relevant information and respond ONLY with a JSON object "
+                "(no markdown, no explanation). Use null for fields you cannot find.\n\n"
+                "Return this exact structure:\n"
+                '{"vendor_name":"<name>","vendor_address":"<address>","vendor_email":"<email or null>",'
+                '"vendor_phone":"<phone or null>","vendor_reg_no":"<reg no or null>",'
+                '"bank_name":"<bank or null>","bank_account_no":"<acc no or null>",'
+                '"bank_account_name":"<holder name or null>","bill_number":"<inv no or null>",'
+                '"description":"<what the bill is for or null>","issue_date":"<YYYY-MM-DD or null>",'
+                '"due_date":"<YYYY-MM-DD or null>","amount":<number or null>,"currency":"<MYR>"}'
+            )
+            client = _anthropic.Anthropic(api_key=settings.anthropic_api_key)
+            b64 = base64.standard_b64encode(content).decode("utf-8")
+            block = (
+                {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": b64}}
+                if mime_type == "application/pdf"
+                else {"type": "image", "source": {"type": "base64", "media_type": mime_type, "data": b64}}
+            )
+            response = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=512,
+                messages=[{"role": "user", "content": [block, {"type": "text", "text": PROMPT}]}],
+            )
+            raw = response.content[0].text.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            return json.loads(raw)
+        except Exception:
+            pass  # fall through to local OCR
 
-    import anthropic as _anthropic
-    client = _anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    b64 = base64.standard_b64encode(content).decode("utf-8")
-    is_pdf = mime_type == "application/pdf"
-
-    if is_pdf:
-        content_block = {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": b64}}
-    else:
-        content_block = {"type": "image", "source": {"type": "base64", "media_type": mime_type, "data": b64}}
-
-    try:
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=512,
-            messages=[{"role": "user", "content": [content_block, {"type": "text", "text": EXTRACT_PROMPT}]}],
-        )
-        raw = response.content[0].text.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=422, detail="AI could not parse the document")
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"AI extraction failed: {str(e)}")
+    return await _local_extract(content, mime_type)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
