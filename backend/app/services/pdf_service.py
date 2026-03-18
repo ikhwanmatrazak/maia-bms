@@ -21,7 +21,17 @@ def _fmt(value, decimals=2):
         return value
 
 
+def _qty(value):
+    """Show whole numbers without decimal, e.g. 88 not 88.00"""
+    try:
+        f = float(value)
+        return int(f) if f == int(f) else f
+    except (ValueError, TypeError):
+        return value
+
+
 jinja_env.filters["fmt"] = _fmt
+jinja_env.filters["qty"] = _qty
 
 
 async def generate_pdf(doc_type: str, document, company, template_style: str = "professional") -> bytes:
