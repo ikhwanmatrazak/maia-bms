@@ -8,7 +8,7 @@ import {
   ModalHeader, ModalBody, ModalFooter, Input, Select, SelectItem,
 } from "@heroui/react";
 import { invoicesApi, paymentsApi, settingsApi, downloadPdf } from "@/lib/api";
-import { Mail as MailIcon, Eye as EyeIcon } from "lucide-react";
+import { Mail as MailIcon, Eye as EyeIcon, Link as LinkIcon, Copy as CopyIcon, CheckCheck } from "lucide-react";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
 import { Payment } from "@/types";
@@ -38,6 +38,9 @@ export default function InvoiceDetailPage() {
   const [templateModal, setTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [templateSaved, setTemplateSaved] = useState(false);
+  const [payLinkModal, setPayLinkModal] = useState(false);
+  const [payLinkUrl, setPayLinkUrl] = useState<string | null>(null);
+  const [payLinkCopied, setPayLinkCopied] = useState(false);
 
   const { data: inv, isLoading } = useQuery({
     queryKey: ["invoices", id],
@@ -98,6 +101,32 @@ export default function InvoiceDetailPage() {
     },
   });
 
+  const payLinkMutation = useMutation({
+    mutationFn: () => invoicesApi.createPaymentLink(id),
+    onSuccess: (data) => {
+      setPayLinkUrl(data.url);
+      setPayLinkModal(true);
+      queryClient.invalidateQueries({ queryKey: ["invoices", id] });
+    },
+  });
+
+  const openPayLink = () => {
+    if ((inv as any)?.payment_link_url) {
+      setPayLinkUrl((inv as any).payment_link_url);
+      setPayLinkModal(true);
+    } else {
+      payLinkMutation.mutate();
+    }
+  };
+
+  const copyPayLink = () => {
+    if (payLinkUrl) {
+      navigator.clipboard.writeText(payLinkUrl);
+      setPayLinkCopied(true);
+      setTimeout(() => setPayLinkCopied(false), 2000);
+    }
+  };
+
   if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
   if (!inv) return <div className="p-6">Invoice not found</div>;
 
@@ -150,6 +179,12 @@ export default function InvoiceDetailPage() {
           <div className="flex gap-2 flex-wrap">
             {!["paid", "cancelled"].includes(inv.status) && (
               <Button size="sm" color="success" onPress={() => setPaymentModal(true)}>Record Payment</Button>
+            )}
+            {!["paid", "cancelled"].includes(inv.status) && (
+              <Button size="sm" color="secondary" variant="flat" startContent={<LinkIcon size={14} />}
+                isLoading={payLinkMutation.isPending} onPress={openPayLink}>
+                {(inv as any)?.payment_link_url ? "Payment Link" : "Generate Payment Link"}
+              </Button>
             )}
             {!["paid", "cancelled"].includes(inv.status) && (
               <Button size="sm" color="primary" onPress={() => setPaymentModal(true)}>Create Receipt</Button>
@@ -447,6 +482,43 @@ export default function InvoiceDetailPage() {
               <Button color="primary" isLoading={emailMutation.isPending} onPress={() => emailMutation.mutate(emailTo)}>
                 Send Email
               </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        {/* Payment Link Modal */}
+        <Modal isOpen={payLinkModal} onOpenChange={setPayLinkModal} size="md">
+          <ModalContent>
+            <ModalHeader>Billplz Payment Link</ModalHeader>
+            <ModalBody className="space-y-4">
+              <p className="text-sm text-gray-500">
+                Share this link with your client so they can pay online via FPX or credit card through Billplz.
+              </p>
+              {payLinkUrl ? (
+                <div className="flex gap-2 items-center">
+                  <Input
+                    variant="bordered"
+                    value={payLinkUrl}
+                    readOnly
+                    size="sm"
+                    classNames={{ input: "text-xs" }}
+                  />
+                  <Button size="sm" variant="flat" isIconOnly onPress={copyPayLink}>
+                    {payLinkCopied ? <CheckCheck size={16} className="text-success" /> : <CopyIcon size={16} />}
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-sm text-danger">Failed to generate payment link.</p>
+              )}
+              {payLinkCopied && <p className="text-xs text-success">Link copied to clipboard!</p>}
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="flat" onPress={() => setPayLinkModal(false)}>Close</Button>
+              {payLinkUrl && (
+                <Button color="primary" onPress={() => window.open(payLinkUrl!, "_blank")}>
+                  Open Payment Page
+                </Button>
+              )}
             </ModalFooter>
           </ModalContent>
         </Modal>

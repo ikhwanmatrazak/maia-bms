@@ -169,6 +169,7 @@ export const invoicesApi = {
   getPdfUrl: (id: number) => `${API_URL}/invoices/${id}/pdf`,
   summary: (month?: string) => api.get("/invoices/summary", { params: month ? { month } : {} }).then((r) => r.data),
   getEmailTracking: (id: number) => api.get(`/invoices/${id}/email-tracking`).then((r) => r.data),
+  createPaymentLink: (id: number) => api.post(`/gateway/billplz/bill/${id}`).then((r) => r.data),
 };
 
 export const receiptsApi = {

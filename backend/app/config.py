@@ -16,6 +16,13 @@ class Settings(BaseSettings):
     # Application
     environment: str = "development"
     frontend_url: str = "http://localhost:3000"
+    backend_url: str = "http://localhost:8000"
+
+    # Billplz Payment Gateway
+    billplz_api_key: Optional[str] = None
+    billplz_collection_id: Optional[str] = None
+    billplz_x_signature_key: Optional[str] = None
+    billplz_sandbox: bool = True
 
     # Encryption (for SMTP password storage)
     encryption_key: str

@@ -41,6 +41,8 @@ class Invoice(Base):
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     paid_at = Column(DateTime(timezone=True), nullable=True)
+    payment_link_id = Column(String(100), nullable=True)
+    payment_link_url = Column(String(500), nullable=True)
     is_deleted = Column(Boolean, default=False, server_default="0")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

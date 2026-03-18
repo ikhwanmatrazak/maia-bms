@@ -150,6 +150,7 @@ class InvoiceResponse(BaseModel):
     created_by: Optional[int]
     sent_at: Optional[datetime]
     paid_at: Optional[datetime]
+    payment_link_url: Optional[str] = None
     client_name: str = ""
     client_email: str = ""
     client_phone: str = ""

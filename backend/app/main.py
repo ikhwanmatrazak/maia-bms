@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.database import init_db
 from app.routers import auth, users, clients, quotations, invoices, receipts, payments, expenses, reminders, reports, settings, documents
 from app.routers import purchase_orders, delivery_orders, super_admin, products, analytics, vendors, prospects, credit_notes, tracking
+from app.routers import gateway
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,6 +50,9 @@ async def _ensure_crm_columns():
         # Invoice/Quotation subject column
         "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS subject VARCHAR(500) NULL",
         "ALTER TABLE quotations ADD COLUMN IF NOT EXISTS subject VARCHAR(500) NULL",
+        # Billplz payment link columns
+        "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_link_id VARCHAR(100) NULL",
+        "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_link_url VARCHAR(500) NULL",
         # Line item unit column
         "ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS unit VARCHAR(50) NULL",
         "ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS unit VARCHAR(50) NULL",
@@ -160,6 +164,7 @@ app.include_router(vendors.router, prefix=prefix)
 app.include_router(prospects.router, prefix=prefix)
 app.include_router(credit_notes.router, prefix=prefix)
 app.include_router(tracking.router, prefix=prefix)
+app.include_router(gateway.router, prefix=prefix)
 
 
 @app.get("/health")
