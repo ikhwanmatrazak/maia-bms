@@ -71,6 +71,7 @@ const navGroups = [
       { href: "/payments", label: "Payments" },
       { href: "/credit-notes", label: "Credit Notes" },
       { href: "/expenses", label: "Expenses" },
+      { href: "/bills", label: "Bills (Payable)" },
       { href: "/reports", label: "Reports" },
     ],
   },

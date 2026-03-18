@@ -12,7 +12,7 @@ from app.config import get_settings
 from app.database import init_db
 from app.routers import auth, users, clients, quotations, invoices, receipts, payments, expenses, reminders, reports, settings, documents
 from app.routers import purchase_orders, delivery_orders, super_admin, products, analytics, vendors, prospects, credit_notes, tracking
-from app.routers import gateway
+from app.routers import gateway, bills
 
 logging.basicConfig(
     level=logging.INFO,
@@ -87,6 +87,36 @@ async def _ensure_crm_columns():
             opened_at DATETIME(6) NULL,
             open_count INT NOT NULL DEFAULT 0,
             INDEX ix_email_tracking_token (token)
+        )""",
+        # Bills (accounts payable) table
+        """CREATE TABLE IF NOT EXISTS bills (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tenant_id INT NULL,
+            created_by INT NULL,
+            vendor_name VARCHAR(255) NULL,
+            vendor_address TEXT NULL,
+            vendor_email VARCHAR(255) NULL,
+            vendor_phone VARCHAR(50) NULL,
+            vendor_reg_no VARCHAR(100) NULL,
+            bank_name VARCHAR(255) NULL,
+            bank_account_no VARCHAR(100) NULL,
+            bank_account_name VARCHAR(255) NULL,
+            bill_number VARCHAR(100) NULL,
+            description TEXT NULL,
+            issue_date DATETIME(6) NULL,
+            due_date DATETIME(6) NULL,
+            amount DECIMAL(15,2) NULL,
+            currency VARCHAR(10) DEFAULT 'MYR',
+            status ENUM('pending','paid','overdue') NOT NULL DEFAULT 'pending',
+            paid_at DATETIME(6) NULL,
+            payment_reference VARCHAR(255) NULL,
+            file_url VARCHAR(500) NULL,
+            notes TEXT NULL,
+            is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            updated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+            INDEX ix_bills_tenant_id (tenant_id),
+            INDEX ix_bills_status (status)
         )""",
     ]
     async with engine.begin() as conn:
@@ -165,6 +195,7 @@ app.include_router(prospects.router, prefix=prefix)
 app.include_router(credit_notes.router, prefix=prefix)
 app.include_router(tracking.router, prefix=prefix)
 app.include_router(gateway.router, prefix=prefix)
+app.include_router(bills.router, prefix=prefix)
 
 
 @app.get("/health")

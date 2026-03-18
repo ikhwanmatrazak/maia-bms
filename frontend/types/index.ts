@@ -344,3 +344,30 @@ export interface ProductSubscription {
   created_at: string;
   updated_at: string;
 }
+
+export type BillStatus = "pending" | "paid" | "overdue";
+
+export interface Bill {
+  id: number;
+  vendor_name?: string;
+  vendor_address?: string;
+  vendor_email?: string;
+  vendor_phone?: string;
+  vendor_reg_no?: string;
+  bank_name?: string;
+  bank_account_no?: string;
+  bank_account_name?: string;
+  bill_number?: string;
+  description?: string;
+  issue_date?: string;
+  due_date?: string;
+  amount?: number;
+  currency: string;
+  status: BillStatus;
+  paid_at?: string;
+  payment_reference?: string;
+  file_url?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}

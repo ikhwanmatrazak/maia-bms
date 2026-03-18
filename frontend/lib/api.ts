@@ -339,6 +339,21 @@ export const creditNotesApi = {
   getPdfUrl: (id: number) => `${API_URL}/credit-notes/${id}/pdf`,
 };
 
+export const billsApi = {
+  analyze: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post("/bills/analyze", form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
+  },
+  list: (params?: object) => api.get("/bills", { params }).then((r) => r.data),
+  get: (id: number) => api.get(`/bills/${id}`).then((r) => r.data),
+  create: (data: object) => api.post("/bills", data).then((r) => r.data),
+  update: (id: number, data: object) => api.put(`/bills/${id}`, data).then((r) => r.data),
+  markPaid: (id: number, reference?: string) =>
+    api.post(`/bills/${id}/mark-paid`, null, { params: reference ? { payment_reference: reference } : {} }).then((r) => r.data),
+  delete: (id: number) => api.delete(`/bills/${id}`),
+};
+
 export const superAdminApi = {
   getStats: () => api.get("/super-admin/stats").then((r) => r.data),
   listTenants: () => api.get("/super-admin/tenants").then((r) => r.data),
