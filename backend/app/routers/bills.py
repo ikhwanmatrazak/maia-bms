@@ -194,23 +194,36 @@ def _parse_text(text: str) -> dict:
             result["vendor_reg_no"] = m.group(1).strip()
 
     # Invoice / Bill number
-    # Pattern 1: same-line label + value
+    # Pattern 1: must have explicit No./Number/# marker — prevents matching "Invoice to:"
     m = re.search(
-        r"(?:Invoice|Bill|Inv|Receipt|Tax\s+Invoice)\s*(?:No\.?|Number|#)?[:\s]+"
-        r"([A-Z0-9][\w/\-\s]{1,40})",
+        r"(?:Invoice|Bill|Inv|Receipt|Tax\s+Invoice)\s*(?:No\.?|Number|#)\s*[:\-\s]+"
+        r"([^\n]{2,50})",
         text, re.IGNORECASE,
     )
     if m:
-        result["bill_number"] = m.group(1).strip().rstrip(":")
-    # Pattern 2: multi-line PDF column layout — value appears as ": XXXX" on its own line
-    #            e.g. pdfplumber puts ": 2026 / MAIA / AliLife / 02" as a standalone line
+        val = m.group(1).strip().rstrip(":").strip()
+        # Skip if the captured value looks like a section header word
+        if not re.match(r"^(to|from|date|for|of|the|a)\b", val, re.IGNORECASE):
+            result["bill_number"] = val
+    # Pattern 2: explicit colon-label on same line e.g. "Invoice: INV-001"
+    if not result["bill_number"]:
+        m = re.search(
+            r"(?:Invoice|Inv)\s*:\s*([A-Z0-9][^\n]{2,40})",
+            text, re.IGNORECASE,
+        )
+        if m:
+            val = m.group(1).strip()
+            if not re.match(r"^(to|from|date)\b", val, re.IGNORECASE):
+                result["bill_number"] = val
+    # Pattern 3: multi-line column layout — standalone ": XXXX" line
     if not result["bill_number"]:
         for line in lines:
             m = re.match(r"^:\s+(.{3,50})$", line)
             if m:
                 candidate = m.group(1).strip()
-                # Exclude lines that look like dates ("17 March 2026") or amounts ("RM1,000.00")
-                if not re.match(r"\d{1,2}\s+[A-Za-z]", candidate) and not re.match(r"RM", candidate, re.IGNORECASE):
+                # Exclude date lines ("17 March 2026") and amount lines ("RM1,000.00")
+                if not re.match(r"\d{1,2}\s+[A-Za-z]", candidate) and \
+                   not re.match(r"RM|MYR|\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}", candidate, re.IGNORECASE):
                     result["bill_number"] = candidate
                     break
 
@@ -253,24 +266,47 @@ def _parse_text(text: str) -> dict:
         if unique_dates:
             result["issue_date"] = unique_dates[0]
 
-    # Amount — fix: Total: works without whitespace gap; fallback takes the largest RM value
-    m = re.search(
-        r"(?:Grand\s+Total|Total(?:\s+(?:Due|Amount))?|Amount\s+Due|TOTAL)[:\s]+"
-        r"(?:RM|MYR|USD|SGD|EUR)?\s*([\d,]+(?:\.\d{1,2})?)",
-        text, re.IGNORECASE,
+    # Amount — multi-pass, most specific first
+    def _try_amount(pattern: str, t: str) -> Optional[float]:
+        hit = re.search(pattern, t, re.IGNORECASE)
+        if hit:
+            try:
+                return float(hit.group(1).replace(",", ""))
+            except ValueError:
+                pass
+        return None
+
+    # Pass 1: "Total: RM 1,200.00" or "Total Due: RM1,200.00" on same line with RM prefix
+    result["amount"] = _try_amount(
+        r"\b(?:Grand\s+Total|Total(?:\s+(?:Due|Amount))?|Amount\s+Due|TOTAL)\b[:\s]+"
+        r"(?:RM|MYR|USD|SGD|EUR)\s*([\d,]+(?:\.\d{1,2})?)",
+        text,
     )
-    if m:
-        try:
-            result["amount"] = float(m.group(1).replace(",", ""))
-        except ValueError:
-            pass
+    # Pass 2: "Total: 1,200.00" — same line, no currency prefix
     if not result["amount"]:
-        # Fallback: collect ALL RM amounts and take the largest (avoids "RM0" in descriptions)
+        result["amount"] = _try_amount(
+            r"\b(?:Grand\s+Total|Total(?:\s+(?:Due|Amount))?|Amount\s+Due|TOTAL)\b\s*:\s*([\d,]{3,}(?:\.\d{1,2})?)",
+            text,
+        )
+    # Pass 3: standalone ": RM1,000.00" line (multi-column PDF layout)
+    if not result["amount"]:
+        for line in lines:
+            m = re.match(r"^:\s+RM\s*([\d,]+(?:\.\d{1,2})?)$", line, re.IGNORECASE)
+            if m:
+                try:
+                    result["amount"] = float(m.group(1).replace(",", ""))
+                    break
+                except ValueError:
+                    pass
+    # Pass 4: largest RM value in the document (avoids small values like "RM0" in descriptions)
+    if not result["amount"]:
         all_amounts = re.findall(r"(?:RM|MYR)\s*([\d,]+(?:\.\d{1,2})?)", text, re.IGNORECASE)
         parsed = []
         for a in all_amounts:
             try:
-                parsed.append(float(a.replace(",", "")))
+                v = float(a.replace(",", ""))
+                if v >= 1:  # ignore trivially small RM values
+                    parsed.append(v)
             except ValueError:
                 pass
         if parsed:
