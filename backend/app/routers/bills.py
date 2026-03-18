@@ -241,35 +241,40 @@ def _parse_text(text: str) -> dict:
                 result["issue_date"] = _normalize_date(m.group(1))
                 break
 
-    # Fallback: grab all standalone dates and assign first two
-    if not result["issue_date"] or not result["due_date"]:
+    # Fallback: grab standalone dates — only assign issue_date, NOT due_date
+    # (if there's no labelled due date, leave it null rather than guessing)
+    if not result["issue_date"]:
         all_dates = re.findall(
             r"\b(\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{2,4}|\d{4}[/\-\.]\d{2}[/\-\.]\d{2})\b",
             text,
         )
         normalized = [_normalize_date(d) for d in all_dates if _normalize_date(d)]
         unique_dates = list(dict.fromkeys(normalized))
-        if unique_dates and not result["issue_date"]:
+        if unique_dates:
             result["issue_date"] = unique_dates[0]
-        if len(unique_dates) > 1 and not result["due_date"]:
-            result["due_date"] = unique_dates[1]
 
-    # Amount (Total / Grand Total / Amount Due)
+    # Amount — fix: Total: works without whitespace gap; fallback takes the largest RM value
     m = re.search(
-        r"(?:Grand\s+Total|Total\s+(?:Due|Amount)?|Amount\s+Due|TOTAL)[:\s]+"
+        r"(?:Grand\s+Total|Total(?:\s+(?:Due|Amount))?|Amount\s+Due|TOTAL)[:\s]+"
         r"(?:RM|MYR|USD|SGD|EUR)?\s*([\d,]+(?:\.\d{1,2})?)",
         text, re.IGNORECASE,
     )
-    if not m:
-        # Last RM/MYR amount as fallback
-        m = re.search(
-            r"(?:RM|MYR)\s*([\d,]+(?:\.\d{1,2})?)", text, re.IGNORECASE
-        )
     if m:
         try:
             result["amount"] = float(m.group(1).replace(",", ""))
         except ValueError:
             pass
+    if not result["amount"]:
+        # Fallback: collect ALL RM amounts and take the largest (avoids "RM0" in descriptions)
+        all_amounts = re.findall(r"(?:RM|MYR)\s*([\d,]+(?:\.\d{1,2})?)", text, re.IGNORECASE)
+        parsed = []
+        for a in all_amounts:
+            try:
+                parsed.append(float(a.replace(",", "")))
+            except ValueError:
+                pass
+        if parsed:
+            result["amount"] = max(parsed)
 
     # Currency
     if re.search(r"\bUSD\b|\$", text):
@@ -279,14 +284,14 @@ def _parse_text(text: str) -> dict:
     elif re.search(r"\bEUR\b|€", text):
         result["currency"] = "EUR"
 
-    # Bank name
+    # Bank name — no word boundaries, plain substring search (handles "Public Bank" etc.)
     for bank in KNOWN_BANKS:
-        if re.search(r"\b" + re.escape(bank) + r"\b", text, re.IGNORECASE):
+        if re.search(re.escape(bank), text, re.IGNORECASE):
             result["bank_name"] = bank
             break
 
     # Bank account number
-    # Pattern 1: labelled "Acc No:", "Account:", "A/C:"
+    # Pattern 1: labelled "Acc No:", "Account No:", "A/C:"
     m = re.search(
         r"(?:Acc(?:ount)?\.?\s*(?:No\.?)?|A/C)[:\s]*(\d[\d\s\-]{6,18}\d)",
         text, re.IGNORECASE,
@@ -301,6 +306,33 @@ def _parse_text(text: str) -> dict:
         )
         if m:
             result["bank_account_no"] = re.sub(r"\s+", "", m.group(1))
+    # Pattern 3: any "BankName - digits" even if bank_name not yet set
+    if not result["bank_account_no"]:
+        for bank in KNOWN_BANKS:
+            m = re.search(
+                re.escape(bank) + r"[\s\-–]+(\d[\d\s]{6,20}\d)",
+                text, re.IGNORECASE,
+            )
+            if m:
+                result["bank_name"] = result["bank_name"] or bank
+                result["bank_account_no"] = re.sub(r"\s+", "", m.group(1))
+                break
+
+    # Description — extract main item title + bullet points ("To develop...", "To build..." etc.)
+    desc_parts = []
+    # Main item line: first line matching "<text>  <qty>  <amount>"
+    item_m = re.search(
+        r"^(.{10,120}?)\s{2,}\d+(?:\.\d+)?\s{2,}RM[\d,]+",
+        text, re.MULTILINE | re.IGNORECASE,
+    )
+    if item_m:
+        desc_parts.append(item_m.group(1).strip())
+    # Bullet points starting with "To " (common in Malaysian IT invoices)
+    bullets = re.findall(r"(?:^|\n)(To\s+[a-z][^\n]{15,200})", text, re.IGNORECASE)
+    if bullets:
+        desc_parts.extend(bullets[:6])
+    if desc_parts:
+        result["description"] = "\n".join(desc_parts)
 
     # Account holder name (line after "Account Name" or "Beneficiary")
     m = re.search(
