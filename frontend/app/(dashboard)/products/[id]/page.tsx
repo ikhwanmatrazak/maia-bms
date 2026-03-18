@@ -106,6 +106,7 @@ export default function ProductDetailPage() {
   const createSubMutation = useMutation({
     mutationFn: (data: object) => productsApi.createSubscription(id, data),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products", id, "subscriptions"] });
       queryClient.invalidateQueries({ queryKey: ["products-renewals"] });
       setSubModal(false);
@@ -116,6 +117,7 @@ export default function ProductDetailPage() {
     mutationFn: ({ subId, data }: { subId: number; data: object }) =>
       productsApi.updateSubscription(id, subId, data),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products", id, "subscriptions"] });
       queryClient.invalidateQueries({ queryKey: ["products-renewals"] });
       setSubModal(false);
@@ -125,6 +127,7 @@ export default function ProductDetailPage() {
   const deleteSubMutation = useMutation({
     mutationFn: (subId: number) => productsApi.deleteSubscription(id, subId),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["products", id, "subscriptions"] });
       queryClient.invalidateQueries({ queryKey: ["products-renewals"] });
     },
