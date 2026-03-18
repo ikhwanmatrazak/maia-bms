@@ -194,34 +194,24 @@ def _parse_text(text: str) -> dict:
             result["vendor_reg_no"] = m.group(1).strip()
 
     # Invoice / Bill number
-    # Pattern 1: must have explicit No./Number/# marker — prevents matching "Invoice to:"
+    # Pattern 1: "Invoice No.: INV-001" — SAME LINE only ([ \t:] not \s, prevents newline-crossing)
     m = re.search(
-        r"(?:Invoice|Bill|Inv|Receipt|Tax\s+Invoice)\s*(?:No\.?|Number|#)\s*[:\-\s]+"
-        r"([^\n]{2,50})",
+        r"(?:Invoice|Bill|Inv|Receipt|Tax\s+Invoice)\s*(?:No\.?|Number|#)[ \t:]+([^\n\r]{2,50})",
         text, re.IGNORECASE,
     )
     if m:
         val = m.group(1).strip().rstrip(":").strip()
-        # Skip if the captured value looks like a section header word
-        if not re.match(r"^(to|from|date|for|of|the|a)\b", val, re.IGNORECASE):
+        # Skip section header words like "Invoice No. Date" or "Invoice No. to"
+        if val and not re.match(r"^(to|from|date|for|of|the|a)\b", val, re.IGNORECASE):
             result["bill_number"] = val
-    # Pattern 2: explicit colon-label on same line e.g. "Invoice: INV-001"
-    if not result["bill_number"]:
-        m = re.search(
-            r"(?:Invoice|Inv)\s*:\s*([A-Z0-9][^\n]{2,40})",
-            text, re.IGNORECASE,
-        )
-        if m:
-            val = m.group(1).strip()
-            if not re.match(r"^(to|from|date)\b", val, re.IGNORECASE):
-                result["bill_number"] = val
-    # Pattern 3: multi-line column layout — standalone ": XXXX" line
+    # Pattern 2: multi-line column layout — standalone ": XXXX" line
+    # (pdfplumber puts "Invoice No." label and ": 2026/MAIA/..." value on separate lines)
     if not result["bill_number"]:
         for line in lines:
             m = re.match(r"^:\s+(.{3,50})$", line)
             if m:
                 candidate = m.group(1).strip()
-                # Exclude date lines ("17 March 2026") and amount lines ("RM1,000.00")
+                # Skip date lines ("17 March 2026"), amount lines ("RM1,000.00"), DD/MM/YYYY
                 if not re.match(r"\d{1,2}\s+[A-Za-z]", candidate) and \
                    not re.match(r"RM|MYR|\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}", candidate, re.IGNORECASE):
                     result["bill_number"] = candidate
@@ -356,17 +346,18 @@ def _parse_text(text: str) -> dict:
 
     # Description — extract main item title + bullet points ("To develop...", "To build..." etc.)
     desc_parts = []
-    # Main item line: first line matching "<text>  <qty>  <amount>"
+    # Main item line: "AliLife: ... Phase 2 1 RM1,000.00"
+    # Use greedy match so group(1) captures everything BEFORE the trailing qty+amount
     item_m = re.search(
-        r"^(.{10,120}?)\s{2,}\d+(?:\.\d+)?\s{2,}RM[\d,]+",
+        r"^([A-Z].+)\s+\d+(?:\.\d+)?\s+RM[\d,]+(?:\.\d{1,2})?$",
         text, re.MULTILINE | re.IGNORECASE,
     )
     if item_m:
         desc_parts.append(item_m.group(1).strip())
-    # Bullet points starting with "To " (common in Malaysian IT invoices)
-    bullets = re.findall(r"(?:^|\n)(To\s+[a-z][^\n]{15,200})", text, re.IGNORECASE)
+    # Bullet points starting with "To " — use re.MULTILINE so ^ anchors to each line
+    bullets = re.findall(r"^To\s+\w[^\n]{14,}", text, re.MULTILINE | re.IGNORECASE)
     if bullets:
-        desc_parts.extend(bullets[:6])
+        desc_parts.extend(b.strip() for b in bullets[:6])
     if desc_parts:
         result["description"] = "\n".join(desc_parts)
 
@@ -401,7 +392,8 @@ def _parse_text(text: str) -> dict:
     addr_lines = []
     collecting = result["vendor_name"] is not None
     for line in lines:
-        if line == result["vendor_name"]:
+        # Skip the vendor name line (compare via `in` because the line may include reg no suffix)
+        if result["vendor_name"] and result["vendor_name"] in line:
             continue
         if collecting:
             if re.match(r"(?:Invoice|Bill|Date|Tel|Email|Ref|To:|Attn)", line, re.IGNORECASE):
