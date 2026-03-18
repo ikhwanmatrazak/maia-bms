@@ -41,14 +41,29 @@ export function LineItemsEditor({ control, register, taxRates, currency }: Props
 
   return (
     <div>
+      <datalist id="unit-presets">
+        <option value="mandays" />
+        <option value="months" />
+        <option value="hours" />
+        <option value="days" />
+        <option value="weeks" />
+        <option value="pcs" />
+        <option value="units" />
+        <option value="sets" />
+        <option value="lots" />
+        <option value="sessions" />
+        <option value="licenses" />
+        <option value="users" />
+      </datalist>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-left text-gray-500">
-              <th className="pb-2 w-[40%]">Description</th>
-              <th className="pb-2 w-[10%]">Qty</th>
-              <th className="pb-2 w-[22%]">Unit Price</th>
-              <th className="pb-2 w-[22%]">Tax Rate</th>
+              <th className="pb-2 w-[36%]">Description</th>
+              <th className="pb-2 w-[8%]">Qty</th>
+              <th className="pb-2 w-[10%]">Unit</th>
+              <th className="pb-2 w-[20%]">Unit Price</th>
+              <th className="pb-2 w-[20%]">Tax Rate</th>
               <th className="pb-2 w-[6%]"></th>
             </tr>
           </thead>
@@ -61,6 +76,14 @@ export function LineItemsEditor({ control, register, taxRates, currency }: Props
                   </td>
                   <td className="pt-2 px-1">
                     <Input variant="bordered" size="sm" type="number" min="0" step="0.01" {...register(`items.${index}.quantity`)} />
+                  </td>
+                  <td className="pt-2 px-1">
+                    <input
+                      list="unit-presets"
+                      placeholder="unit"
+                      className="w-full text-sm border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:border-gray-400"
+                      {...register(`items.${index}.unit`)}
+                    />
                   </td>
                   <td className="pt-2 px-1">
                     <Input
@@ -80,7 +103,7 @@ export function LineItemsEditor({ control, register, taxRates, currency }: Props
                   </td>
                 </tr>
                 <tr className="border-b">
-                  <td colSpan={5} className="pb-2">
+                  <td colSpan={6} className="pb-2">
                     <SubItemsEditor control={control} register={register} itemIndex={index} />
                   </td>
                 </tr>
@@ -91,7 +114,7 @@ export function LineItemsEditor({ control, register, taxRates, currency }: Props
       </div>
       <Button
         size="sm" variant="flat" className="mt-3"
-        onPress={() => append({ description: "", quantity: "1", unit_price: "0", tax_rate_id: "", sort_order: fields.length, sub_items: [] })}
+        onPress={() => append({ description: "", quantity: "1", unit: "", unit_price: "0", tax_rate_id: "", sort_order: fields.length, sub_items: [] })}
       >
         + Add Line Item
       </Button>

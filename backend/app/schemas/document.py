@@ -11,6 +11,7 @@ from app.models.receipt import PaymentMethod
 class DocumentItemCreate(BaseModel):
     description: str
     quantity: Decimal
+    unit: Optional[str] = None
     unit_price: Decimal
     tax_rate_id: Optional[int] = None
     sort_order: int = 0
@@ -20,6 +21,7 @@ class DocumentItemResponse(BaseModel):
     id: int
     description: str
     quantity: Decimal
+    unit: Optional[str] = None
     unit_price: Decimal
     tax_rate_id: Optional[int]
     tax_amount: Decimal

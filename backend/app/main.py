@@ -49,6 +49,9 @@ async def _ensure_crm_columns():
         # Invoice/Quotation subject column
         "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS subject VARCHAR(500) NULL",
         "ALTER TABLE quotations ADD COLUMN IF NOT EXISTS subject VARCHAR(500) NULL",
+        # Line item unit column
+        "ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS unit VARCHAR(50) NULL",
+        "ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS unit VARCHAR(50) NULL",
         # Client segmentation columns
         "ALTER TABLE clients ADD COLUMN IF NOT EXISTS industry VARCHAR(100) NULL",
         "ALTER TABLE clients ADD COLUMN IF NOT EXISTS tags VARCHAR(500) NULL",

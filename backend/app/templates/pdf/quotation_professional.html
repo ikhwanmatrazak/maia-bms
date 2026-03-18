@@ -47,10 +47,10 @@
     <tr>
       <th style="width:4%">#</th>
       <th style="width:36%">Description</th>
-      <th style="width:8%">Qty</th>
-      <th style="width:18%">Unit Price</th>
-      <th style="width:14%">Tax</th>
-      <th style="width:20%">Amount</th>
+      <th style="width:12%">Qty</th>
+      <th style="width:16%">Unit Price</th>
+      <th style="width:12%">Tax</th>
+      <th style="width:18%">Amount</th>
     </tr>
   </thead>
   <tbody>
@@ -58,7 +58,7 @@
     <tr>
       <td>{{ loop.index }}</td>
       <td>{% set lines = item.description.split('\n') %}{{ lines[0] }}{% for sub in lines[1:] %}<div style="font-size:0.82em;color:#666;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ sub }}</div>{% endfor %}</td>
-      <td>{{ item.quantity }}</td>
+      <td>{{ item.quantity }}{% if item.unit %}<div style="font-size:0.8em;color:#888">{{ item.unit }}</div>{% endif %}</td>
       <td>{{ document.currency }} {{ item.unit_price|float|fmt }}</td>
       <td>{{ item.tax_amount|float|fmt }}</td>
       <td>{{ document.currency }} {{ item.line_total|float|fmt }}</td>

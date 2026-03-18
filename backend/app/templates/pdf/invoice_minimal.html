@@ -28,7 +28,7 @@
   <tbody>
   {% for item in document.items %}
   <tr>
-    <td>{{ loop.index }}</td><td>{{ item.description }}</td><td>{{ item.quantity }}</td>
+    <td>{{ loop.index }}</td><td>{{ item.description }}</td><td>{{ item.quantity }}{% if item.unit %}<br><span style="font-size:0.8em;color:#888">{{ item.unit }}</span>{% endif %}</td>
     <td>{{ "%.2f"|format(item.unit_price|float) }}</td><td>{{ "%.2f"|format(item.tax_amount|float) }}</td>
     <td>{{ document.currency }} {{ "%.2f"|format(item.line_total|float) }}</td>
   </tr>

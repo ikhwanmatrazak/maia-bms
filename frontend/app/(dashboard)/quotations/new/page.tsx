@@ -158,6 +158,7 @@ function NewQuotationForm() {
         return {
           description: desc,
           quantity: Number(item.quantity),
+          unit: item.unit || null,
           unit_price: Number(item.unit_price),
           tax_rate_id: item.tax_rate_id ? Number(item.tax_rate_id) : null,
           sort_order: 0,

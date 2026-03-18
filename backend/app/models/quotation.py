@@ -63,6 +63,7 @@ class QuotationItem(Base):
     quotation_id = Column(Integer, ForeignKey("quotations.id", ondelete="CASCADE"), nullable=False)
     description = Column(Text, nullable=False)
     quantity = Column(Numeric(10, 2), nullable=False, default=1)
+    unit = Column(String(50), nullable=True)
     unit_price = Column(Numeric(15, 2), nullable=False, default=0.00)
     tax_rate_id = Column(Integer, ForeignKey("tax_rates.id", ondelete="SET NULL"), nullable=True)
     tax_amount = Column(Numeric(15, 2), default=0.00)
