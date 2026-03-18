@@ -266,39 +266,40 @@ def _parse_text(text: str) -> dict:
                 pass
         return None
 
-    # Pass 1: "Total: RM 1,200.00" or "Total Due: RM1,200.00" on same line with RM prefix
-    result["amount"] = _try_amount(
-        r"\b(?:Grand\s+Total|Total(?:\s+(?:Due|Amount))?|Amount\s+Due|TOTAL)\b[:\s]+"
-        r"(?:RM|MYR|USD|SGD|EUR)\s*([\d,]+(?:\.\d{1,2})?)",
-        text,
-    )
-    # Pass 2: "Total: 1,200.00" — same line, no currency prefix
-    if not result["amount"]:
-        result["amount"] = _try_amount(
-            r"\b(?:Grand\s+Total|Total(?:\s+(?:Due|Amount))?|Amount\s+Due|TOTAL)\b\s*:\s*([\d,]{3,}(?:\.\d{1,2})?)",
-            text,
-        )
-    # Pass 3: standalone ": RM1,000.00" line (multi-column PDF layout)
+    def _parse_num(s: str) -> Optional[float]:
+        try:
+            return float(s.replace(",", ""))
+        except ValueError:
+            return None
+
+    # Pass 1: scan EVERY "Total" line and take the LAST decimal number on it
+    # (totals always appear in the rightmost column — after qty, unit price, etc.)
+    # Handles: "Total: RM1,200.00", "TOTAL 1 1,200.00", "Grand Total 1,200.00", etc.
+    for line in lines:
+        if re.search(r"\b(?:Grand\s+Total|Total(?:\s+(?:Due|Amount))?|Amount\s+Due)\b", line, re.IGNORECASE):
+            # strip currency symbol first, then find all numbers with decimals
+            clean = re.sub(r"(?:RM|MYR|USD|SGD|EUR)", "", line, flags=re.IGNORECASE)
+            nums = re.findall(r"[\d,]+\.\d{1,2}", clean)
+            if nums:
+                v = _parse_num(nums[-1])  # last number = rightmost column = total amount
+                if v and v > 0:
+                    result["amount"] = v
+                    break
+
+    # Pass 2: standalone ": RM1,000.00" line (multi-column PDF — value on its own line)
     if not result["amount"]:
         for line in lines:
             m = re.match(r"^:\s+RM\s*([\d,]+(?:\.\d{1,2})?)$", line, re.IGNORECASE)
             if m:
-                try:
-                    result["amount"] = float(m.group(1).replace(",", ""))
+                v = _parse_num(m.group(1))
+                if v:
+                    result["amount"] = v
                     break
-                except ValueError:
-                    pass
-    # Pass 4: largest RM value in the document (avoids small values like "RM0" in descriptions)
+
+    # Pass 3: largest RM-prefixed value in the whole document
     if not result["amount"]:
-        all_amounts = re.findall(r"(?:RM|MYR)\s*([\d,]+(?:\.\d{1,2})?)", text, re.IGNORECASE)
-        parsed = []
-        for a in all_amounts:
-            try:
-                v = float(a.replace(",", ""))
-                if v >= 1:  # ignore trivially small RM values
-                    parsed.append(v)
-            except ValueError:
-                pass
+        found = re.findall(r"(?:RM|MYR)\s*([\d,]+\.\d{1,2})", text, re.IGNORECASE)
+        parsed = [v for v in (_parse_num(a) for a in found) if v and v > 0]
         if parsed:
             result["amount"] = max(parsed)
 
