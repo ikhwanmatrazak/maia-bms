@@ -16,7 +16,7 @@ from app.models.payment import Payment
 from app.models.receipt import Receipt, PaymentMethod
 from app.models.activity import Activity, ActivityType
 from app.models.settings import CompanySettings
-from app.routers.auth import get_current_user
+from app.middleware.auth import get_current_user
 from app.services import billplz_service
 
 router = APIRouter(prefix="/gateway", tags=["gateway"])
