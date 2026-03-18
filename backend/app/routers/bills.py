@@ -179,6 +179,7 @@ def _parse_text(text: str) -> dict:
         result["vendor_phone"] = re.sub(r"\s+", "", m.group(1))
 
     # Registration / Company No
+    # Pattern 1: labelled "Reg No:", "Company No:", "SST Reg No:"
     m = re.search(
         r"(?:Reg(?:istration)?\.?\s*(?:No\.?)?|Co(?:mpany)?\.?\s*No\.?|SST\s*(?:Reg\.?\s*No\.?)?)"
         r"[:\s]*([A-Z0-9][\w\-]{3,20})",
@@ -186,17 +187,34 @@ def _parse_text(text: str) -> dict:
     )
     if m:
         result["vendor_reg_no"] = m.group(1).strip()
+    # Pattern 2: embedded in company name as "( 1582786-P )" or "(1234567-H)"
+    if not result["vendor_reg_no"]:
+        m = re.search(r"\(\s*(\d{6,8}[\-][A-Z0-9]{1,3})\s*\)", text)
+        if m:
+            result["vendor_reg_no"] = m.group(1).strip()
 
     # Invoice / Bill number
+    # Pattern 1: same-line label + value
     m = re.search(
         r"(?:Invoice|Bill|Inv|Receipt|Tax\s+Invoice)\s*(?:No\.?|Number|#)?[:\s]+"
-        r"([A-Z0-9][\w/\-]{1,25})",
+        r"([A-Z0-9][\w/\-\s]{1,40})",
         text, re.IGNORECASE,
     )
     if m:
-        result["bill_number"] = m.group(1).strip()
+        result["bill_number"] = m.group(1).strip().rstrip(":")
+    # Pattern 2: multi-line PDF column layout — value appears as ": XXXX" on its own line
+    #            e.g. pdfplumber puts ": 2026 / MAIA / AliLife / 02" as a standalone line
+    if not result["bill_number"]:
+        for line in lines:
+            m = re.match(r"^:\s+(.{3,50})$", line)
+            if m:
+                candidate = m.group(1).strip()
+                # Exclude lines that look like dates ("17 March 2026") or amounts ("RM1,000.00")
+                if not re.match(r"\d{1,2}\s+[A-Za-z]", candidate) and not re.match(r"RM", candidate, re.IGNORECASE):
+                    result["bill_number"] = candidate
+                    break
 
-    # Dates: labelled
+    # Dates: labelled (same-line)
     issue_m = re.search(
         r"(?:Invoice|Issue|Inv\.?)\s*Date[:\s]+"
         r"(\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{2,4}"
@@ -215,6 +233,13 @@ def _parse_text(text: str) -> dict:
         result["issue_date"] = _normalize_date(issue_m.group(1))
     if due_m:
         result["due_date"] = _normalize_date(due_m.group(1))
+    # Multi-line column layout: date appears as ": 17 March 2026" on its own line
+    if not result["issue_date"]:
+        for line in lines:
+            m = re.match(r"^:\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})$", line)
+            if m:
+                result["issue_date"] = _normalize_date(m.group(1))
+                break
 
     # Fallback: grab all standalone dates and assign first two
     if not result["issue_date"] or not result["due_date"]:
@@ -261,12 +286,21 @@ def _parse_text(text: str) -> dict:
             break
 
     # Bank account number
+    # Pattern 1: labelled "Acc No:", "Account:", "A/C:"
     m = re.search(
         r"(?:Acc(?:ount)?\.?\s*(?:No\.?)?|A/C)[:\s]*(\d[\d\s\-]{6,18}\d)",
         text, re.IGNORECASE,
     )
     if m:
         result["bank_account_no"] = re.sub(r"[\s\-]", "", m.group(1))
+    # Pattern 2: "BankName - XXXX XXXX XXXX" format (common in Malaysian invoices)
+    if not result["bank_account_no"] and result["bank_name"]:
+        m = re.search(
+            re.escape(result["bank_name"]) + r"[\s\-–]+(\d[\d\s]{6,20}\d)",
+            text, re.IGNORECASE,
+        )
+        if m:
+            result["bank_account_no"] = re.sub(r"\s+", "", m.group(1))
 
     # Account holder name (line after "Account Name" or "Beneficiary")
     m = re.search(
@@ -279,7 +313,7 @@ def _parse_text(text: str) -> dict:
     # Vendor name — first meaningful line (skip common header words)
     skip = re.compile(
         r"^(invoice|bill|receipt|quotation|tax|page|date|no\.?|to:|from:|dear|"
-        r"statement|delivery|purchase|order)\b",
+        r"statement|delivery|purchase|order|description|unit|amount|subtotal|total|copyright)\b",
         re.IGNORECASE,
     )
     for line in lines[:8]:
@@ -291,7 +325,8 @@ def _parse_text(text: str) -> dict:
             continue
         if re.search(r"^\d", line):  # starts with digit (probably a date/number)
             continue
-        result["vendor_name"] = line
+        # Strip trailing "(reg no)" from company name line
+        result["vendor_name"] = re.sub(r"\s*\(\s*[\d\w\-]+\s*\)\s*$", "", line).strip()
         break
 
     # Address: lines between vendor name and first labelled section
