@@ -349,8 +349,12 @@ export const billsApi = {
   get: (id: number) => api.get(`/bills/${id}`).then((r) => r.data),
   create: (data: object) => api.post("/bills", data).then((r) => r.data),
   update: (id: number, data: object) => api.put(`/bills/${id}`, data).then((r) => r.data),
-  markPaid: (id: number, reference?: string) =>
-    api.post(`/bills/${id}/mark-paid`, null, { params: reference ? { payment_reference: reference } : {} }).then((r) => r.data),
+  markPaid: (id: number, reference?: string, receipt?: File) => {
+    const form = new FormData();
+    if (reference) form.append("payment_reference", reference);
+    if (receipt) form.append("receipt", receipt);
+    return api.post(`/bills/${id}/mark-paid`, form).then((r) => r.data);
+  },
   delete: (id: number) => api.delete(`/bills/${id}`),
 };
 

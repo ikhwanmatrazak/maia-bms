@@ -7,7 +7,7 @@ import {
   Button, Input, Textarea, Select, SelectItem, Spinner, Chip,
   Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
 } from "@heroui/react";
-import { ArrowLeft, Save, Upload, Sparkles, CheckCircle, FileText } from "lucide-react";
+import { ArrowLeft, Save, Upload, Sparkles, CheckCircle, FileText, Paperclip, X } from "lucide-react";
 import { billsApi } from "@/lib/api";
 import { Bill } from "@/types";
 import { Topbar } from "@/components/ui/Topbar";
@@ -78,6 +78,8 @@ export default function BillDetailPage() {
   const [extractError, setExtractError] = useState("");
   const [markPaidModal, setMarkPaidModal] = useState(false);
   const [payRef, setPayRef] = useState("");
+  const [payReceipt, setPayReceipt] = useState<File | null>(null);
+  const payReceiptRef = useRef<HTMLInputElement>(null);
 
   const { data: bill, isLoading } = useQuery<Bill>({
     queryKey: ["bills", id],
@@ -130,12 +132,13 @@ export default function BillDetailPage() {
   });
 
   const markPaidMutation = useMutation({
-    mutationFn: () => billsApi.markPaid(Number(id), payRef || undefined),
+    mutationFn: () => billsApi.markPaid(Number(id), payRef || undefined, payReceipt ?? undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["bills", id] });
       setMarkPaidModal(false);
       setPayRef("");
+      setPayReceipt(null);
     },
   });
 
@@ -204,16 +207,28 @@ export default function BillDetailPage() {
 
         {/* Summary card if paid */}
         {bill?.status === "paid" && (
-          <div className="mb-5 px-4 py-3 rounded-xl bg-success-50 border border-success-100 text-sm">
-            <span className="text-success-700 font-medium">
-              Paid {bill.paid_at ? formatDate(bill.paid_at) : ""}
-            </span>
-            {bill.payment_reference && (
-              <span className="text-success-600 ml-2">· Ref: {bill.payment_reference}</span>
+          <div className="mb-5 px-4 py-3 rounded-xl bg-success-50 border border-success-100 text-sm flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <span className="text-success-700 font-medium">
+                Paid {bill.paid_at ? formatDate(bill.paid_at) : ""}
+              </span>
+              {bill.payment_reference && (
+                <span className="text-success-600 ml-2">· Ref: {bill.payment_reference}</span>
+              )}
+              <span className="text-success-700 font-semibold ml-2">
+                {bill.amount != null ? formatCurrency(bill.amount, bill.currency) : ""}
+              </span>
+            </div>
+            {bill.payment_receipt_url && (
+              <a
+                href={fileUrl(bill.payment_receipt_url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-success-700 hover:text-success-800 text-xs font-medium"
+              >
+                <Paperclip size={13} /> View Receipt
+              </a>
             )}
-            <span className="text-success-700 font-semibold ml-2">
-              {bill.amount != null ? formatCurrency(bill.amount, bill.currency) : ""}
-            </span>
           </div>
         )}
 
@@ -366,9 +381,36 @@ export default function BillDetailPage() {
               onChange={(e) => setPayRef(e.target.value)}
               minRows={2}
             />
+            {/* Payment receipt file */}
+            <input
+              ref={payReceiptRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              className="hidden"
+              onChange={(e) => setPayReceipt(e.target.files?.[0] ?? null)}
+            />
+            {payReceipt ? (
+              <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-success-50 border border-success-100 text-sm mt-1">
+                <div className="flex items-center gap-2 text-success-700">
+                  <Paperclip size={14} />
+                  <span className="truncate max-w-[260px]">{payReceipt.name}</span>
+                </div>
+                <button onClick={() => setPayReceipt(null)} className="text-default-400 hover:text-danger ml-2">
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => payReceiptRef.current?.click()}
+                className="flex items-center gap-2 text-sm text-default-500 hover:text-primary transition-colors mt-1 px-1"
+              >
+                <Paperclip size={14} />
+                Attach payment receipt (optional)
+              </button>
+            )}
           </ModalBody>
           <ModalFooter>
-            <Button variant="flat" onPress={() => setMarkPaidModal(false)}>Cancel</Button>
+            <Button variant="flat" onPress={() => { setMarkPaidModal(false); setPayReceipt(null); }}>Cancel</Button>
             <Button
               color="success"
               isLoading={markPaidMutation.isPending}

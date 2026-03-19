@@ -70,6 +70,7 @@ class BillResponse(BaseModel):
     status: BillStatus = BillStatus.pending
     paid_at: Optional[datetime] = None
     payment_reference: Optional[str] = None
+    payment_receipt_url: Optional[str] = None
     file_url: Optional[str] = None
     notes: Optional[str] = None
     created_at: datetime
@@ -566,7 +567,8 @@ async def update_bill(
 @router.post("/{bill_id}/mark-paid", response_model=BillResponse)
 async def mark_paid(
     bill_id: int,
-    payment_reference: Optional[str] = None,
+    payment_reference: Optional[str] = Form(None),
+    receipt: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -581,6 +583,9 @@ async def mark_paid(
     bill.paid_at = datetime.now(timezone.utc)
     if payment_reference:
         bill.payment_reference = payment_reference
+    if receipt and receipt.filename:
+        url, _ = await _save_file(receipt)
+        bill.payment_receipt_url = url
     await db.commit()
     await db.refresh(bill)
     return bill

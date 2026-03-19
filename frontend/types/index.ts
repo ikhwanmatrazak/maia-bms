@@ -366,6 +366,7 @@ export interface Bill {
   status: BillStatus;
   paid_at?: string;
   payment_reference?: string;
+  payment_receipt_url?: string;
   file_url?: string;
   notes?: string;
   created_at: string;

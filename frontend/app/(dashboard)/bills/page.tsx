@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -8,7 +8,7 @@ import {
   Button, Input, Chip, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Textarea,
 } from "@heroui/react";
-import { Plus, Trash2, CheckCircle, Pencil } from "lucide-react";
+import { Plus, Trash2, CheckCircle, Pencil, Paperclip, X } from "lucide-react";
 import { billsApi } from "@/lib/api";
 import { Bill, BillStatus } from "@/types";
 
@@ -39,6 +39,8 @@ export default function BillsPage() {
   const [search, setSearch] = useState("");
   const [markPaidModal, setMarkPaidModal] = useState<Bill | null>(null);
   const [payRef, setPayRef] = useState("");
+  const [payReceipt, setPayReceipt] = useState<File | null>(null);
+  const payReceiptRef = useRef<HTMLInputElement>(null);
 
   const { data: bills = [], isLoading } = useQuery<Bill[]>({
     queryKey: ["bills", tab, search],
@@ -51,11 +53,12 @@ export default function BillsPage() {
 
   const markPaidMutation = useMutation({
     mutationFn: ({ id, ref }: { id: number; ref: string }) =>
-      billsApi.markPaid(id, ref || undefined),
+      billsApi.markPaid(id, ref || undefined, payReceipt ?? undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
       setMarkPaidModal(null);
       setPayRef("");
+      setPayReceipt(null);
     },
   });
 
@@ -236,9 +239,35 @@ export default function BillsPage() {
               onChange={(e) => setPayRef(e.target.value)}
               minRows={2}
             />
+            <input
+              ref={payReceiptRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              className="hidden"
+              onChange={(e) => setPayReceipt(e.target.files?.[0] ?? null)}
+            />
+            {payReceipt ? (
+              <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-success-50 border border-success-100 text-sm mt-1">
+                <div className="flex items-center gap-2 text-success-700">
+                  <Paperclip size={14} />
+                  <span className="truncate max-w-[260px]">{payReceipt.name}</span>
+                </div>
+                <button onClick={() => setPayReceipt(null)} className="text-default-400 hover:text-danger ml-2">
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => payReceiptRef.current?.click()}
+                className="flex items-center gap-2 text-sm text-default-500 hover:text-primary transition-colors mt-1 px-1"
+              >
+                <Paperclip size={14} />
+                Attach payment receipt (optional)
+              </button>
+            )}
           </ModalBody>
           <ModalFooter>
-            <Button variant="flat" onPress={() => setMarkPaidModal(null)}>
+            <Button variant="flat" onPress={() => { setMarkPaidModal(null); setPayReceipt(null); }}>
               Cancel
             </Button>
             <Button

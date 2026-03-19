@@ -53,6 +53,7 @@ async def _ensure_crm_columns():
         # Billplz payment link columns
         "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_link_id VARCHAR(100) NULL",
         "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_link_url VARCHAR(500) NULL",
+        "ALTER TABLE bills ADD COLUMN IF NOT EXISTS payment_receipt_url VARCHAR(500) NULL",
         # Line item unit column
         "ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS unit VARCHAR(50) NULL",
         "ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS unit VARCHAR(50) NULL",
@@ -110,6 +111,7 @@ async def _ensure_crm_columns():
             status ENUM('pending','paid','overdue') NOT NULL DEFAULT 'pending',
             paid_at DATETIME(6) NULL,
             payment_reference VARCHAR(255) NULL,
+            payment_receipt_url VARCHAR(500) NULL,
             file_url VARCHAR(500) NULL,
             notes TEXT NULL,
             is_deleted TINYINT(1) NOT NULL DEFAULT 0,
