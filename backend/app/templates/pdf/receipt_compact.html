@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .compact-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 3px solid {{ company.primary_color if company else '#1a1a2e' }}; padding-bottom: 14px; }
+  .compact-doc-type { font-size: 28px; font-weight: 800; color: {{ company.primary_color if company else '#1a1a2e' }}; line-height: 1; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 2px; }
+  .compact-meta-table { border-collapse: collapse; font-size: 10px; }
+  .compact-meta-table td { padding: 2px 0; }
+  .compact-meta-table td:first-child { color: #888; padding-right: 10px; white-space: nowrap; }
+  .compact-meta-table td:last-child { font-weight: 600; }
+</style>
+<div class="compact-header">
+  <div style="flex:1;">
+    {% if logo_data %}<img src="{{ logo_data }}" alt="Logo" style="max-height:55px;max-width:160px;margin-bottom:6px;">{% endif %}
+    {% if not logo_data %}<div style="font-size:16px;font-weight:700;color:#1a1a2e;margin-bottom:6px;">{{ company.name if company else 'MAIA' }}</div>{% endif %}
+    {% if company %}<div style="font-size:9px;color:#666;line-height:1.6;">{% if company.address %}<div>{{ company.address }}</div>{% endif %}{% if company.phone %}<div>{{ company.phone }}</div>{% endif %}{% if company.email %}<div>{{ company.email }}</div>{% endif %}{% if company.company_registration_no %}<div>Reg: {{ company.company_registration_no }}</div>{% endif %}</div>{% endif %}
+  </div>
+  <div style="text-align:right;">
+    <div class="compact-doc-type">Receipt</div>
+    <table class="compact-meta-table" style="margin-left:auto;">
+      <tr><td>Receipt No.</td><td>{{ document.receipt_number }}</td></tr>
+      <tr><td>Date</td><td>{{ document.payment_date.strftime('%d %b %Y') }}</td></tr>
+      <tr><td>Method</td><td>{{ document.payment_method.replace('_',' ').title() }}</td></tr>
+      <tr><td>Invoice Ref.</td><td>{{ document.invoice.invoice_number if document.invoice else '—' }}</td></tr>
+    </table>
+  </div>
+</div>
+<div style="margin-bottom:14px;">
+  <div style="font-size:8px;text-transform:uppercase;color:#aaa;letter-spacing:1.5px;margin-bottom:4px;">Received From</div>
+  <div style="font-size:12px;font-weight:700;color:#1a1a2e;">{{ document.client.company_name if document.client else '—' }}</div>
+  {% if document.client %}<div style="font-size:10px;color:#555;line-height:1.5;margin-top:3px;">{% if document.client.contact_person %}<div>{{ document.client.contact_person }}</div>{% endif %}{% if document.client.address %}<div>{{ document.client.address }}</div>{% endif %}{% if document.client.phone %}<div>{{ document.client.phone }}</div>{% endif %}{% if document.client.email %}<div>{{ document.client.email }}</div>{% endif %}</div>{% endif %}
+</div>
+<div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:8px;padding:18px;text-align:center;margin:16px 0;">
+  <div style="font-size:10px;color:#166534;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Amount Received</div>
+  <div style="font-size:34px;font-weight:800;color:#15803d;">{{ document.currency }} {{ "%.2f"|format(document.amount|float) }}</div>
+</div>
+{% if document.notes %}<div style="margin-top:12px;font-size:10px;"><div style="font-size:8px;text-transform:uppercase;color:#aaa;letter-spacing:1px;margin-bottom:3px;">Notes</div><p style="color:#555;white-space:pre-line;">{{ document.notes }}</p></div>{% endif %}
+<div class="footer" style="margin-top:16px;">{% if signature_data %}<div class="signature-block"><img src="data:image/png;base64,{{ signature_data }}" alt="Signature"><div class="signature-line">Authorized Signature</div></div>{% endif %}{% if qr_data %}<div class="qr-block"><img src="data:image/png;base64,{{ qr_data }}" alt="QR"><p>Verify</p></div>{% endif %}</div>
+{% endblock %}

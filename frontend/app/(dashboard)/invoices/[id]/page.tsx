@@ -178,7 +178,10 @@ export default function InvoiceDetailPage() {
           </div>
           <div className="flex gap-2 flex-wrap">
             {!["paid", "cancelled"].includes(inv.status) && (
-              <Button size="sm" color="success" onPress={() => setPaymentModal(true)}>Record Payment</Button>
+              <Button size="sm" color="success" onPress={() => {
+                setPaymentForm(prev => ({ ...prev, amount: String(inv.balance_due) }));
+                setPaymentModal(true);
+              }}>Record Payment</Button>
             )}
             {!["paid", "cancelled"].includes(inv.status) && (
               <Button size="sm" color="secondary" variant="flat" startContent={<LinkIcon size={14} />}
@@ -226,6 +229,22 @@ export default function InvoiceDetailPage() {
             </Card>
           ))}
         </div>
+
+        {/* Payment progress bar — shown for partial payments */}
+        {parseFloat(inv.amount_paid) > 0 && parseFloat(inv.balance_due) >= 0 && (
+          <div className="px-1">
+            <div className="flex justify-between text-xs text-gray-500 mb-1">
+              <span>Payment Progress</span>
+              <span>{Math.round((parseFloat(inv.amount_paid) / parseFloat(inv.total)) * 100)}% paid ({payments.length} payment{payments.length !== 1 ? "s" : ""})</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-2.5">
+              <div
+                className={`h-2.5 rounded-full transition-all ${parseFloat(inv.balance_due) <= 0 ? "bg-success-500" : "bg-primary-500"}`}
+                style={{ width: `${Math.min(100, Math.round((parseFloat(inv.amount_paid) / parseFloat(inv.total)) * 100))}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         <Card>
           <CardHeader><h3 className="font-semibold">Client Information</h3></CardHeader>
@@ -343,19 +362,42 @@ export default function InvoiceDetailPage() {
 
         {payments.length > 0 && (
           <Card>
-            <CardHeader><h3 className="font-semibold">Payment History</h3></CardHeader>
+            <CardHeader className="flex justify-between items-center">
+              <h3 className="font-semibold">Payment History</h3>
+              <span className="text-xs text-gray-400">{payments.length} payment{payments.length !== 1 ? "s" : ""}</span>
+            </CardHeader>
             <CardBody>
-              <div className="space-y-2">
-                {payments.map((p) => (
-                  <div key={p.id} className="flex justify-between text-sm border-b pb-2">
-                    <div>
-                      <span className="font-medium">{formatDate(p.payment_date)}</span>
-                      <span className="text-gray-400 ml-2 capitalize">{p.payment_method.replace("_", " ")}</span>
-                      {p.reference_number && <span className="text-gray-400 ml-2">Ref: {p.reference_number}</span>}
+              <div className="space-y-0">
+                {payments.map((p, i) => (
+                  <div key={p.id} className={`flex items-center justify-between text-sm py-2.5 ${i < payments.length - 1 ? "border-b" : ""}`}>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-xs bg-default-100 rounded-full px-2 py-0.5">Tranche {i + 1}</span>
+                        <span className="text-gray-600">{formatDate(p.payment_date)}</span>
+                        <span className="text-gray-400 capitalize">{p.payment_method.replace("_", " ")}</span>
+                        {p.reference_number && <span className="text-gray-400 text-xs">Ref: {p.reference_number}</span>}
+                      </div>
                     </div>
-                    <span className="font-medium text-success">{formatCurrency(p.amount, p.currency)}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold text-success-600">{formatCurrency(p.amount, p.currency)}</span>
+                      {p.receipt_id && (
+                        <Button size="sm" variant="flat" onPress={() => router.push(`/receipts/${p.receipt_id}`)}>
+                          Receipt
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
+                <div className="flex justify-between text-sm pt-3 border-t font-semibold">
+                  <span>Total Paid</span>
+                  <span className="text-success-600">{formatCurrency(inv.amount_paid, inv.currency)}</span>
+                </div>
+                {parseFloat(inv.balance_due) > 0 && (
+                  <div className="flex justify-between text-sm pt-1">
+                    <span className="text-gray-500">Remaining Balance</span>
+                    <span className="text-danger-600 font-semibold">{formatCurrency(inv.balance_due, inv.currency)}</span>
+                  </div>
+                )}
               </div>
             </CardBody>
           </Card>
@@ -401,7 +443,14 @@ export default function InvoiceDetailPage() {
         {/* Payment Modal */}
         <Modal isOpen={paymentModal} onClose={() => setPaymentModal(false)}>
           <ModalContent>
-            <ModalHeader>Record Payment</ModalHeader>
+            <ModalHeader>
+              <div>
+                <div>Record Payment</div>
+                <div className="text-xs font-normal text-gray-400 mt-0.5">
+                  Total: {formatCurrency(inv.total, inv.currency)} · Paid: {formatCurrency(inv.amount_paid, inv.currency)} · <span className={parseFloat(inv.balance_due) > 0 ? "text-danger-500 font-medium" : "text-success-500 font-medium"}>Balance: {formatCurrency(inv.balance_due, inv.currency)}</span>
+                </div>
+              </div>
+            </ModalHeader>
             <ModalBody className="flex flex-col gap-4">
               {/* Proof upload + auto-fill */}
               <div className="border-2 border-dashed border-gray-200 rounded-lg p-3">

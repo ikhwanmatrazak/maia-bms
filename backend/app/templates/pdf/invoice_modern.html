@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .modern-wrap { display: flex; min-height: 100%; }
+  .modern-sidebar { width: 185px; min-width: 185px; background: {{ company.primary_color if company else '#1a1a2e' }}; color: white; padding: 18px 14px; margin: -14mm -16mm -14mm -16mm; padding: 22px 16px; }
+  .modern-main { flex: 1; padding-left: 22px; }
+  .modern-logo { margin-bottom: 18px; }
+  .modern-logo img { max-height: 55px; max-width: 150px; filter: brightness(0) invert(1); }
+  .modern-company-name { font-size: 13px; font-weight: 700; color: white; margin-bottom: 10px; }
+  .modern-company-info { font-size: 9px; color: rgba(255,255,255,0.7); line-height: 1.7; }
+  .modern-sidebar-section { margin-top: 18px; }
+  .modern-sidebar-label { font-size: 8px; text-transform: uppercase; letter-spacing: 1.5px; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+  .modern-sidebar-value { font-size: 10px; color: rgba(255,255,255,0.9); font-weight: 500; line-height: 1.5; }
+  .modern-doc-type { font-size: 30px; font-weight: 800; color: #1a1a2e; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 14px; }
+  .modern-meta-row { display: flex; gap: 20px; margin-bottom: 14px; flex-wrap: wrap; }
+  .modern-meta-block { }
+  .modern-meta-label { font-size: 8px; text-transform: uppercase; color: #aaa; letter-spacing: 1px; margin-bottom: 2px; }
+  .modern-meta-value { font-size: 11px; font-weight: 600; color: #1a1a2e; }
+  .modern-bill-to { margin-bottom: 14px; padding: 10px 12px; background: #f8f9fa; border-left: 3px solid {{ company.primary_color if company else '#1a1a2e' }}; border-radius: 0 6px 6px 0; }
+  .modern-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 10px; }
+  .modern-table thead th { border-bottom: 2px solid {{ company.primary_color if company else '#1a1a2e' }}; color: {{ company.primary_color if company else '#1a1a2e' }}; padding: 6px 8px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+  .modern-table thead th:nth-child(n+3) { text-align: right; }
+  .modern-table tbody td { padding: 6px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  .modern-table tbody td:nth-child(n+3) { text-align: right; white-space: nowrap; }
+  .modern-totals { margin-left: auto; width: 200px; font-size: 10px; }
+  .modern-totals table { width: 100%; border-collapse: collapse; }
+  .modern-totals td { padding: 3px 0; border: none; }
+  .modern-totals td:last-child { text-align: right; font-weight: 500; }
+  .modern-total-final td { font-size: 13px; font-weight: 700; border-top: 2px solid {{ company.primary_color if company else '#1a1a2e' }}; color: {{ company.primary_color if company else '#1a1a2e' }}; padding-top: 6px; }
+  .modern-balance { background: #fef2f2; border-radius: 6px; padding: 6px 10px; margin-top: 6px; display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #dc2626; }
+  .modern-paid { background: #f0fdf4; border-radius: 6px; padding: 4px 10px; margin-top: 4px; display: flex; justify-content: space-between; font-size: 10px; color: #16a34a; }
+</style>
+
+<div class="modern-wrap">
+  <!-- Sidebar -->
+  <div class="modern-sidebar">
+    <div class="modern-logo">
+      {% if logo_data %}<img src="{{ logo_data }}" alt="Logo">
+      {% else %}<div class="modern-company-name">{{ company.name if company else 'MAIA' }}</div>{% endif %}
+    </div>
+    {% if company %}
+    {% if logo_data %}<div class="modern-company-name" style="font-size:11px;margin-bottom:6px;">{{ company.name }}</div>{% endif %}
+    <div class="modern-company-info">
+      {% if company.address %}<div>{{ company.address }}</div>{% endif %}
+      {% if company.phone %}<div style="margin-top:4px;">{{ company.phone }}</div>{% endif %}
+      {% if company.email %}<div>{{ company.email }}</div>{% endif %}
+      {% if company.company_registration_no %}<div style="margin-top:4px;">Reg: {{ company.company_registration_no }}</div>{% endif %}
+      {% if company.sst_no %}<div>SST: {{ company.sst_no }}</div>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if company and (company.bank_name or company.bank_account_no) %}
+    <div class="modern-sidebar-section">
+      <div class="modern-sidebar-label">Payment To</div>
+      <div class="modern-sidebar-value">
+        {% if company.bank_name %}<div>{{ company.bank_name }}</div>{% endif %}
+        {% if company.bank_account_no %}<div style="margin-top:2px;font-family:monospace;letter-spacing:0.5px;">{{ company.bank_account_no }}</div>{% endif %}
+        {% if company.bank_account_name %}<div style="font-size:9px;margin-top:2px;">{{ company.bank_account_name }}</div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if document.payment_terms %}
+    <div class="modern-sidebar-section">
+      <div class="modern-sidebar-label">Payment Terms</div>
+      <div class="modern-sidebar-value" style="font-size:9px;">{{ document.payment_terms }}</div>
+    </div>
+    {% endif %}
+
+    {% if qr_data %}
+    <div class="modern-sidebar-section" style="text-align:center;">
+      <div class="modern-sidebar-label">Verify</div>
+      <img src="data:image/png;base64,{{ qr_data }}" style="width:55px;height:55px;background:white;padding:3px;border-radius:4px;">
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Main content -->
+  <div class="modern-main">
+    <div class="modern-doc-type">Invoice</div>
+
+    <div class="modern-meta-row">
+      <div class="modern-meta-block">
+        <div class="modern-meta-label">Invoice Number</div>
+        <div class="modern-meta-value">{{ document.invoice_number }}</div>
+      </div>
+      <div class="modern-meta-block">
+        <div class="modern-meta-label">Issue Date</div>
+        <div class="modern-meta-value">{{ document.issue_date.strftime('%d %b %Y') }}</div>
+      </div>
+      {% if document.due_date %}
+      <div class="modern-meta-block">
+        <div class="modern-meta-label">Due Date</div>
+        <div class="modern-meta-value">{{ document.due_date.strftime('%d %b %Y') }}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if document.subject %}<div style="margin-bottom:10px;font-size:11px;"><strong>Subject:</strong> {{ document.subject }}</div>{% endif %}
+
+    <div class="modern-bill-to">
+      <div style="font-size:8px;text-transform:uppercase;color:#888;letter-spacing:1px;margin-bottom:4px;">Bill To</div>
+      <div style="font-size:12px;font-weight:700;color:#1a1a2e;">{{ document.client.company_name if document.client else '—' }}</div>
+      {% if document.client %}
+      <div style="font-size:9px;color:#555;line-height:1.6;margin-top:3px;">
+        {% if document.client.contact_person %}<div>{{ document.client.contact_person }}</div>{% endif %}
+        {% if document.client.address %}<div>{{ document.client.address }}</div>{% endif %}
+        {% if document.client.phone %}<div>{{ document.client.phone }}</div>{% endif %}
+        {% if document.client.email %}<div>{{ document.client.email }}</div>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <table class="modern-table">
+      <thead>
+        <tr>
+          <th style="width:4%">#</th>
+          <th style="width:42%">Description</th>
+          <th style="width:10%">Qty</th>
+          <th style="width:16%">Unit Price</th>
+          <th style="width:10%">Tax</th>
+          <th style="width:16%">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in document.items %}
+        <tr>
+          <td style="color:#999;">{{ loop.index }}</td>
+          <td>{% set lines = item.description.split('\n') %}{{ lines[0] }}{% for sub in lines[1:] %}<div style="font-size:9px;color:#888;margin-top:1px;">{{ sub }}</div>{% endfor %}</td>
+          <td>{{ item.quantity|qty }}{% if item.unit %}<div style="font-size:8px;color:#aaa;">{{ item.unit }}</div>{% endif %}</td>
+          <td>{{ document.currency }} {{ item.unit_price|float|fmt }}</td>
+          <td>{{ item.tax_amount|float|fmt }}</td>
+          <td style="font-weight:600;">{{ document.currency }} {{ item.line_total|float|fmt }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="modern-totals">
+      <table>
+        <tr><td style="color:#666;">Subtotal</td><td>{{ document.currency }} {{ document.subtotal|float|fmt }}</td></tr>
+        {% if document.discount_amount|float > 0 %}
+        <tr><td style="color:#666;">Discount</td><td>- {{ document.currency }} {{ document.discount_amount|float|fmt }}</td></tr>
+        {% endif %}
+        {% if document.tax_total|float > 0 %}
+        <tr><td style="color:#666;">Tax</td><td>{{ document.currency }} {{ document.tax_total|float|fmt }}</td></tr>
+        {% endif %}
+        <tr class="modern-total-final"><td>TOTAL</td><td>{{ document.currency }} {{ document.total|float|fmt }}</td></tr>
+      </table>
+      {% if document.amount_paid|float > 0 %}
+      <div class="modern-paid"><span>Amount Paid</span><span>{{ document.currency }} {{ document.amount_paid|float|fmt }}</span></div>
+      {% if document.balance_due|float > 0 %}
+      <div class="modern-balance"><span>Balance Due</span><span>{{ document.currency }} {{ document.balance_due|float|fmt }}</span></div>
+      {% else %}
+      <div class="modern-balance" style="background:#f0fdf4;color:#16a34a;"><span>✓ Fully Paid</span><span>{{ document.currency }} 0.00</span></div>
+      {% endif %}
+      {% endif %}
+    </div>
+
+    {% if document.notes %}
+    <div style="margin-top:12px;font-size:10px;">
+      <div style="font-size:8px;text-transform:uppercase;color:#aaa;letter-spacing:1px;margin-bottom:3px;">Notes</div>
+      <div style="color:#555;white-space:pre-line;">{{ document.notes }}</div>
+    </div>
+    {% endif %}
+    {% if document.terms_conditions %}
+    <div style="margin-top:10px;font-size:10px;">
+      <div style="font-size:8px;text-transform:uppercase;color:#aaa;letter-spacing:1px;margin-bottom:3px;">Terms & Conditions</div>
+      <div style="color:#555;white-space:pre-line;">{{ document.terms_conditions }}</div>
+    </div>
+    {% endif %}
+
+    {% if signature_data %}
+    <div style="margin-top:16px;border-top:1px solid #eee;padding-top:12px;" class="signature-block">
+      <img src="data:image/png;base64,{{ signature_data }}" alt="Signature">
+      <div class="signature-line">Authorized Signature</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

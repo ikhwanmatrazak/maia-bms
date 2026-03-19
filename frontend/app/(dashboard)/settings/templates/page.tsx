@@ -27,7 +27,7 @@ type FormState = {
 
 const BLANK_ITEM = (): TemplateItem => ({ description: "", quantity: 1, unit_price: 0, sub_items: [] });
 const TYPE_LABELS: Record<string, string> = { quotation: "Quotation", invoice: "Invoice", receipt: "Receipt" };
-const STYLE_LABELS: Record<string, string> = { professional: "Professional", minimal: "Minimal" };
+const STYLE_LABELS: Record<string, string> = { professional: "Professional", minimal: "Minimal", compact: "Compact", modern: "Modern (Sidebar)" };
 const CURRENCIES = ["MYR", "USD", "EUR", "GBP", "SGD"];
 const emptyForm = (): FormState => ({
   name: "", type: "quotation", style: "professional",

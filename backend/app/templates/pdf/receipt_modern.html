@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .modern-wrap { display: flex; }
+  .modern-sidebar { width: 185px; min-width: 185px; background: {{ company.primary_color if company else '#1a1a2e' }}; color: white; margin: -14mm -16mm -14mm -16mm; padding: 22px 16px; }
+  .modern-main { flex: 1; padding-left: 22px; }
+  .modern-doc-type { font-size: 30px; font-weight: 800; color: #1a1a2e; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 14px; }
+  .modern-meta-row { display: flex; gap: 20px; margin-bottom: 14px; flex-wrap: wrap; }
+  .modern-meta-label { font-size: 8px; text-transform: uppercase; color: #aaa; letter-spacing: 1px; margin-bottom: 2px; }
+  .modern-meta-value { font-size: 11px; font-weight: 600; color: #1a1a2e; }
+  .modern-bill-to { margin-bottom: 14px; padding: 10px 12px; background: #f8f9fa; border-left: 3px solid {{ company.primary_color if company else '#1a1a2e' }}; border-radius: 0 6px 6px 0; }
+</style>
+<div class="modern-wrap">
+  <div class="modern-sidebar">
+    {% if logo_data %}
+    <img src="{{ logo_data }}" alt="Logo" style="max-height:55px;max-width:150px;filter:brightness(0) invert(1);margin-bottom:14px;">
+    {% endif %}
+    <div style="font-size:12px;font-weight:700;color:white;margin-bottom:8px;">{{ company.name if company else 'MAIA' }}</div>
+    {% if company %}
+    <div style="font-size:9px;color:rgba(255,255,255,0.7);line-height:1.7;">
+      {% if company.address %}<div>{{ company.address }}</div>{% endif %}
+      {% if company.phone %}<div style="margin-top:4px;">{{ company.phone }}</div>{% endif %}
+      {% if company.email %}<div>{{ company.email }}</div>{% endif %}
+      {% if company.company_registration_no %}<div style="margin-top:4px;">Reg: {{ company.company_registration_no }}</div>{% endif %}
+      {% if company.sst_no %}<div>SST: {{ company.sst_no }}</div>{% endif %}
+    </div>
+    {% endif %}
+    {% if qr_data %}
+    <div style="margin-top:20px;text-align:center;">
+      <div style="font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,255,255,0.5);margin-bottom:5px;">Verify</div>
+      <img src="data:image/png;base64,{{ qr_data }}" style="width:55px;height:55px;background:white;padding:3px;border-radius:4px;">
+    </div>
+    {% endif %}
+  </div>
+  <div class="modern-main">
+    <div class="modern-doc-type">Receipt</div>
+    <div class="modern-meta-row">
+      <div><div class="modern-meta-label">Receipt No.</div><div class="modern-meta-value">{{ document.receipt_number }}</div></div>
+      <div><div class="modern-meta-label">Date</div><div class="modern-meta-value">{{ document.payment_date.strftime('%d %b %Y') }}</div></div>
+      <div><div class="modern-meta-label">Method</div><div class="modern-meta-value">{{ document.payment_method.replace('_',' ').title() }}</div></div>
+      <div><div class="modern-meta-label">Invoice Ref.</div><div class="modern-meta-value">{{ document.invoice.invoice_number if document.invoice else '' }}</div></div>
+    </div>
+    <div class="modern-bill-to">
+      <div style="font-size:8px;text-transform:uppercase;color:#888;letter-spacing:1px;margin-bottom:4px;">Received From</div>
+      <div style="font-size:12px;font-weight:700;color:#1a1a2e;">{{ document.client.company_name if document.client else '' }}</div>
+      {% if document.client %}
+      <div style="font-size:9px;color:#555;line-height:1.6;margin-top:3px;">
+        {% if document.client.contact_person %}<div>{{ document.client.contact_person }}</div>{% endif %}
+        {% if document.client.address %}<div>{{ document.client.address }}</div>{% endif %}
+        {% if document.client.phone %}<div>{{ document.client.phone }}</div>{% endif %}
+        {% if document.client.email %}<div>{{ document.client.email }}</div>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    <div style="background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%);border:2px solid #16a34a;border-radius:12px;padding:24px;text-align:center;margin:20px 0;">
+      <div style="font-size:10px;color:#166534;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;">Amount Received</div>
+      <div style="font-size:36px;font-weight:800;color:#15803d;letter-spacing:-1px;">{{ document.currency }} {{ "%.2f"|format(document.amount|float) }}</div>
+      {% if document.exchange_rate != 1 %}<div style="font-size:9px;color:#999;margin-top:4px;">Exchange Rate: {{ document.exchange_rate }}</div>{% endif %}
+    </div>
+    {% if document.notes %}
+    <div style="margin-top:12px;font-size:10px;">
+      <div style="font-size:8px;text-transform:uppercase;color:#aaa;letter-spacing:1px;margin-bottom:3px;">Notes</div>
+      <p style="color:#555;white-space:pre-line;">{{ document.notes }}</p>
+    </div>
+    {% endif %}
+    {% if signature_data %}
+    <div style="margin-top:20px;border-top:1px solid #eee;padding-top:12px;" class="signature-block">
+      <img src="data:image/png;base64,{{ signature_data }}" alt="Signature">
+      <div class="signature-line">Authorized Signature</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
