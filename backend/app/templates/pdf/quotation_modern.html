@@ -53,13 +53,18 @@
     {% endif %}
   </div>
   <div class="modern-main">
-    <div class="modern-doc-type">Quotation</div>
-    <div class="modern-meta-row">
-      <div><div class="modern-meta-label">Quotation No.</div><div class="modern-meta-value">{{ document.quotation_number }}</div></div>
-      <div><div class="modern-meta-label">Issue Date</div><div class="modern-meta-value">{{ document.issue_date.strftime('%d %b %Y') }}</div></div>
-      {% if document.expiry_date %}
-      <div><div class="modern-meta-label">Valid Until</div><div class="modern-meta-value">{{ document.expiry_date.strftime('%d %b %Y') }}</div></div>
-      {% endif %}
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+      <div class="modern-doc-type" style="margin-bottom:0;">Quotation</div>
+      <div style="text-align:right;">
+        <div class="modern-meta-label">Quotation No.</div>
+        <div class="modern-meta-value" style="margin-bottom:6px;">{{ document.quotation_number }}</div>
+        <div class="modern-meta-label">Issue Date</div>
+        <div class="modern-meta-value"{% if document.expiry_date %} style="margin-bottom:6px;"{% endif %}>{{ document.issue_date.strftime('%d %b %Y') }}</div>
+        {% if document.expiry_date %}
+        <div class="modern-meta-label">Valid Until</div>
+        <div class="modern-meta-value">{{ document.expiry_date.strftime('%d %b %Y') }}</div>
+        {% endif %}
+      </div>
     </div>
     {% if document.subject %}<div style="margin-bottom:10px;font-size:11px;"><strong>Subject:</strong> {{ document.subject }}</div>{% endif %}
     <div class="modern-bill-to">
@@ -108,7 +113,8 @@
     </div>
     {% if document.notes %}<div style="margin-top:12px;font-size:10px;"><div style="font-size:8px;text-transform:uppercase;color:#aaa;letter-spacing:1px;margin-bottom:3px;">Notes</div><div style="color:#555;white-space:pre-line;">{{ document.notes }}</div></div>{% endif %}
     {% if document.terms_conditions %}<div style="margin-top:10px;font-size:10px;"><div style="font-size:8px;text-transform:uppercase;color:#aaa;letter-spacing:1px;margin-bottom:3px;">Terms & Conditions</div><div style="color:#555;white-space:pre-line;">{{ document.terms_conditions }}</div></div>{% endif %}
-    {% if signature_data %}<div style="margin-top:16px;border-top:1px solid #eee;padding-top:12px;" class="signature-block"><img src="data:image/png;base64,{{ signature_data }}" alt="Signature"><div class="signature-line">Authorized Signature</div></div>{% endif %}
+    {% if signature_data %}<div style="margin-top:16px;padding-top:12px;" class="signature-block"><img src="data:image/png;base64,{{ signature_data }}" alt="Signature"><div class="signature-line">Authorized Signature</div></div>{% endif %}
+    <div style="border-top:2px solid {{ company.primary_color if company else '#1a1a2e' }};margin-top:20px;"></div>
   </div>
 </div>
 {% endblock %}

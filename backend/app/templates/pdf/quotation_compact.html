@@ -48,7 +48,7 @@
     <div class="section-value">{{ document.client.company_name if document.client else '—' }}</div>
     {% if document.client %}<div class="section-sub">{% if document.client.contact_person %}<div>{{ document.client.contact_person }}</div>{% endif %}{% if document.client.address %}<div>{{ document.client.address }}</div>{% endif %}{% if document.client.phone %}<div>{{ document.client.phone }}</div>{% endif %}{% if document.client.email %}<div>{{ document.client.email }}</div>{% endif %}</div>{% endif %}
   </div>
-  {% if document.payment_terms %}<div><div class="section-label">Payment Terms</div><div class="section-sub" style="white-space:pre-line;">{{ document.payment_terms }}</div></div>{% endif %}
+  {% if document.payment_terms %}<div style="text-align:right;"><div class="section-label">Payment Terms</div><div class="section-sub" style="white-space:pre-line;">{{ document.payment_terms }}</div></div>{% endif %}
 </div>
 <table class="compact-table">
   <thead><tr><th style="width:4%">#</th><th style="width:42%">Description</th><th style="width:10%">Qty</th><th style="width:15%">Unit Price</th><th style="width:10%">Tax</th><th style="width:17%">Amount</th></tr></thead>

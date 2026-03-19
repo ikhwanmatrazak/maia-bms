@@ -77,23 +77,18 @@
 
   <!-- Main content -->
   <div class="modern-main">
-    <div class="modern-doc-type">Invoice</div>
-
-    <div class="modern-meta-row">
-      <div class="modern-meta-block">
-        <div class="modern-meta-label">Invoice Number</div>
-        <div class="modern-meta-value">{{ document.invoice_number }}</div>
-      </div>
-      <div class="modern-meta-block">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+      <div class="modern-doc-type" style="margin-bottom:0;">Invoice</div>
+      <div style="text-align:right;">
+        <div class="modern-meta-label">Invoice No.</div>
+        <div class="modern-meta-value" style="margin-bottom:6px;">{{ document.invoice_number }}</div>
         <div class="modern-meta-label">Issue Date</div>
-        <div class="modern-meta-value">{{ document.issue_date.strftime('%d %b %Y') }}</div>
-      </div>
-      {% if document.due_date %}
-      <div class="modern-meta-block">
+        <div class="modern-meta-value"{% if document.due_date %} style="margin-bottom:6px;"{% endif %}>{{ document.issue_date.strftime('%d %b %Y') }}</div>
+        {% if document.due_date %}
         <div class="modern-meta-label">Due Date</div>
         <div class="modern-meta-value">{{ document.due_date.strftime('%d %b %Y') }}</div>
+        {% endif %}
       </div>
-      {% endif %}
     </div>
 
     {% if document.subject %}<div style="margin-bottom:10px;font-size:11px;"><strong>Subject:</strong> {{ document.subject }}</div>{% endif %}
@@ -171,11 +166,12 @@
     {% endif %}
 
     {% if signature_data %}
-    <div style="margin-top:16px;border-top:1px solid #eee;padding-top:12px;" class="signature-block">
+    <div style="margin-top:16px;padding-top:12px;" class="signature-block">
       <img src="data:image/png;base64,{{ signature_data }}" alt="Signature">
       <div class="signature-line">Authorized Signature</div>
     </div>
     {% endif %}
+    <div style="border-top:2px solid {{ company.primary_color if company else '#1a1a2e' }};margin-top:20px;"></div>
   </div>
 </div>
 {% endblock %}

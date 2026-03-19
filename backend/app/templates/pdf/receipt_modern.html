@@ -33,12 +33,20 @@
     {% endif %}
   </div>
   <div class="modern-main">
-    <div class="modern-doc-type">Receipt</div>
-    <div class="modern-meta-row">
-      <div><div class="modern-meta-label">Receipt No.</div><div class="modern-meta-value">{{ document.receipt_number }}</div></div>
-      <div><div class="modern-meta-label">Date</div><div class="modern-meta-value">{{ document.payment_date.strftime('%d %b %Y') }}</div></div>
-      <div><div class="modern-meta-label">Method</div><div class="modern-meta-value">{{ document.payment_method.replace('_',' ').title() }}</div></div>
-      <div><div class="modern-meta-label">Invoice Ref.</div><div class="modern-meta-value">{{ document.invoice.invoice_number if document.invoice else '' }}</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+      <div class="modern-doc-type" style="margin-bottom:0;">Receipt</div>
+      <div style="text-align:right;">
+        <div class="modern-meta-label">Receipt No.</div>
+        <div class="modern-meta-value" style="margin-bottom:6px;">{{ document.receipt_number }}</div>
+        <div class="modern-meta-label">Date</div>
+        <div class="modern-meta-value" style="margin-bottom:6px;">{{ document.payment_date.strftime('%d %b %Y') }}</div>
+        <div class="modern-meta-label">Method</div>
+        <div class="modern-meta-value"{% if document.invoice %} style="margin-bottom:6px;"{% endif %}>{{ document.payment_method.replace('_',' ').title() }}</div>
+        {% if document.invoice %}
+        <div class="modern-meta-label">Invoice Ref.</div>
+        <div class="modern-meta-value">{{ document.invoice.invoice_number }}</div>
+        {% endif %}
+      </div>
     </div>
     <div class="modern-bill-to">
       <div style="font-size:8px;text-transform:uppercase;color:#888;letter-spacing:1px;margin-bottom:4px;">Received From</div>
@@ -64,11 +72,12 @@
     </div>
     {% endif %}
     {% if signature_data %}
-    <div style="margin-top:20px;border-top:1px solid #eee;padding-top:12px;" class="signature-block">
+    <div style="margin-top:20px;padding-top:12px;" class="signature-block">
       <img src="data:image/png;base64,{{ signature_data }}" alt="Signature">
       <div class="signature-line">Authorized Signature</div>
     </div>
     {% endif %}
+    <div style="border-top:2px solid {{ company.primary_color if company else '#1a1a2e' }};margin-top:20px;"></div>
   </div>
 </div>
 {% endblock %}

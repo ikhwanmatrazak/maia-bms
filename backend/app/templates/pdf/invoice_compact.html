@@ -69,7 +69,7 @@
     {% endif %}
   </div>
   {% if document.payment_terms or (company and (company.bank_name or company.bank_account_no)) %}
-  <div>
+  <div style="text-align:right;">
     <div class="section-label">Payment Details</div>
     <div class="section-sub">
       {% if company and company.bank_name %}<div><strong>Bank:</strong> {{ company.bank_name }}</div>{% endif %}
