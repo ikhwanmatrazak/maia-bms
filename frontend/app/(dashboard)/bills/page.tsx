@@ -8,7 +8,7 @@ import {
   Button, Input, Chip, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Textarea,
 } from "@heroui/react";
-import { Plus, Trash2, CheckCircle, ExternalLink } from "lucide-react";
+import { Plus, Trash2, CheckCircle, Pencil } from "lucide-react";
 import { billsApi } from "@/lib/api";
 import { Bill, BillStatus } from "@/types";
 
@@ -134,7 +134,11 @@ export default function BillsPage() {
             </TableHeader>
             <TableBody emptyContent="No bills found.">
               {bills.map((bill) => (
-                <TableRow key={bill.id}>
+                <TableRow
+                  key={bill.id}
+                  className="cursor-pointer hover:bg-default-50"
+                  onClick={() => router.push(`/bills/${bill.id}`)}
+                >
                   <TableCell>
                     <div className="font-medium">{bill.vendor_name ?? "—"}</div>
                     {bill.description && (
@@ -171,21 +175,17 @@ export default function BillsPage() {
                       {bill.status}
                     </Chip>
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
-                      {bill.file_url && (
-                        <Button
-                          size="sm"
-                          variant="flat"
-                          isIconOnly
-                          title="View file"
-                          as="a"
-                          href={fileUrl(bill.file_url)}
-                          target="_blank"
-                        >
-                          <ExternalLink size={14} />
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant="flat"
+                        isIconOnly
+                        title="Edit"
+                        onPress={() => router.push(`/bills/${bill.id}`)}
+                      >
+                        <Pencil size={14} />
+                      </Button>
                       {bill.status !== "paid" && (
                         <Button
                           size="sm"
