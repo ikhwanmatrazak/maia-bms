@@ -278,8 +278,8 @@ async def create_template(
         raise HTTPException(status_code=400, detail="Name is required")
     if doc_type not in [e.value for e in TemplateType]:
         raise HTTPException(status_code=400, detail="Invalid type")
-    if style not in ("professional", "minimal"):
-        raise HTTPException(status_code=400, detail="Style must be 'professional' or 'minimal'")
+    if style not in ("professional", "minimal", "compact", "modern"):
+        raise HTTPException(status_code=400, detail="Invalid style")
     template = DocumentTemplate(
         name=name, type=doc_type,
         tenant_id=get_effective_tenant_id(current_user),

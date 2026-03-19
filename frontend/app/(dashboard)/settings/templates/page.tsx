@@ -219,6 +219,8 @@ export default function TemplatesPage() {
                 onSelectionChange={(k) => setForm((f) => ({ ...f, style: Array.from(k)[0] as string }))}>
                 <SelectItem key="professional">Professional</SelectItem>
                 <SelectItem key="minimal">Minimal</SelectItem>
+                <SelectItem key="compact">Compact</SelectItem>
+                <SelectItem key="modern">Modern (Sidebar)</SelectItem>
               </Select>
             </div>
 
