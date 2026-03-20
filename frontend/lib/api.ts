@@ -370,3 +370,86 @@ export const superAdminApi = {
   switchTenant: (tenantId: number) => api.post(`/super-admin/switch-tenant/${tenantId}`).then((r) => r.data),
   exitTenant: () => api.post("/super-admin/exit-tenant").then((r) => r.data),
 };
+
+export const hrApi = {
+  // Stats
+  getStats: () => api.get("/hr/stats").then((r) => r.data),
+
+  // Departments
+  listDepartments: () => api.get("/hr/departments").then((r) => r.data),
+  createDepartment: (data: object) => api.post("/hr/departments", data).then((r) => r.data),
+  updateDepartment: (id: number, data: object) => api.put(`/hr/departments/${id}`, data).then((r) => r.data),
+  deleteDepartment: (id: number) => api.delete(`/hr/departments/${id}`),
+
+  // Employees
+  listEmployees: (params?: object) => api.get("/hr/employees", { params }).then((r) => r.data),
+  getEmployee: (id: number) => api.get(`/hr/employees/${id}`).then((r) => r.data),
+  createEmployee: (data: object) => api.post("/hr/employees", data).then((r) => r.data),
+  updateEmployee: (id: number, data: object) => api.put(`/hr/employees/${id}`, data).then((r) => r.data),
+  uploadPhoto: (id: number, file: File) => {
+    const form = new FormData();
+    form.append("photo", file);
+    return api.post(`/hr/employees/${id}/photo`, form).then((r) => r.data);
+  },
+  listDocuments: (id: number) => api.get(`/hr/employees/${id}/documents`).then((r) => r.data),
+  uploadDocument: (id: number, name: string, file: File) => {
+    const form = new FormData();
+    form.append("name", name);
+    form.append("file", file);
+    return api.post(`/hr/employees/${id}/documents`, form).then((r) => r.data);
+  },
+  deleteDocument: (empId: number, docId: number) => api.delete(`/hr/employees/${empId}/documents/${docId}`),
+
+  // Leave Types
+  listLeaveTypes: () => api.get("/hr/leave-types").then((r) => r.data),
+  createLeaveType: (data: object) => api.post("/hr/leave-types", data).then((r) => r.data),
+  updateLeaveType: (id: number, data: object) => api.put(`/hr/leave-types/${id}`, data).then((r) => r.data),
+
+  // Leave Balances
+  listLeaveBalances: (params?: object) => api.get("/hr/leave-balances", { params }).then((r) => r.data),
+  setLeaveBalance: (params: object) => api.post("/hr/leave-balances", null, { params }).then((r) => r.data),
+
+  // Leave Applications
+  listLeave: (params?: object) => api.get("/hr/leave", { params }).then((r) => r.data),
+  applyLeave: (data: object) => api.post("/hr/leave", data).then((r) => r.data),
+  approveLeave: (id: number) => api.post(`/hr/leave/${id}/approve`).then((r) => r.data),
+  rejectLeave: (id: number, reason?: string) => api.post(`/hr/leave/${id}/reject`, null, { params: { reason } }).then((r) => r.data),
+  uploadLeaveDocument: (id: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post(`/hr/leave/${id}/document`, form).then((r) => r.data);
+  },
+
+  // Attendance
+  listAttendance: (params?: object) => api.get("/hr/attendance", { params }).then((r) => r.data),
+  createAttendance: (data: object) => api.post("/hr/attendance", data).then((r) => r.data),
+  updateAttendance: (id: number, data: object) => api.put(`/hr/attendance/${id}`, data).then((r) => r.data),
+
+  // Public Holidays
+  listPublicHolidays: (params?: object) => api.get("/hr/public-holidays", { params }).then((r) => r.data),
+  createPublicHoliday: (data: object) => api.post("/hr/public-holidays", data).then((r) => r.data),
+  deletePublicHoliday: (id: number) => api.delete(`/hr/public-holidays/${id}`),
+
+  // Salary Structures
+  listSalaryStructures: (params?: object) => api.get("/hr/salary-structures", { params }).then((r) => r.data),
+  createSalaryStructure: (data: object) => api.post("/hr/salary-structures", data).then((r) => r.data),
+
+  // Payroll
+  listPayroll: () => api.get("/hr/payroll").then((r) => r.data),
+  getPayrollRun: (id: number) => api.get(`/hr/payroll/${id}`).then((r) => r.data),
+  createPayrollRun: (data: object) => api.post("/hr/payroll", data).then((r) => r.data),
+  finalizePayroll: (id: number) => api.post(`/hr/payroll/${id}/finalize`).then((r) => r.data),
+  deletePayrollRun: (id: number) => api.delete(`/hr/payroll/${id}`),
+
+  // Claims
+  listClaims: (params?: object) => api.get("/hr/claims", { params }).then((r) => r.data),
+  createClaim: (form: FormData) => api.post("/hr/claims", form).then((r) => r.data),
+  approveClaim: (id: number) => api.post(`/hr/claims/${id}/approve`).then((r) => r.data),
+  rejectClaim: (id: number, reason?: string) => api.post(`/hr/claims/${id}/reject`, null, { params: { reason } }).then((r) => r.data),
+
+  // Performance
+  listPerformance: (params?: object) => api.get("/hr/performance", { params }).then((r) => r.data),
+  createPerformance: (data: object) => api.post("/hr/performance", data).then((r) => r.data),
+  updatePerformance: (id: number, data: object) => api.put(`/hr/performance/${id}`, data).then((r) => r.data),
+};
+
