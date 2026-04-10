@@ -369,6 +369,18 @@ export const superAdminApi = {
   removeTenantUser: (tenantId: number, userId: number) => api.delete(`/super-admin/tenants/${tenantId}/users/${userId}`),
   switchTenant: (tenantId: number) => api.post(`/super-admin/switch-tenant/${tenantId}`).then((r) => r.data),
   exitTenant: () => api.post("/super-admin/exit-tenant").then((r) => r.data),
+  downloadBackup: async () => {
+    const response = await api.get("/super-admin/backup", { responseType: "blob" });
+    const disposition = response.headers["content-disposition"] || "";
+    const match = disposition.match(/filename=([^;]+)/);
+    const filename = match ? match[1] : `maia_bms_backup_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, "_")}.sql`;
+    const url = URL.createObjectURL(new Blob([response.data], { type: "application/sql" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };
 
 export const hrApi = {

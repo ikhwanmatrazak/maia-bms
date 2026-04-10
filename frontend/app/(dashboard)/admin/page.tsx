@@ -8,7 +8,7 @@ import {
   Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
 } from "@heroui/react";
-import { ArrowRightLeft } from "lucide-react";
+import { ArrowRightLeft, Download } from "lucide-react";
 import { superAdminApi } from "@/lib/api";
 import { setTokens, setSwitchedTenant, getSwitchedTenant } from "@/lib/auth";
 import { Topbar } from "@/components/ui/Topbar";
@@ -40,7 +40,19 @@ export default function AdminPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [switchingId, setSwitchingId] = useState<number | null>(null);
+  const [backingUp, setBackingUp] = useState(false);
   const currentlySwitched = getSwitchedTenant();
+
+  const handleBackup = async () => {
+    setBackingUp(true);
+    try {
+      await superAdminApi.downloadBackup();
+    } catch {
+      alert("Backup failed. Please try again.");
+    } finally {
+      setBackingUp(false);
+    }
+  };
 
   const handleSwitchTenant = async (t: Tenant) => {
     setSwitchingId(t.id);
@@ -142,6 +154,20 @@ export default function AdminPage() {
         </div>
       )}
       <div className="p-6 space-y-6">
+
+        {/* Actions bar */}
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            color="primary"
+            variant="flat"
+            startContent={<Download size={15} />}
+            isLoading={backingUp}
+            onPress={handleBackup}
+          >
+            {backingUp ? "Generating backup..." : "Download DB Backup"}
+          </Button>
+        </div>
 
         {/* Stats */}
         {stats && (
