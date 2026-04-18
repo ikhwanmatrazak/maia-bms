@@ -470,7 +470,7 @@ const multipartConfig = { headers: { "Content-Type": undefined } };
 export const userClaimsApi = {
   listMy: () => api.get("/user-claims/my").then((r) => r.data),
   listAll: (status?: string) => api.get("/user-claims/all", { params: status ? { status } : {} }).then((r) => r.data),
-  submit: (form: FormData) => api.post("/user-claims/", form, multipartConfig).then((r) => r.data),
+  submit: (form: FormData) => api.post("/user-claims", form, multipartConfig).then((r) => r.data),
   extractFromReceipt: (file: File) => {
     const form = new FormData();
     form.append("file", file);

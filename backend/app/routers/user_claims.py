@@ -15,7 +15,7 @@ from app.middleware.auth import get_current_user
 from app.models.user import User
 from app.config import get_settings
 
-router = APIRouter(prefix="/user-claims", tags=["user-claims"])
+router = APIRouter(prefix="/user-claims", tags=["user-claims"], redirect_slashes=False)
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"}
 UPLOAD_BASE = "uploads/claims"
