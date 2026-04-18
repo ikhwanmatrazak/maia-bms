@@ -12,7 +12,7 @@ from app.config import get_settings
 from app.database import init_db
 from app.routers import auth, users, clients, quotations, invoices, receipts, payments, expenses, reminders, reports, settings, documents
 from app.routers import purchase_orders, delivery_orders, super_admin, products, analytics, vendors, prospects, credit_notes, tracking
-from app.routers import gateway, bills, hr
+from app.routers import gateway, bills, hr, user_claims
 
 logging.basicConfig(
     level=logging.INFO,
@@ -363,11 +363,43 @@ async def _ensure_hr_tables():
     logger.info("HR tables ensured")
 
 
+async def _ensure_user_claims_table():
+    from app.database import engine
+    from sqlalchemy import text
+    stmt = """CREATE TABLE IF NOT EXISTS user_claims (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        tenant_id INT NULL,
+        title VARCHAR(255) NOT NULL,
+        claim_type VARCHAR(100) NOT NULL,
+        description TEXT NOT NULL,
+        amount DECIMAL(12,2) NOT NULL,
+        claim_date DATE NOT NULL,
+        receipt_url VARCHAR(500) NULL,
+        status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+        rejection_reason TEXT NULL,
+        approved_by INT NULL,
+        approved_at DATETIME NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX ix_user_claims_user_id (user_id),
+        INDEX ix_user_claims_tenant_id (tenant_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )"""
+    async with engine.begin() as conn:
+        try:
+            await conn.execute(text(stmt))
+        except Exception as e:
+            logger.warning(f"_ensure_user_claims_table skipped: {e}")
+    logger.info("user_claims table ensured")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await _ensure_logo_columns()
     await _ensure_crm_columns()
     await _ensure_hr_tables()
+    await _ensure_user_claims_table()
     await init_db()
     upload_dir = app_settings.upload_dir
     os.makedirs(f"{upload_dir}/payment_proofs", exist_ok=True)
@@ -437,6 +469,7 @@ app.include_router(tracking.router, prefix=prefix)
 app.include_router(gateway.router, prefix=prefix)
 app.include_router(bills.router, prefix=prefix)
 app.include_router(hr.router, prefix=prefix)
+app.include_router(user_claims.router, prefix=prefix)
 
 
 @app.get("/health")

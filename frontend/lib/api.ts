@@ -465,3 +465,21 @@ export const hrApi = {
   updatePerformance: (id: number, data: object) => api.put(`/hr/performance/${id}`, data).then((r) => r.data),
 };
 
+export const userClaimsApi = {
+  listMy: () => api.get("/user-claims/my").then((r) => r.data),
+  listAll: (status?: string) => api.get("/user-claims/all", { params: status ? { status } : {} }).then((r) => r.data),
+  submit: (form: FormData) => api.post("/user-claims/", form).then((r) => r.data),
+  extractFromReceipt: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post("/user-claims/extract", form).then((r) => r.data);
+  },
+  approve: (id: number) => api.patch(`/user-claims/${id}/approve`).then((r) => r.data),
+  reject: (id: number, reason: string) => {
+    const form = new FormData();
+    form.append("reason", reason);
+    return api.patch(`/user-claims/${id}/reject`, form).then((r) => r.data);
+  },
+  delete: (id: number) => api.delete(`/user-claims/${id}`).then((r) => r.data),
+};
+
