@@ -189,12 +189,24 @@ export default function MyClaimsPage() {
     submitMutation.mutate(fd);
   };
 
-  const claimsTable = (claims: Claim[], showName = false) => (
-    <Table aria-label="Claims" removeWrapper>
+  const statusChip = (c: Claim) => (
+    <div>
+      <Chip size="sm" color={STATUS_COLOR[c.status] ?? "default"} variant="flat">{c.status}</Chip>
+      {c.rejection_reason && <p className="text-xs text-danger mt-0.5 max-w-[140px] truncate">{c.rejection_reason}</p>}
+    </div>
+  );
+
+  const receiptBtn = (c: Claim) => c.receipt_url ? (
+    <Button size="sm" variant="flat" isIconOnly onPress={() => setViewReceipt(`/api/v1/documents/uploads/${c.receipt_url}`)}>
+      <Eye size={14} />
+    </Button>
+  ) : <span className="text-xs text-gray-300">—</span>;
+
+  const myClaimsTable = (claims: Claim[]) => (
+    <Table aria-label="My Claims" removeWrapper>
       <TableHeader>
         <TableColumn>Title</TableColumn>
         <TableColumn>Type</TableColumn>
-        {showName && <TableColumn>Submitted By</TableColumn>}
         <TableColumn>Date</TableColumn>
         <TableColumn>Amount</TableColumn>
         <TableColumn>Status</TableColumn>
@@ -211,33 +223,56 @@ export default function MyClaimsPage() {
               </div>
             </TableCell>
             <TableCell><span className="text-xs">{c.claim_type}</span></TableCell>
-            {showName && <TableCell><span className="text-xs">{c.submitted_by_name}</span></TableCell>}
             <TableCell><span className="text-xs">{c.claim_date}</span></TableCell>
             <TableCell><span className="font-semibold text-sm">RM {Number(c.amount).toFixed(2)}</span></TableCell>
+            <TableCell>{statusChip(c)}</TableCell>
+            <TableCell>{receiptBtn(c)}</TableCell>
+            <TableCell>
+              {c.status === "pending" && (
+                <Button size="sm" color="danger" variant="flat" isIconOnly isLoading={deleteMutation.isPending}
+                  onPress={() => deleteMutation.mutate(c.id)}>
+                  <Trash2 size={14} />
+                </Button>
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+
+  const allClaimsTable = (claims: Claim[]) => (
+    <Table aria-label="All Claims" removeWrapper>
+      <TableHeader>
+        <TableColumn>Title</TableColumn>
+        <TableColumn>Type</TableColumn>
+        <TableColumn>Submitted By</TableColumn>
+        <TableColumn>Date</TableColumn>
+        <TableColumn>Amount</TableColumn>
+        <TableColumn>Status</TableColumn>
+        <TableColumn>Receipt</TableColumn>
+        <TableColumn>Actions</TableColumn>
+      </TableHeader>
+      <TableBody emptyContent="No claims found">
+        {claims.map((c) => (
+          <TableRow key={c.id}>
             <TableCell>
               <div>
-                <Chip size="sm" color={STATUS_COLOR[c.status] ?? "default"} variant="flat">
-                  {c.status}
-                </Chip>
-                {c.rejection_reason && (
-                  <p className="text-xs text-danger mt-0.5 max-w-[140px] truncate">{c.rejection_reason}</p>
-                )}
+                <p className="font-medium text-sm">{c.title}</p>
+                {c.description && <p className="text-xs text-gray-400 truncate max-w-[180px]">{c.description}</p>}
               </div>
             </TableCell>
-            <TableCell>
-              {c.receipt_url ? (
-                <Button size="sm" variant="flat" isIconOnly
-                  onPress={() => setViewReceipt(`/api/v1/documents/uploads/${c.receipt_url}`)}>
-                  <Eye size={14} />
-                </Button>
-              ) : <span className="text-xs text-gray-300">—</span>}
-            </TableCell>
+            <TableCell><span className="text-xs">{c.claim_type}</span></TableCell>
+            <TableCell><span className="text-xs">{c.submitted_by_name}</span></TableCell>
+            <TableCell><span className="text-xs">{c.claim_date}</span></TableCell>
+            <TableCell><span className="font-semibold text-sm">RM {Number(c.amount).toFixed(2)}</span></TableCell>
+            <TableCell>{statusChip(c)}</TableCell>
+            <TableCell>{receiptBtn(c)}</TableCell>
             <TableCell>
               <div className="flex gap-1">
-                {isManager && c.status === "pending" && (
+                {c.status === "pending" && (
                   <>
-                    <Button size="sm" color="success" variant="flat" isIconOnly
-                      isLoading={approveMutation.isPending}
+                    <Button size="sm" color="success" variant="flat" isIconOnly isLoading={approveMutation.isPending}
                       onPress={() => approveMutation.mutate(c.id)}>
                       <CheckCircle size={14} />
                     </Button>
@@ -246,13 +281,6 @@ export default function MyClaimsPage() {
                       <XCircle size={14} />
                     </Button>
                   </>
-                )}
-                {!isManager && c.status === "pending" && (
-                  <Button size="sm" color="danger" variant="flat" isIconOnly
-                    isLoading={deleteMutation.isPending}
-                    onPress={() => deleteMutation.mutate(c.id)}>
-                    <Trash2 size={14} />
-                  </Button>
                 )}
               </div>
             </TableCell>
@@ -277,18 +305,18 @@ export default function MyClaimsPage() {
           <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
             <Tab key="my" title="My Claims">
               <Card><CardBody>
-                {myLoading ? <Spinner /> : claimsTable(myClaims)}
+                {myLoading ? <Spinner /> : myClaimsTable(myClaims)}
               </CardBody></Card>
             </Tab>
             <Tab key="all" title="All Claims">
               <Card><CardBody>
-                {allLoading ? <Spinner /> : claimsTable(allClaims, true)}
+                {allLoading ? <Spinner /> : allClaimsTable(allClaims)}
               </CardBody></Card>
             </Tab>
           </Tabs>
         ) : (
           <Card><CardBody>
-            {myLoading ? <Spinner /> : claimsTable(myClaims)}
+            {myLoading ? <Spinner /> : myClaimsTable(myClaims)}
           </CardBody></Card>
         )}
 
