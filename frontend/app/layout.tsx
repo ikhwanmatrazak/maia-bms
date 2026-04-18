@@ -13,6 +13,15 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Ali Axis",
   description: "Ali Axis Business Management System",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Ali Axis",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export default function RootLayout({
@@ -22,6 +31,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning className={inter.variable}>
+      <head>
+        <meta name="theme-color" content="#006FEE" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+      </head>
       <body className={inter.className}>
         <Providers>{children}</Providers>
       </body>
