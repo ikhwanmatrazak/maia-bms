@@ -200,7 +200,7 @@ async def extract_from_receipt(
     return result
 
 
-@router.post("/")
+@router.post("")
 async def submit_claim(
     title: str = Form(...),
     claim_type: str = Form(...),
