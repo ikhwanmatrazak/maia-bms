@@ -1,20 +1,17 @@
-import os
-import base64
+import io
+import re
 import uuid
-from datetime import date, datetime
-from decimal import Decimal
-from typing import Optional, List
+from datetime import datetime
+from typing import Optional
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from pydantic import BaseModel
 
 from app.database import get_db
 from app.middleware.auth import get_current_user
-from app.middleware.rbac import apply_tenant_filter
 from app.models.user import User
 from app.config import get_settings
 
@@ -75,70 +72,115 @@ async def _save_file(file: UploadFile) -> str:
     return f"claims/{filename}"
 
 
-# ---------- AI Extraction ----------
+# ---------- OCR Extraction (Tesseract, no API key needed) ----------
 
-async def _extract_from_image(file_bytes: bytes, mime_type: str) -> ExtractedClaim:
-    settings = get_settings()
-    if not settings.anthropic_api_key:
+CLAIM_TYPE_KEYWORDS = {
+    "Meals": ["restaurant", "cafe", "food", "makan", "dining", "lunch", "dinner", "breakfast", "kedai", "mamak", "pizza", "burger", "nasi", "mee", "roti"],
+    "Petrol": ["petrol", "fuel", "petronas", "shell", "caltex", "bhp", "esso", "ron95", "ron97", "diesel"],
+    "Travel": ["grab", "taxi", "uber", "bas", "bus", "train", "ktm", "lrt", "mrt", "flight", "airasia", "malindo", "mas ", "toll", "highway"],
+    "Parking": ["parking", "park", "park&ride", "dbkl", "mbpj", "mpark"],
+    "Accommodation": ["hotel", "resort", "inn", "lodge", "airbnb", "motel", "suite"],
+    "Medical": ["klinik", "clinic", "hospital", "pharmacy", "farmasi", "doctor", "doktor", "ubat", "medicine"],
+    "Office Supplies": ["stationery", "stationary", "office", "printing", "print", "photocopy", "atk", "pen", "paper"],
+}
+
+
+def _ocr_text(file_bytes: bytes, mime_type: str) -> str:
+    """Extract raw text from image or PDF using Tesseract / pdfplumber."""
+    if mime_type == "application/pdf":
+        try:
+            import pdfplumber
+            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+                return "\n".join(page.extract_text() or "" for page in pdf.pages[:3])
+        except Exception:
+            return ""
+    try:
+        import pytesseract
+        from PIL import Image
+        img = Image.open(io.BytesIO(file_bytes))
+        return pytesseract.image_to_string(img, lang="eng")
+    except Exception:
+        return ""
+
+
+def _parse_receipt_text(text: str) -> ExtractedClaim:
+    """Parse OCR text into structured claim fields using regex heuristics."""
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if not lines:
         return ExtractedClaim()
 
+    # --- Vendor: first meaningful non-numeric line ---
+    vendor = None
+    for line in lines[:6]:
+        if len(line) > 3 and not re.match(r'^[\d\s\-\/\.:]+$', line):
+            vendor = line[:60]
+            break
+
+    # --- Amount: largest currency value found ---
+    amount = None
+    amount_patterns = [
+        r'(?:TOTAL|JUMLAH|AMOUNT|BAYAR|GRAND\s*TOTAL|CHARGE)[^\d]*([\d,]+\.\d{2})',
+        r'RM\s*([\d,]+\.\d{2})',
+        r'MYR\s*([\d,]+\.\d{2})',
+        r'\b([\d,]+\.\d{2})\b',
+    ]
+    for pat in amount_patterns:
+        matches = re.findall(pat, text, re.IGNORECASE)
+        if matches:
+            vals = [float(m.replace(',', '')) for m in matches]
+            amount = max(vals)
+            break
+
+    # --- Date: find most receipt-like date ---
+    claim_date = None
+    date_patterns = [
+        r'(\d{4}[-/]\d{2}[-/]\d{2})',
+        r'(\d{2}[-/]\d{2}[-/]\d{4})',
+        r'(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4})',
+        r'(\d{2}[-/]\d{2}[-/]\d{2})',
+    ]
+    for pat in date_patterns:
+        m = re.search(pat, text, re.IGNORECASE)
+        if m:
+            raw_date = m.group(1)
+            for fmt in ('%Y-%m-%d', '%Y/%m/%d', '%d-%m-%Y', '%d/%m/%Y',
+                        '%d %b %Y', '%d %B %Y', '%d-%m-%y', '%d/%m/%y'):
+                try:
+                    claim_date = datetime.strptime(raw_date, fmt).strftime('%Y-%m-%d')
+                    break
+                except ValueError:
+                    continue
+            if claim_date:
+                break
+
+    # --- Claim type: keyword matching ---
+    text_lower = text.lower()
+    claim_type = "Other"
+    for ctype, keywords in CLAIM_TYPE_KEYWORDS.items():
+        if any(kw in text_lower for kw in keywords):
+            claim_type = ctype
+            break
+
+    # --- Title and description ---
+    title = f"{claim_type} - {vendor}" if vendor else claim_type
+    description = vendor or ""
+
+    return ExtractedClaim(
+        title=title[:100],
+        claim_type=claim_type,
+        description=description[:200],
+        amount=amount,
+        claim_date=claim_date,
+        vendor=vendor,
+    )
+
+
+async def _extract_from_image(file_bytes: bytes, mime_type: str) -> ExtractedClaim:
     try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-
-        # For PDF, try to extract text first page image
-        if mime_type == "application/pdf":
-            try:
-                import pdfplumber, io
-                with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-                    text_content = "\n".join(page.extract_text() or "" for page in pdf.pages[:2])
-                if text_content.strip():
-                    msg = client.messages.create(
-                        model="claude-haiku-4-5-20251001",
-                        max_tokens=512,
-                        messages=[{
-                            "role": "user",
-                            "content": f"""Extract claim details from this receipt/invoice text. Return ONLY valid JSON with these keys (use null if not found):
-{{"title": "short title", "claim_type": "Meals|Travel|Accommodation|Office Supplies|Medical|Petrol|Parking|Other", "description": "brief description", "amount": 0.00, "claim_date": "YYYY-MM-DD", "vendor": "vendor name"}}
-
-Receipt text:
-{text_content[:3000]}"""
-                        }]
-                    )
-                    import json
-                    raw = msg.content[0].text.strip()
-                    start, end = raw.find("{"), raw.rfind("}") + 1
-                    data = json.loads(raw[start:end])
-                    return ExtractedClaim(**{k: v for k, v in data.items() if v is not None})
-            except Exception:
-                pass
+        raw_text = _ocr_text(file_bytes, mime_type)
+        if not raw_text.strip():
             return ExtractedClaim()
-
-        # Image — use vision
-        b64 = base64.standard_b64encode(file_bytes).decode()
-        msg = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=512,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {"type": "base64", "media_type": mime_type, "data": b64}
-                    },
-                    {
-                        "type": "text",
-                        "text": """Extract claim details from this receipt/invoice image. Return ONLY valid JSON with these keys (use null if not found):
-{"title": "short title", "claim_type": "Meals|Travel|Accommodation|Office Supplies|Medical|Petrol|Parking|Other", "description": "brief description", "amount": 0.00, "claim_date": "YYYY-MM-DD", "vendor": "vendor name"}"""
-                    }
-                ]
-            }]
-        )
-        import json
-        raw = msg.content[0].text.strip()
-        start, end = raw.find("{"), raw.rfind("}") + 1
-        data = json.loads(raw[start:end])
-        return ExtractedClaim(**{k: v for k, v in data.items() if v is not None})
+        return _parse_receipt_text(raw_text)
     except Exception:
         return ExtractedClaim()
 
