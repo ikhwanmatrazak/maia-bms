@@ -584,6 +584,21 @@ async def create_employee(
     return _emp_to_response(result.scalar_one())
 
 
+@router.get("/employees/me", response_model=EmployeeResponse)
+async def get_my_employee_profile(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Employee).options(selectinload(Employee.department_rel))
+        .where(Employee.user_id == current_user.id)
+    )
+    emp = result.scalar_one_or_none()
+    if not emp:
+        raise HTTPException(status_code=404, detail="No employee profile linked to your account")
+    return _emp_to_response(emp)
+
+
 @router.get("/employees/{emp_id}", response_model=EmployeeResponse)
 async def get_employee(
     emp_id: int,

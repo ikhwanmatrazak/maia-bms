@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { hrApi } from "@/lib/api";
+import { hrApi, api } from "@/lib/api";
 import { ChevronLeft } from "lucide-react";
 
 const SECTION = "px-6 py-5 space-y-4";
@@ -20,8 +20,13 @@ export default function NewEmployeePage() {
     queryFn: hrApi.listDepartments,
   });
 
+  const { data: users = [] } = useQuery({
+    queryKey: ["users-list"],
+    queryFn: () => api.get("/users").then((r) => r.data),
+  });
+
   const [form, setForm] = useState({
-    employee_no: "", full_name: "", department_id: "",
+    employee_no: "", full_name: "", department_id: "", user_id: "",
     designation: "", employment_type: "full_time", employment_status: "probation",
     join_date: "", confirmation_date: "",
     email: "", phone: "",
@@ -49,6 +54,8 @@ export default function NewEmployeePage() {
     const data: any = { ...form };
     if (data.department_id) data.department_id = Number(data.department_id);
     else delete data.department_id;
+    if (data.user_id) data.user_id = Number(data.user_id);
+    else delete data.user_id;
     if (data.basic_salary) data.basic_salary = Number(data.basic_salary);
     else delete data.basic_salary;
     if (data.children_count) data.children_count = Number(data.children_count);
@@ -99,6 +106,16 @@ export default function NewEmployeePage() {
                 <label className={LABEL}>Designation / Job Title</label>
                 <input className={INPUT} value={form.designation} onChange={e => set("designation", e.target.value)} placeholder="e.g. Software Engineer" />
               </div>
+            </div>
+            <div>
+              <label className={LABEL}>Link to User Account</label>
+              <select className={SELECT} value={form.user_id} onChange={e => set("user_id", e.target.value)}>
+                <option value="">— No linked account —</option>
+                {users.map((u: any) => (
+                  <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Link this employee to a system user so they can access the staff portal.</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

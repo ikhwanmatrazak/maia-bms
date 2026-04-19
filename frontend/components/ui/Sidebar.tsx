@@ -86,6 +86,7 @@ const navGroups = [
     items: [
       { href: "/hr", label: "HR Overview", roles: ["admin", "manager"] },
       { href: "/hr/employees", label: "Employees", roles: ["admin", "manager"] },
+      { href: "/hr/departments", label: "Departments", roles: ["admin", "manager"] },
       { href: "/hr/leave", label: "Leave", roles: ["admin", "manager"] },
       { href: "/hr/attendance", label: "Attendance", roles: ["admin", "manager"] },
       { href: "/hr/payroll", label: "Payroll", roles: ["admin", "manager"] },
@@ -102,8 +103,9 @@ const navGroups = [
       </svg>
     ),
     items: [
-      { href: "/reminders", label: "Reminders" },
+      { href: "/my-profile", label: "My Profile" },
       { href: "/my-claims", label: "My Claims" },
+      { href: "/reminders", label: "Reminders" },
       { href: "/settings", label: "Settings", roles: ["admin"] },
     ],
   },

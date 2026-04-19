@@ -395,6 +395,7 @@ export const hrApi = {
 
   // Employees
   listEmployees: (params?: object) => api.get("/hr/employees", { params }).then((r) => r.data),
+  getMyProfile: () => api.get("/hr/employees/me").then((r) => r.data),
   getEmployee: (id: number) => api.get(`/hr/employees/${id}`).then((r) => r.data),
   createEmployee: (data: object) => api.post("/hr/employees", data).then((r) => r.data),
   updateEmployee: (id: number, data: object) => api.put(`/hr/employees/${id}`, data).then((r) => r.data),
