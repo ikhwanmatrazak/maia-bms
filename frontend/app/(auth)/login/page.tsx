@@ -76,7 +76,7 @@ export default function LoginPage() {
         is_super_admin: response.is_super_admin,
         tenant_id: response.tenant_id,
       });
-      router.push("/dashboard");
+      router.push(response.role === "staff" ? "/my-profile" : "/dashboard");
     } catch (err: unknown) {
       const e = err as { response?: { data?: { detail?: unknown } } };
       const detail = e?.response?.data?.detail;

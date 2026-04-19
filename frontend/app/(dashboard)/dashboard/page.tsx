@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { Card, CardBody, CardHeader, Chip, Select, SelectItem } from "@heroui/react";
 import {
@@ -638,16 +639,19 @@ function CompanyDashboard() {
 export default function DashboardPage() {
   const [role, setRole] = useState<string | null>(null);
   const [userName, setUserName] = useState("User");
+  const router = useRouter();
 
   useEffect(() => {
     const u = getUser();
-    setRole(u?.role ?? "staff");
+    const r = u?.role ?? "staff";
+    setRole(r);
     setUserName(u?.name ?? "User");
-  }, []);
+    if (r === "staff") {
+      router.replace("/my-profile");
+    }
+  }, [router]);
 
-  if (role === null) return null;
+  if (role === null || role === "staff") return null;
 
-  return role === "staff"
-    ? <SalesDashboard userName={userName} />
-    : <CompanyDashboard />;
+  return <CompanyDashboard />;
 }
