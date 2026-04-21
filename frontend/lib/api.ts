@@ -486,3 +486,67 @@ export const userClaimsApi = {
   delete: (id: number) => api.delete(`/user-claims/${id}`).then((r) => r.data),
 };
 
+const formConfig = { headers: { "Content-Type": "multipart/form-data" } };
+
+function toForm(data: Record<string, unknown>): FormData {
+  const f = new FormData();
+  for (const [k, v] of Object.entries(data)) {
+    if (v !== undefined && v !== null) f.append(k, String(v));
+  }
+  return f;
+}
+
+export const projectsApi = {
+  // Dashboard
+  getDashboard: () => api.get("/projects/dashboard").then((r) => r.data),
+
+  // Stages
+  listStages: () => api.get("/projects/stages").then((r) => r.data),
+  createStage: (name: string, color?: string) => api.post("/projects/stages", null, { params: { name, color } }).then((r) => r.data),
+  updateStage: (id: number, data: { name?: string; color?: string }) => api.put(`/projects/stages/${id}`, null, { params: data }).then((r) => r.data),
+  deleteStage: (id: number) => api.delete(`/projects/stages/${id}`),
+
+  // Projects
+  list: (stageId?: number) => api.get("/projects", { params: stageId ? { stage_id: stageId } : {} }).then((r) => r.data),
+  get: (id: number) => api.get(`/projects/${id}`).then((r) => r.data),
+  create: (data: Record<string, unknown>) => api.post("/projects", toForm(data), formConfig).then((r) => r.data),
+  update: (id: number, data: Record<string, unknown>) => api.put(`/projects/${id}`, toForm(data), formConfig).then((r) => r.data),
+  delete: (id: number) => api.delete(`/projects/${id}`),
+
+  // Members
+  listMembers: (projectId: number) => api.get(`/projects/${projectId}/members`).then((r) => r.data),
+  addMember: (projectId: number, userId: number, role?: string) => api.post(`/projects/${projectId}/members`, null, { params: { user_id: userId, role: role ?? "member" } }).then((r) => r.data),
+  removeMember: (projectId: number, userId: number) => api.delete(`/projects/${projectId}/members/${userId}`),
+
+  // Tasks
+  listTasks: (projectId: number) => api.get(`/projects/${projectId}/tasks`).then((r) => r.data),
+  createTask: (projectId: number, data: Record<string, unknown>) => api.post(`/projects/${projectId}/tasks`, toForm(data), formConfig).then((r) => r.data),
+  updateTask: (taskId: number, data: Record<string, unknown>) => api.put(`/projects/tasks/${taskId}`, toForm(data), formConfig).then((r) => r.data),
+  deleteTask: (taskId: number) => api.delete(`/projects/tasks/${taskId}`),
+
+  // Time Logs
+  logTime: (taskId: number, data: { hours: number; note?: string; logged_date: string }) => api.post(`/projects/tasks/${taskId}/time-logs`, toForm(data as Record<string, unknown>), formConfig).then((r) => r.data),
+  listTimeLogs: (taskId: number) => api.get(`/projects/tasks/${taskId}/time-logs`).then((r) => r.data),
+
+  // Milestones
+  listMilestones: (projectId: number) => api.get(`/projects/${projectId}/milestones`).then((r) => r.data),
+  createMilestone: (projectId: number, data: { title: string; due_date?: string }) => api.post(`/projects/${projectId}/milestones`, toForm(data as Record<string, unknown>), formConfig).then((r) => r.data),
+  updateMilestone: (id: number, data: Record<string, unknown>) => api.put(`/projects/milestones/${id}`, toForm(data), formConfig).then((r) => r.data),
+  deleteMilestone: (id: number) => api.delete(`/projects/milestones/${id}`),
+
+  // Updates
+  listUpdates: (projectId: number) => api.get(`/projects/${projectId}/updates`).then((r) => r.data),
+  postUpdate: (projectId: number, content: string, file?: File) => {
+    const f = new FormData();
+    f.append("content", content);
+    if (file) f.append("file", file);
+    return api.post(`/projects/${projectId}/updates`, f, formConfig).then((r) => r.data);
+  },
+
+  // Meetings
+  listMeetings: (projectId: number) => api.get(`/projects/${projectId}/meetings`).then((r) => r.data),
+  upcomingMeetings: () => api.get("/projects/meetings/upcoming").then((r) => r.data),
+  scheduleMeeting: (projectId: number, data: Record<string, unknown>) => api.post(`/projects/${projectId}/meetings`, toForm(data), formConfig).then((r) => r.data),
+  updateMeeting: (meetingId: number, notes: string) => api.put(`/projects/meetings/${meetingId}`, toForm({ notes }), formConfig).then((r) => r.data),
+  deleteMeeting: (meetingId: number) => api.delete(`/projects/meetings/${meetingId}`),
+};

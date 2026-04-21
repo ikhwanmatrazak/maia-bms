@@ -31,7 +31,9 @@
       "Bash(git push *)",
       "Bash(python -c ' *)",
       "Bash(curl -s -X GET http://20.204.18.22:3000/api/compose.all -H 'x-api-key: AnyAppVPRDCcUqVXGObsGmXQtrkvOOjXeiahGuSQiWglNZKpzLpVOwVmiFseAOkgMSNMkG' -H 'Content-Type: application/json')",
-      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(c['composeId'], c['name']\\) for c in data]\")"
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(c['composeId'], c['name']\\) for c in data]\")",
+      "Bash(git commit *)",
+      "Bash(npm install *)"
     ]
   }
 }

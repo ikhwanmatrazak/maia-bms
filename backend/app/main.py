@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -12,7 +13,7 @@ from app.config import get_settings
 from app.database import init_db
 from app.routers import auth, users, clients, quotations, invoices, receipts, payments, expenses, reminders, reports, settings, documents
 from app.routers import purchase_orders, delivery_orders, super_admin, products, analytics, vendors, prospects, credit_notes, tracking
-from app.routers import gateway, bills, hr, user_claims
+from app.routers import gateway, bills, hr, user_claims, projects
 
 logging.basicConfig(
     level=logging.INFO,
@@ -363,6 +364,131 @@ async def _ensure_hr_tables():
     logger.info("HR tables ensured")
 
 
+async def _ensure_project_tables():
+    from app.database import engine
+    from sqlalchemy import text
+    stmts = [
+        """CREATE TABLE IF NOT EXISTS project_stages (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tenant_id INT NULL,
+            name VARCHAR(100) NOT NULL,
+            color VARCHAR(20) NOT NULL DEFAULT '#6366f1',
+            order_index INT NOT NULL DEFAULT 0,
+            INDEX ix_project_stages_tenant_id (tenant_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS projects (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tenant_id INT NULL,
+            stage_id INT NULL,
+            name VARCHAR(255) NOT NULL,
+            description TEXT NULL,
+            priority ENUM('low','medium','high','critical') NOT NULL DEFAULT 'medium',
+            start_date DATE NULL,
+            end_date DATE NULL,
+            budget DECIMAL(15,2) NULL,
+            created_by INT NULL,
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            updated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+            INDEX ix_projects_tenant_id (tenant_id),
+            FOREIGN KEY (stage_id) REFERENCES project_stages(id) ON DELETE SET NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS project_members (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            project_id INT NOT NULL,
+            user_id INT NOT NULL,
+            role VARCHAR(50) NOT NULL DEFAULT 'member',
+            UNIQUE KEY uq_project_member (project_id, user_id),
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        )""",
+        """CREATE TABLE IF NOT EXISTS project_tasks (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            project_id INT NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            description TEXT NULL,
+            assignee_id INT NULL,
+            status ENUM('todo','in_progress','review','done') NOT NULL DEFAULT 'todo',
+            priority ENUM('low','medium','high','critical') NOT NULL DEFAULT 'medium',
+            start_date DATE NULL,
+            due_date DATE NULL,
+            estimated_hours DECIMAL(6,2) NULL,
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            INDEX ix_project_tasks_project_id (project_id),
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        )""",
+        """CREATE TABLE IF NOT EXISTS project_time_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            task_id INT NOT NULL,
+            user_id INT NOT NULL,
+            hours DECIMAL(6,2) NOT NULL,
+            note TEXT NULL,
+            logged_date DATE NOT NULL,
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            FOREIGN KEY (task_id) REFERENCES project_tasks(id) ON DELETE CASCADE
+        )""",
+        """CREATE TABLE IF NOT EXISTS project_milestones (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            project_id INT NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            due_date DATE NULL,
+            is_reached TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        )""",
+        """CREATE TABLE IF NOT EXISTS project_updates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            project_id INT NOT NULL,
+            user_id INT NOT NULL,
+            content TEXT NOT NULL,
+            file_url VARCHAR(500) NULL,
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        )""",
+        """CREATE TABLE IF NOT EXISTS project_meetings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            project_id INT NULL,
+            title VARCHAR(255) NOT NULL,
+            scheduled_at DATETIME(6) NOT NULL,
+            duration_min INT NOT NULL DEFAULT 60,
+            location VARCHAR(255) NULL,
+            agenda TEXT NULL,
+            notes TEXT NULL,
+            reminder_24h_sent TINYINT(1) NOT NULL DEFAULT 0,
+            reminder_1h_sent TINYINT(1) NOT NULL DEFAULT 0,
+            created_by INT NOT NULL,
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            INDEX ix_project_meetings_project_id (project_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS project_meeting_attendees (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            meeting_id INT NOT NULL,
+            user_id INT NOT NULL,
+            UNIQUE KEY uq_meeting_attendee (meeting_id, user_id),
+            FOREIGN KEY (meeting_id) REFERENCES project_meetings(id) ON DELETE CASCADE
+        )""",
+    ]
+    async with engine.begin() as conn:
+        for stmt in stmts:
+            try:
+                await conn.execute(text(stmt))
+            except Exception as e:
+                logger.warning(f"_ensure_project_tables stmt skipped: {e}")
+    logger.info("Project tables ensured")
+
+
+async def _ensure_default_stages(tenant_id):
+    """Seed default stages for a new tenant if none exist."""
+    from app.database import engine
+    from sqlalchemy import text
+    from app.routers.projects import DEFAULT_STAGES
+    async with engine.begin() as conn:
+        r = await conn.execute(text("SELECT COUNT(*) AS c FROM project_stages WHERE tenant_id=:tid"), {"tid": tenant_id})
+        if r.fetchone().c == 0:
+            for s in DEFAULT_STAGES:
+                await conn.execute(text(
+                    "INSERT INTO project_stages (tenant_id,name,color,order_index) VALUES (:tid,:name,:color,:oi)"
+                ), {"tid": tenant_id, "name": s["name"], "color": s["color"], "oi": s["order_index"]})
+
+
 async def _ensure_user_claims_table():
     from app.database import engine
     from sqlalchemy import text
@@ -400,6 +526,7 @@ async def lifespan(app: FastAPI):
     await _ensure_crm_columns()
     await _ensure_hr_tables()
     await _ensure_user_claims_table()
+    await _ensure_project_tables()
     await init_db()
     upload_dir = app_settings.upload_dir
     os.makedirs(f"{upload_dir}/payment_proofs", exist_ok=True)
@@ -410,8 +537,12 @@ async def lifespan(app: FastAPI):
     os.makedirs(f"{upload_dir}/hr/docs", exist_ok=True)
     os.makedirs(f"{upload_dir}/hr/leave_docs", exist_ok=True)
     os.makedirs(f"{upload_dir}/hr/claims", exist_ok=True)
+    os.makedirs(f"{upload_dir}/project_updates", exist_ok=True)
+    # Start meeting reminder background task
+    reminder_task = asyncio.create_task(projects.reminder_loop())
     logger.info("MAIA BMS started successfully")
     yield
+    reminder_task.cancel()
     logger.info("MAIA BMS shutting down")
 
 
@@ -470,6 +601,7 @@ app.include_router(gateway.router, prefix=prefix)
 app.include_router(bills.router, prefix=prefix)
 app.include_router(hr.router, prefix=prefix)
 app.include_router(user_claims.router, prefix=prefix)
+app.include_router(projects.router, prefix=prefix)
 
 
 @app.get("/health")
