@@ -57,9 +57,35 @@ export default function SettingsPage() {
     }
   }, [settings]);
 
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveOk, setSaveOk] = useState(false);
+
+  function prepareCompany(data: Record<string, string>) {
+    const out: Record<string, unknown> = { ...data };
+    // Convert numeric fields — send null if empty
+    if (out.default_payment_terms === "" || out.default_payment_terms === undefined) {
+      out.default_payment_terms = null;
+    } else {
+      const n = Number(out.default_payment_terms);
+      out.default_payment_terms = isNaN(n) ? null : n;
+    }
+    // Strip out completely empty optional strings so backend can ignore them
+    return out;
+  }
+
   const updateMutation = useMutation({
-    mutationFn: (data: object) => settingsApi.updateCompany(data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings"] }),
+    mutationFn: (data: Record<string, string>) => settingsApi.updateCompany(prepareCompany(data)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      setSaveOk(true);
+      setSaveError(null);
+      setTimeout(() => setSaveOk(false), 3000);
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Save failed. Please try again.";
+      setSaveError(typeof msg === "string" ? msg : JSON.stringify(msg));
+      setSaveOk(false);
+    },
   });
 
   const logoMutation = useMutation({
@@ -152,8 +178,10 @@ export default function SettingsPage() {
                 <Input variant="bordered" labelPlacement="outside" label="TIN No." {...f(company, "tin_no", setCompany)} />
               </div>
               <Textarea variant="bordered" labelPlacement="outside" label="Address" {...f(company, "address", setCompany)} />
-              <div>
-                <Button color="primary" isLoading={updateMutation.isPending} onPress={() => updateMutation.mutate(company)}>Save</Button>
+              <div className="flex items-center gap-3">
+                <Button color="primary" isLoading={updateMutation.isPending} onPress={() => { setSaveError(null); updateMutation.mutate(company); }}>Save Company Info</Button>
+                {saveOk && <span className="text-success text-sm">Saved successfully!</span>}
+                {saveError && <span className="text-danger text-sm">{saveError}</span>}
               </div>
             </div>
           </CardBody>
@@ -199,8 +227,10 @@ export default function SettingsPage() {
                 <Input variant="bordered" labelPlacement="outside" label="Account No." {...f(payment, "bank_account_no", setPayment)} />
                 <Input variant="bordered" labelPlacement="outside" label="Account Name" {...f(payment, "bank_account_name", setPayment)} />
               </div>
-              <div>
-                <Button color="primary" isLoading={updateMutation.isPending} onPress={() => updateMutation.mutate(payment)}>Save Payment Settings</Button>
+              <div className="flex items-center gap-3">
+                <Button color="primary" isLoading={updateMutation.isPending} onPress={() => { setSaveError(null); updateMutation.mutate(payment); }}>Save Payment Settings</Button>
+                {saveOk && <span className="text-success text-sm">Saved!</span>}
+                {saveError && <span className="text-danger text-sm">{saveError}</span>}
               </div>
             </div>
           </CardBody>
@@ -220,7 +250,13 @@ export default function SettingsPage() {
                 <Input variant="bordered" labelPlacement="outside" label="From Name" {...f(smtp, "smtp_from_name", setSmtp)} />
               </div>
               <div className="flex gap-3 items-center flex-wrap">
-                <Button color="primary" isLoading={updateMutation.isPending} onPress={() => updateMutation.mutate(smtp)}>Save SMTP</Button>
+                <Button color="primary" isLoading={updateMutation.isPending} onPress={() => {
+                  setSaveError(null);
+                  const smtpData: Record<string, unknown> = { ...smtp };
+                  const port = Number(smtp.smtp_port);
+                  smtpData.smtp_port = smtp.smtp_port === "" ? null : isNaN(port) ? null : port;
+                  updateMutation.mutate(smtpData as Record<string, string>);
+                }}>Save SMTP</Button>
                 <div className="flex gap-2 items-center">
                   <Input
                     variant="bordered"
