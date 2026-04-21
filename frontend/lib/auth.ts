@@ -6,8 +6,8 @@ const USER_KEY = "maia_user";
 const SWITCHED_TENANT_KEY = "maia_switched_tenant";
 
 export function setTokens(accessToken: string, refreshToken: string) {
-  Cookies.set(ACCESS_TOKEN_KEY, accessToken, { expires: 1 / 96 }); // 15 min
-  Cookies.set(REFRESH_TOKEN_KEY, refreshToken, { expires: 7 });
+  Cookies.set(ACCESS_TOKEN_KEY, accessToken, { expires: 1 / 24 }); // 1 hour
+  Cookies.set(REFRESH_TOKEN_KEY, refreshToken, { expires: 1 });    // 1 day
 }
 
 export function getAccessToken(): string | null {

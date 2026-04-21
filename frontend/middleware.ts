@@ -30,8 +30,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Already authenticated → visiting login redirects to dashboard
-  if (hasSession && isPublic) {
+  // Already authenticated → visiting login or root redirects to dashboard
+  if (hasSession && (isPublic || pathname === "/")) {
     const dashUrl = request.nextUrl.clone();
     dashUrl.pathname = "/dashboard";
     return NextResponse.redirect(dashUrl);
