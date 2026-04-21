@@ -30,17 +30,19 @@ async def _ensure_logo_columns():
     """Widen logo/signature columns to LONGTEXT on every startup — safe to run repeatedly."""
     from app.database import engine
     from sqlalchemy import text
-    try:
-        async with engine.begin() as conn:
-            await conn.execute(text(
-                "ALTER TABLE company_settings MODIFY COLUMN logo_url LONGTEXT NULL"
-            ))
-            await conn.execute(text(
-                "ALTER TABLE company_settings MODIFY COLUMN signature_image_url LONGTEXT NULL"
-            ))
-        logger.info("logo/signature columns ensured as LONGTEXT")
-    except Exception as e:
-        logger.warning(f"_ensure_logo_columns: {e}")
+    stmts = [
+        "ALTER TABLE company_settings MODIFY COLUMN logo_url LONGTEXT NULL",
+        "ALTER TABLE company_settings MODIFY COLUMN signature_image_url LONGTEXT NULL",
+        "ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS tin_no VARCHAR(50) NULL",
+        "ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS sst_no VARCHAR(50) NULL",
+    ]
+    for stmt in stmts:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(stmt))
+        except Exception as e:
+            logger.warning(f"_ensure_logo_columns: {e}")
+    logger.info("logo/signature/tin columns ensured")
 
 
 async def _ensure_crm_columns():
