@@ -28,7 +28,7 @@
 </style>
 <div class="modern-wrap">
   <div class="modern-sidebar">
-    {% if logo_data %}<div class="modern-logo"><img src="{{ logo_data }}" alt="Logo"></div>{% endif %}
+    {% if logo_data %}<div class="modern-logo"><img src="{{ logo_data | safe }}" alt="Logo"></div>{% endif %}
     <div class="modern-company-name">{{ company.name if company else 'MAIA' }}</div>
     {% if company %}
     <div class="modern-company-info">
@@ -48,7 +48,7 @@
     {% if qr_data %}
     <div class="modern-sidebar-section" style="text-align:center;">
       <div class="modern-sidebar-label">Verify</div>
-      <img src="data:image/png;base64,{{ qr_data }}" style="width:55px;height:55px;background:white;padding:3px;border-radius:4px;">
+      <img src="data:image/png;base64,{{ qr_data | safe }}" style="width:55px;height:55px;background:white;padding:3px;border-radius:4px;">
     </div>
     {% endif %}
   </div>
@@ -113,7 +113,7 @@
     </div>
     {% if document.notes %}<div style="margin-top:12px;font-size:10px;"><div style="font-size:8px;text-transform:uppercase;color:#aaa;letter-spacing:1px;margin-bottom:3px;">Notes</div><div style="color:#555;white-space:pre-line;">{{ document.notes }}</div></div>{% endif %}
     {% if document.terms_conditions %}<div style="margin-top:10px;font-size:10px;"><div style="font-size:8px;text-transform:uppercase;color:#aaa;letter-spacing:1px;margin-bottom:3px;">Terms & Conditions</div><div style="color:#555;white-space:pre-line;">{{ document.terms_conditions }}</div></div>{% endif %}
-    {% if signature_data %}<div style="margin-top:16px;padding-top:12px;" class="signature-block"><img src="data:image/png;base64,{{ signature_data }}" alt="Signature"><div class="signature-line">Authorized Signature</div></div>{% endif %}
+    {% if signature_data %}<div style="margin-top:16px;padding-top:12px;" class="signature-block"><img src="data:image/png;base64,{{ signature_data | safe }}" alt="Signature"><div class="signature-line">Authorized Signature</div></div>{% endif %}
     <div style="border-top:2px solid {{ company.primary_color if company else '#1a1a2e' }};margin-top:20px;"></div>
   </div>
 </div>

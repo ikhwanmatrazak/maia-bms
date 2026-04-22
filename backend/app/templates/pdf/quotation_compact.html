@@ -27,7 +27,7 @@
 </style>
 <div class="compact-header">
   <div style="flex:1;">
-    {% if logo_data %}<img src="{{ logo_data }}" alt="Logo" style="max-height:55px;max-width:160px;margin-bottom:6px;">{% endif %}
+    {% if logo_data %}<img src="{{ logo_data | safe }}" alt="Logo" style="max-height:55px;max-width:160px;margin-bottom:6px;">{% endif %}
     {% if not logo_data %}<div style="font-size:16px;font-weight:700;color:#1a1a2e;margin-bottom:6px;">{{ company.name if company else 'MAIA' }}</div>{% endif %}
     {% if company %}<div style="font-size:9px;color:#666;line-height:1.6;">{% if company.address %}<div>{{ company.address }}</div>{% endif %}{% if company.phone %}<div>{{ company.phone }}</div>{% endif %}{% if company.email %}<div>{{ company.email }}</div>{% endif %}{% if company.company_registration_no %}<div>Reg: {{ company.company_registration_no }}</div>{% endif %}</div>{% endif %}
   </div>
@@ -56,5 +56,5 @@
 </table>
 <div class="compact-totals"><table><tr><td>Subtotal</td><td style="text-align:right;">{{ document.currency }} {{ document.subtotal|float|fmt }}</td></tr>{% if document.discount_amount|float > 0 %}<tr><td>Discount</td><td style="text-align:right;">- {{ document.currency }} {{ document.discount_amount|float|fmt }}</td></tr>{% endif %}{% if document.tax_total|float > 0 %}<tr><td>Tax</td><td style="text-align:right;">{{ document.currency }} {{ document.tax_total|float|fmt }}</td></tr>{% endif %}<tr class="total-final"><td>TOTAL</td><td style="text-align:right;">{{ document.currency }} {{ document.total|float|fmt }}</td></tr></table></div>
 <div class="compact-bottom">{% if document.notes %}<div><div class="section-label">Notes</div><div class="section-sub" style="white-space:pre-line;">{{ document.notes }}</div></div>{% endif %}{% if document.terms_conditions %}<div><div class="section-label">Terms & Conditions</div><div class="section-sub" style="white-space:pre-line;">{{ document.terms_conditions }}</div></div>{% endif %}</div>
-<div class="footer" style="margin-top:14px;">{% if signature_data %}<div class="signature-block"><img src="data:image/png;base64,{{ signature_data }}" alt="Signature"><div class="signature-line">Authorized Signature</div></div>{% endif %}{% if qr_data %}<div class="qr-block"><img src="data:image/png;base64,{{ qr_data }}" alt="QR"><p>Verify</p></div>{% endif %}</div>
+<div class="footer" style="margin-top:14px;">{% if signature_data %}<div class="signature-block"><img src="data:image/png;base64,{{ signature_data | safe }}" alt="Signature"><div class="signature-line">Authorized Signature</div></div>{% endif %}{% if qr_data %}<div class="qr-block"><img src="data:image/png;base64,{{ qr_data | safe }}" alt="QR"><p>Verify</p></div>{% endif %}</div>
 {% endblock %}

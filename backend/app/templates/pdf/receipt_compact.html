@@ -10,7 +10,7 @@
 </style>
 <div class="compact-header">
   <div style="flex:1;">
-    {% if logo_data %}<img src="{{ logo_data }}" alt="Logo" style="max-height:55px;max-width:160px;margin-bottom:6px;">{% endif %}
+    {% if logo_data %}<img src="{{ logo_data | safe }}" alt="Logo" style="max-height:55px;max-width:160px;margin-bottom:6px;">{% endif %}
     {% if not logo_data %}<div style="font-size:16px;font-weight:700;color:#1a1a2e;margin-bottom:6px;">{{ company.name if company else 'MAIA' }}</div>{% endif %}
     {% if company %}<div style="font-size:9px;color:#666;line-height:1.6;">{% if company.address %}<div>{{ company.address }}</div>{% endif %}{% if company.phone %}<div>{{ company.phone }}</div>{% endif %}{% if company.email %}<div>{{ company.email }}</div>{% endif %}{% if company.company_registration_no %}<div>Reg: {{ company.company_registration_no }}</div>{% endif %}</div>{% endif %}
   </div>
@@ -34,5 +34,5 @@
   <div style="font-size:34px;font-weight:800;color:#15803d;">{{ document.currency }} {{ "%.2f"|format(document.amount|float) }}</div>
 </div>
 {% if document.notes %}<div style="margin-top:12px;font-size:10px;"><div style="font-size:8px;text-transform:uppercase;color:#aaa;letter-spacing:1px;margin-bottom:3px;">Notes</div><p style="color:#555;white-space:pre-line;">{{ document.notes }}</p></div>{% endif %}
-<div class="footer" style="margin-top:16px;">{% if signature_data %}<div class="signature-block"><img src="data:image/png;base64,{{ signature_data }}" alt="Signature"><div class="signature-line">Authorized Signature</div></div>{% endif %}{% if qr_data %}<div class="qr-block"><img src="data:image/png;base64,{{ qr_data }}" alt="QR"><p>Verify</p></div>{% endif %}</div>
+<div class="footer" style="margin-top:16px;">{% if signature_data %}<div class="signature-block"><img src="data:image/png;base64,{{ signature_data | safe }}" alt="Signature"><div class="signature-line">Authorized Signature</div></div>{% endif %}{% if qr_data %}<div class="qr-block"><img src="data:image/png;base64,{{ qr_data | safe }}" alt="QR"><p>Verify</p></div>{% endif %}</div>
 {% endblock %}

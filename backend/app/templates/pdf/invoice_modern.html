@@ -35,7 +35,7 @@
   <!-- Sidebar -->
   <div class="modern-sidebar">
     <div class="modern-logo">
-      {% if logo_data %}<img src="{{ logo_data }}" alt="Logo">
+      {% if logo_data %}<img src="{{ logo_data | safe }}" alt="Logo">
       {% else %}<div class="modern-company-name">{{ company.name if company else 'MAIA' }}</div>{% endif %}
     </div>
     {% if company %}
@@ -70,7 +70,7 @@
     {% if qr_data %}
     <div class="modern-sidebar-section" style="text-align:center;">
       <div class="modern-sidebar-label">Verify</div>
-      <img src="data:image/png;base64,{{ qr_data }}" style="width:55px;height:55px;background:white;padding:3px;border-radius:4px;">
+      <img src="data:image/png;base64,{{ qr_data | safe }}" style="width:55px;height:55px;background:white;padding:3px;border-radius:4px;">
     </div>
     {% endif %}
   </div>
@@ -167,7 +167,7 @@
 
     {% if signature_data %}
     <div style="margin-top:16px;padding-top:12px;" class="signature-block">
-      <img src="data:image/png;base64,{{ signature_data }}" alt="Signature">
+      <img src="data:image/png;base64,{{ signature_data | safe }}" alt="Signature">
       <div class="signature-line">Authorized Signature</div>
     </div>
     {% endif %}

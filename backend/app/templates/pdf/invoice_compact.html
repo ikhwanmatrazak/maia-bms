@@ -30,7 +30,7 @@
 
 <div class="compact-header">
   <div class="compact-left">
-    {% if logo_data %}<img src="{{ logo_data }}" alt="Logo" style="max-height:55px;max-width:160px;margin-bottom:6px;">{% endif %}
+    {% if logo_data %}<img src="{{ logo_data | safe }}" alt="Logo" style="max-height:55px;max-width:160px;margin-bottom:6px;">{% endif %}
     {% if not logo_data %}<div style="font-size:16px;font-weight:700;color:#1a1a2e;margin-bottom:6px;">{{ company.name if company else 'MAIA' }}</div>{% endif %}
     {% if company %}
     <div style="font-size:9px;color:#666;line-height:1.6;">
@@ -143,13 +143,13 @@
 <div class="footer" style="margin-top:14px;">
   {% if signature_data %}
   <div class="signature-block">
-    <img src="data:image/png;base64,{{ signature_data }}" alt="Signature">
+    <img src="data:image/png;base64,{{ signature_data | safe }}" alt="Signature">
     <div class="signature-line">Authorized Signature</div>
   </div>
   {% endif %}
   {% if qr_data %}
   <div class="qr-block">
-    <img src="data:image/png;base64,{{ qr_data }}" alt="QR">
+    <img src="data:image/png;base64,{{ qr_data | safe }}" alt="QR">
     <p>Verify</p>
   </div>
   {% endif %}

@@ -25,6 +25,8 @@ def _resolve_upload_path(url: str | None) -> Path | None:
 def get_signature_base64(signature_url: str | None) -> str | None:
     if not signature_url:
         return None
+    if isinstance(signature_url, (bytes, bytearray)):
+        signature_url = signature_url.decode("utf-8", errors="replace")
     # Already a data URI (stored in DB as base64)
     if signature_url.startswith("data:"):
         # PDF template expects raw base64, not a data URI
@@ -40,6 +42,9 @@ def get_signature_base64(signature_url: str | None) -> str | None:
 def get_logo_base64(logo_url: str | None) -> str | None:
     if not logo_url:
         return None
+    # Ensure it's a string (aiomysql can return bytes for LONGTEXT)
+    if isinstance(logo_url, (bytes, bytearray)):
+        logo_url = logo_url.decode("utf-8", errors="replace")
     # Already a data URI (stored in DB as base64)
     if logo_url.startswith("data:"):
         return logo_url

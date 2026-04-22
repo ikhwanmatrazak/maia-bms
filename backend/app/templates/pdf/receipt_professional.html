@@ -2,7 +2,7 @@
 {% block content %}
 <div class="header">
   <div class="logo">
-    {% if logo_data %}<img src="{{ logo_data }}" alt="Logo">{% endif %}
+    {% if logo_data %}<img src="{{ logo_data | safe }}" alt="Logo">{% endif %}
     {% if not logo_data %}<div class="company-name">{{ company.name if company else 'MAIA' }}</div>{% endif %}
   </div>
   <div class="company-info">
@@ -67,7 +67,7 @@
 <div class="footer">
   {% if signature_data %}
   <div class="signature-block">
-    <img src="data:image/png;base64,{{ signature_data }}" alt="Signature">
+    <img src="data:image/png;base64,{{ signature_data | safe }}" alt="Signature">
     <div class="signature-line">Authorized Signature</div>
   </div>
   {% endif %}
