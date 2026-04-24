@@ -6,7 +6,6 @@ import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Input, Textarea, Select, SelectItem, Chip, Tooltip } from "@heroui/react";
 import { ChevronLeft, ChevronRight, Plus, X, Calendar, MapPin, Link2, Users, Check, XCircle } from "lucide-react";
 import { calendarApi } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -46,7 +45,6 @@ function toLocal(iso: string) {
 
 export default function CalendarPage() {
   const qc = useQueryClient();
-  const { user } = useAuth();
   const today = new Date();
 
   const [viewDate, setViewDate] = useState({ year: today.getFullYear(), month: today.getMonth() + 1 });
@@ -280,27 +278,23 @@ export default function CalendarPage() {
                     </div>
                   )}
 
-                  {/* RSVP buttons (for non-organizer) */}
-                  {selected.organizer_id !== user?.id && (
-                    <div className="flex gap-2 pt-2">
-                      <Button size="sm" color="success" variant="flat" startContent={<Check size={14} />}
-                        onPress={() => rsvpMut.mutate({ id: selected.id, status: "accepted" })}>
-                        Accept
-                      </Button>
-                      <Button size="sm" color="danger" variant="flat" startContent={<XCircle size={14} />}
-                        onPress={() => rsvpMut.mutate({ id: selected.id, status: "declined" })}>
-                        Decline
-                      </Button>
-                    </div>
-                  )}
+                  {/* RSVP buttons */}
+                  <div className="flex gap-2 pt-2">
+                    <Button size="sm" color="success" variant="flat" startContent={<Check size={14} />}
+                      onPress={() => rsvpMut.mutate({ id: selected.id, status: "accepted" })}>
+                      Accept
+                    </Button>
+                    <Button size="sm" color="danger" variant="flat" startContent={<XCircle size={14} />}
+                      onPress={() => rsvpMut.mutate({ id: selected.id, status: "declined" })}>
+                      Decline
+                    </Button>
+                  </div>
                 </div>
               </ModalBody>
               <ModalFooter>
-                {(selected.organizer_id === user?.id || user?.role === "admin") && (
-                  <Button color="danger" variant="light" onPress={() => deleteMut.mutate(selected.id)}>
-                    Delete Event
-                  </Button>
-                )}
+                <Button color="danger" variant="light" onPress={() => deleteMut.mutate(selected.id)}>
+                  Delete Event
+                </Button>
                 <Button variant="light" onPress={onClose}>Close</Button>
                 {selected.meeting_link && (
                   <Button color="primary" as="a" href={selected.meeting_link} target="_blank">
@@ -390,7 +384,7 @@ export default function CalendarPage() {
                       )}
                     </p>
                     <div className="max-h-48 overflow-y-auto space-y-1 border border-divider rounded-lg p-2">
-                      {allUsers.filter(u => u.id !== user?.id).map(u => (
+                      {allUsers.map(u => (
                         <div
                           key={u.id}
                           onClick={() => toggleAttendee(u.id)}
@@ -405,7 +399,7 @@ export default function CalendarPage() {
                           {form.attendee_ids.includes(u.id) && <Check size={16} />}
                         </div>
                       ))}
-                      {allUsers.filter(u => u.id !== user?.id).length === 0 && (
+                      {allUsers.length === 0 && (
                         <p className="text-sm text-default-400 text-center py-4">No other team members</p>
                       )}
                     </div>
