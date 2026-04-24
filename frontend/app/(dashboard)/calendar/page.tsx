@@ -323,32 +323,35 @@ export default function CalendarPage() {
                     onValueChange={v => setForm(f => ({ ...f, title: v }))}
                     isRequired
                   />
-                  <Input
-                    label="Start *"
-                    type="datetime-local"
-                    value={form.start_at}
-                    onValueChange={v => setForm(f => ({ ...f, start_at: v }))}
-                    isRequired
-                  />
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <label className="text-sm text-default-600">End Time</label>
-                      <button
-                        type="button"
-                        onClick={() => { setEndEnabled(e => !e); setForm(f => ({ ...f, end_at: "" })); }}
-                        className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${endEnabled ? "bg-primary text-white border-primary" : "border-divider text-default-400 hover:border-primary hover:text-primary"}`}
-                      >
-                        {endEnabled ? "Remove" : "+ Add end time"}
-                      </button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input
+                      label="Start *"
+                      type="datetime-local"
+                      value={form.start_at}
+                      onValueChange={v => setForm(f => ({ ...f, start_at: v }))}
+                      isRequired
+                    />
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <label className="text-sm text-default-600">End Time</label>
+                        <button
+                          type="button"
+                          onClick={() => { setEndEnabled(e => !e); setForm(f => ({ ...f, end_at: "" })); }}
+                          className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${endEnabled ? "bg-primary text-white border-primary" : "border-divider text-default-400 hover:border-primary hover:text-primary"}`}
+                        >
+                          {endEnabled ? "✕ Remove" : "+ Add"}
+                        </button>
+                      </div>
+                      {endEnabled ? (
+                        <Input
+                          type="datetime-local"
+                          value={form.end_at}
+                          onValueChange={v => setForm(f => ({ ...f, end_at: v }))}
+                        />
+                      ) : (
+                        <p className="text-sm text-default-400 mt-2">Optional</p>
+                      )}
                     </div>
-                    {endEnabled && (
-                      <Input
-                        type="datetime-local"
-                        value={form.end_at}
-                        onValueChange={v => setForm(f => ({ ...f, end_at: v }))}
-                        placeholder="End time"
-                      />
-                    )}
                   </div>
                   <Input
                     label="Location"

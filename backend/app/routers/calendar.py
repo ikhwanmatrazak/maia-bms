@@ -17,7 +17,7 @@ router = APIRouter(prefix="/calendar", tags=["calendar"])
 
 async def _get_smtp(db: AsyncSession, tenant_id):
     r = await db.execute(
-        text("SELECT * FROM company_settings WHERE tenant_id IS NOT DISTINCT FROM :tid LIMIT 1"),
+        text("SELECT * FROM company_settings WHERE (tenant_id = :tid OR (tenant_id IS NULL AND :tid IS NULL)) LIMIT 1"),
         {"tid": tenant_id},
     )
     return r.mappings().first()
@@ -109,7 +109,7 @@ async def list_events(
     tid = current_user.tenant_id
     uid = current_user.id
 
-    where = "WHERE e.tenant_id IS NOT DISTINCT FROM :tid"
+    where = "WHERE (e.tenant_id = :tid OR (e.tenant_id IS NULL AND :tid IS NULL))"
     params: dict = {"tid": tid}
 
     if year and month:
@@ -208,7 +208,7 @@ async def get_event(
     current_user: User = Depends(get_current_user),
 ):
     ev = (await db.execute(
-        text("SELECT * FROM calendar_events WHERE id=:id AND tenant_id IS NOT DISTINCT FROM :tid"),
+        text("SELECT * FROM calendar_events WHERE id=:id AND (tenant_id = :tid OR (tenant_id IS NULL AND :tid IS NULL))"),
         {"id": event_id, "tid": current_user.tenant_id}
     )).mappings().first()
     if not ev:
@@ -244,7 +244,7 @@ async def update_event(
     current_user: User = Depends(get_current_user),
 ):
     ev = (await db.execute(
-        text("SELECT * FROM calendar_events WHERE id=:id AND tenant_id IS NOT DISTINCT FROM :tid"),
+        text("SELECT * FROM calendar_events WHERE id=:id AND (tenant_id = :tid OR (tenant_id IS NULL AND :tid IS NULL))"),
         {"id": event_id, "tid": current_user.tenant_id}
     )).mappings().first()
     if not ev:
@@ -292,7 +292,7 @@ async def delete_event(
     current_user: User = Depends(get_current_user),
 ):
     ev = (await db.execute(
-        text("SELECT organizer_id FROM calendar_events WHERE id=:id AND tenant_id IS NOT DISTINCT FROM :tid"),
+        text("SELECT organizer_id FROM calendar_events WHERE id=:id AND (tenant_id = :tid OR (tenant_id IS NULL AND :tid IS NULL))"),
         {"id": event_id, "tid": current_user.tenant_id}
     )).mappings().first()
     if not ev:
@@ -329,7 +329,7 @@ async def list_users_for_calendar(
 ):
     rows = (await db.execute(text("""
         SELECT id, name AS full_name, email, role FROM users
-        WHERE tenant_id IS NOT DISTINCT FROM :tid AND is_active=1
+        WHERE (tenant_id = :tid OR (tenant_id IS NULL AND :tid IS NULL)) AND is_active=1
         ORDER BY name
     """), {"tid": current_user.tenant_id})).mappings().all()
     return [dict(r) for r in rows]
