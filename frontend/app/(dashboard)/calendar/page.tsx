@@ -54,7 +54,6 @@ export default function CalendarPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createDay, setCreateDay] = useState<number | null>(null);
   const [form, setForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] as number[] });
-  const [endEnabled, setEndEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const { data: events = [] } = useQuery<CalEvent[]>({
@@ -121,7 +120,6 @@ export default function CalendarPage() {
     const h = pad(now.getHours()), mi = pad(now.getMinutes());
     const base = `${y}-${pad(m)}-${pad(d)}T${h}:${mi}`;
     setForm({ title: "", start_at: base, end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] });
-    setEndEnabled(false);
     setCreateOpen(true);
   }
 
@@ -331,27 +329,13 @@ export default function CalendarPage() {
                       onValueChange={v => setForm(f => ({ ...f, start_at: v }))}
                       isRequired
                     />
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <label className="text-sm text-default-600">End Time</label>
-                        <button
-                          type="button"
-                          onClick={() => { setEndEnabled(e => !e); setForm(f => ({ ...f, end_at: "" })); }}
-                          className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${endEnabled ? "bg-primary text-white border-primary" : "border-divider text-default-400 hover:border-primary hover:text-primary"}`}
-                        >
-                          {endEnabled ? "✕ Remove" : "+ Add"}
-                        </button>
-                      </div>
-                      {endEnabled ? (
-                        <Input
-                          type="datetime-local"
-                          value={form.end_at}
-                          onValueChange={v => setForm(f => ({ ...f, end_at: v }))}
-                        />
-                      ) : (
-                        <p className="text-sm text-default-400 mt-2">Optional</p>
-                      )}
-                    </div>
+                    <Input
+                      label="End *"
+                      type="datetime-local"
+                      value={form.end_at}
+                      onValueChange={v => setForm(f => ({ ...f, end_at: v }))}
+                      isRequired
+                    />
                   </div>
                   <Input
                     label="Location"
@@ -432,7 +416,7 @@ export default function CalendarPage() {
               </ModalBody>
               <ModalFooter>
                 <Button variant="light" onPress={onClose}>Cancel</Button>
-                <Button color="primary" isLoading={saving} onPress={handleCreate} isDisabled={!form.title || !form.start_at}>
+                <Button color="primary" isLoading={saving} onPress={handleCreate} isDisabled={!form.title || !form.start_at || !form.end_at}>
                   Create & Send Invitations
                 </Button>
               </ModalFooter>
