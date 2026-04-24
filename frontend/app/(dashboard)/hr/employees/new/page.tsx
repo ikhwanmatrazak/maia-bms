@@ -1,5 +1,6 @@
 "use client";
 
+import { Topbar } from "@/components/ui/Topbar";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -66,6 +67,8 @@ export default function NewEmployeePage() {
   };
 
   return (
+    <div>
+    <Topbar title="New Employee" />
     <div className="p-6 max-w-3xl mx-auto space-y-5">
       <div className="flex items-center gap-3">
         <button onClick={() => router.back()} className="text-gray-400 hover:text-gray-600">
@@ -304,6 +307,7 @@ export default function NewEmployeePage() {
           </button>
         </div>
       </form>
+    </div>
     </div>
   );
 }

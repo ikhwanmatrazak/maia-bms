@@ -1,5 +1,6 @@
 "use client";
 
+import { Topbar } from "@/components/ui/Topbar";
 import { useState, use } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -87,6 +88,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const totalDays = Math.max(1, (maxDate.getTime() - minDate.getTime()) / 86400000);
 
   return (
+    <div>
+    <Topbar title="Project Details" />
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center gap-3 mb-4">
         <Button isIconOnly variant="flat" size="sm" onPress={() => router.push("/projects")}><ArrowLeft size={16} /></Button>
@@ -371,6 +374,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </ModalFooter>
         </ModalContent>
       </Modal>
+    </div>
     </div>
   );
 }

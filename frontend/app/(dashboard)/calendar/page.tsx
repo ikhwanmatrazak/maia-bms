@@ -1,4 +1,5 @@
 "use client";
+import { Topbar } from "@/components/ui/Topbar";
 
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -150,13 +151,11 @@ export default function CalendarPage() {
     d !== null && d === today.getDate() && viewDate.month === today.getMonth() + 1 && viewDate.year === today.getFullYear();
 
   return (
+    <div>
+    <Topbar title="Shared Calendar" />
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Calendar size={22} className="text-primary" />
-          <h1 className="text-2xl font-bold">Shared Calendar</h1>
-        </div>
         <Button color="primary" startContent={<Plus size={16} />} onPress={() => openCreate()}>
           New Event
         </Button>
@@ -438,6 +437,7 @@ export default function CalendarPage() {
           )}
         </ModalContent>
       </Modal>
+    </div>
     </div>
   );
 }

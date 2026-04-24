@@ -1,4 +1,5 @@
 "use client";
+import { Topbar } from "@/components/ui/Topbar";
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -65,7 +66,7 @@ export default function ClaimsPage() {
   const totalApproved = claims.filter((c: any) => c.status === "approved").reduce((s: number, c: any) => s + c.amount, 0);
 
   return (
-    <div className="p-6 space-y-5">
+    <div><Topbar title="Claims" /><div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Claims</h1>
@@ -201,6 +202,7 @@ export default function ClaimsPage() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

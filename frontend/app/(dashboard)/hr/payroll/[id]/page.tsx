@@ -1,5 +1,6 @@
 "use client";
 
+import { Topbar } from "@/components/ui/Topbar";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { hrApi } from "@/lib/api";
@@ -22,6 +23,8 @@ export default function PayrollRunDetailPage() {
   const lines = run.payslip_lines || [];
 
   return (
+    <div>
+    <Topbar title="Payroll Details" />
     <div className="p-6 space-y-5">
       <div className="flex items-center gap-3">
         <button onClick={() => router.back()} className="text-gray-400 hover:text-gray-600"><ChevronLeft size={20} /></button>
@@ -133,6 +136,7 @@ export default function PayrollRunDetailPage() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

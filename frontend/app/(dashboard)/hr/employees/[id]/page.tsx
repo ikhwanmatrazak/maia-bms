@@ -1,5 +1,6 @@
 "use client";
 
+import { Topbar } from "@/components/ui/Topbar";
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -138,6 +139,8 @@ export default function EmployeeDetailPage() {
   ] as const;
 
   return (
+    <div>
+    <Topbar title="Employee Profile" />
     <div className="p-6 max-w-3xl mx-auto space-y-5">
       {/* Header */}
       <div className="flex items-start gap-3">
@@ -394,6 +397,7 @@ export default function EmployeeDetailPage() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

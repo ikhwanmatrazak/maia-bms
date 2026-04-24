@@ -1,4 +1,5 @@
 "use client";
+import { Topbar } from "@/components/ui/Topbar";
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -39,7 +40,7 @@ export default function EmployeesPage() {
   });
 
   return (
-    <div className="p-6 space-y-5">
+    <div><Topbar title="Employees" /><div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
@@ -153,6 +154,7 @@ export default function EmployeesPage() {
           </table>
         )}
       </div>
+    </div>
     </div>
   );
 }

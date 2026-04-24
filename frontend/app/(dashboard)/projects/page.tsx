@@ -1,4 +1,5 @@
 "use client";
+import { Topbar } from "@/components/ui/Topbar";
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -33,6 +34,8 @@ export default function ProjectsPage() {
   const filtered = projects.filter((p: { name: string }) => p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
+    <div>
+    <Topbar title="Projects" />
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -141,6 +144,7 @@ export default function ProjectsPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+    </div>
     </div>
   );
 }

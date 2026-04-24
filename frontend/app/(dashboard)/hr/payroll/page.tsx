@@ -1,4 +1,5 @@
 "use client";
+import { Topbar } from "@/components/ui/Topbar";
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -37,7 +38,7 @@ export default function PayrollPage() {
   const fmt = (v: number) => `MYR ${v.toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
 
   return (
-    <div className="p-6 space-y-5">
+    <div><Topbar title="Payroll" /><div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Payroll</h1>
@@ -128,6 +129,7 @@ export default function PayrollPage() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

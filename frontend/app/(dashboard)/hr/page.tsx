@@ -1,4 +1,5 @@
 "use client";
+import { Topbar } from "@/components/ui/Topbar";
 
 import { useQuery } from "@tanstack/react-query";
 import { hrApi } from "@/lib/api";
@@ -58,6 +59,8 @@ export default function HRDashboard() {
   ];
 
   return (
+    <div>
+    <Topbar title="HR Overview" />
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Human Resources</h1>
@@ -142,6 +145,7 @@ export default function HRDashboard() {
           </p>
         </div>
       </div>
+    </div>
     </div>
   );
 }

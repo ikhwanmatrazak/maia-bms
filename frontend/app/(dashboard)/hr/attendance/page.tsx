@@ -1,4 +1,5 @@
 "use client";
+import { Topbar } from "@/components/ui/Topbar";
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -85,7 +86,7 @@ export default function AttendancePage() {
   const totalHours = records.reduce((sum: number, r: any) => sum + (r.work_hours || 0), 0);
 
   return (
-    <div className="p-6 space-y-5">
+    <div><Topbar title="Attendance" /><div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Attendance</h1>
@@ -208,6 +209,7 @@ export default function AttendancePage() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

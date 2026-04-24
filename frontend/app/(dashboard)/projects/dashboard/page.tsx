@@ -1,4 +1,5 @@
 "use client";
+import { Topbar } from "@/components/ui/Topbar";
 
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -19,6 +20,8 @@ export default function ProjectsDashboardPage() {
   const d = data ?? { projects_total: 0, projects_completed: 0, my_tasks: [], upcoming_meetings: [], crm: {}, sales: {} };
 
   return (
+    <div>
+    <Topbar title="Business Dashboard" />
     <div className="p-6 max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Business Dashboard</h1>
 
@@ -122,6 +125,7 @@ export default function ProjectsDashboardPage() {
       <div className="mt-4 flex gap-3">
         <button onClick={() => router.push("/projects")} className="text-sm text-primary hover:underline">View all projects →</button>
       </div>
+    </div>
     </div>
   );
 }
