@@ -24,6 +24,8 @@ export default function UsersPage() {
   const [editForm, setEditForm] = useState({ name: "", email: "", role: "staff", new_password: "" });
   const [showCreatePw, setShowCreatePw] = useState(false);
   const [showEditPw, setShowEditPw] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -37,8 +39,13 @@ export default function UsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setCreateModal(false);
+      setCreateError(null);
       setShowCreatePw(false);
       setForm({ name: "", email: "", password: "", role: "staff" });
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setCreateError(msg || "Failed to create user. Please try again.");
     },
   });
 
@@ -47,8 +54,13 @@ export default function UsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setEditModal(false);
+      setEditError(null);
       setEditUser(null);
       setShowEditPw(false);
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setEditError(msg || "Failed to update user. Please try again.");
     },
   });
 
@@ -129,47 +141,55 @@ export default function UsersPage() {
         </Table>
 
         {/* Add User Modal */}
-        <Modal isOpen={createModal} onClose={() => setCreateModal(false)}>
+        <Modal isOpen={createModal} onClose={() => { setCreateModal(false); setCreateError(null); }}>
           <ModalContent>
             <ModalHeader>Add User</ModalHeader>
             <ModalBody className="flex flex-col gap-4">
-              <Input variant="bordered" label="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              <Input variant="bordered" label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              <Input variant="bordered" label="Password" type={showCreatePw ? "text" : "password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
+              {createError && (
+                <div className="text-sm text-danger bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">{createError}</div>
+              )}
+              <Input variant="bordered" label="Full Name" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} />
+              <Input variant="bordered" label="Email" type="email" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} />
+              <Input variant="bordered" label="Password" type={showCreatePw ? "text" : "password"} value={form.password} onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))}
                 endContent={<button type="button" onClick={() => setShowCreatePw(p => !p)} className="text-gray-400 hover:text-gray-600">{showCreatePw ? <EyeOff size={16} /> : <Eye size={16} />}</button>} />
-              <Select variant="bordered" label="Role" selectedKeys={[form.role]} onSelectionChange={(k) => setForm({ ...form, role: Array.from(k)[0] as string })}>
+              <Select variant="bordered" label="Role" selectedKeys={[form.role]}
+                onSelectionChange={(k) => { const v = Array.from(k)[0] as string; if (v) setForm(f => ({ ...f, role: v })); }}>
                 {ROLES.map((r) => <SelectItem key={r}>{ROLE_LABELS[r]}</SelectItem>)}
               </Select>
             </ModalBody>
             <ModalFooter>
-              <Button variant="flat" onPress={() => setCreateModal(false)}>Cancel</Button>
+              <Button variant="flat" onPress={() => { setCreateModal(false); setCreateError(null); }}>Cancel</Button>
               <Button color="primary" isLoading={createMutation.isPending}
-                onPress={() => createMutation.mutate(form)}>Create</Button>
+                isDisabled={!form.name || !form.email || !form.password}
+                onPress={() => { setCreateError(null); createMutation.mutate(form); }}>Create</Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
 
         {/* Edit User Modal */}
-        <Modal isOpen={editModal} onClose={() => setEditModal(false)}>
+        <Modal isOpen={editModal} onClose={() => { setEditModal(false); setEditError(null); }}>
           <ModalContent>
             <ModalHeader>Edit User</ModalHeader>
             <ModalBody className="flex flex-col gap-4">
+              {editError && (
+                <div className="text-sm text-danger bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">{editError}</div>
+              )}
               <Input variant="bordered" label="Full Name" value={editForm.name}
-                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+                onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))} />
               <Input variant="bordered" label="Email" type="email" value={editForm.email}
-                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+                onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))} />
               <Select variant="bordered" label="Role" selectedKeys={[editForm.role]}
-                onSelectionChange={(k) => setEditForm({ ...editForm, role: Array.from(k)[0] as string })}>
+                onSelectionChange={(k) => { const v = Array.from(k)[0] as string; if (v) setEditForm(f => ({ ...f, role: v })); }}>
                 {ROLES.map((r) => <SelectItem key={r}>{ROLE_LABELS[r]}</SelectItem>)}
               </Select>
               <Input variant="bordered" label="New Password" type={showEditPw ? "text" : "password"}
                 placeholder="Leave blank to keep current"
                 value={editForm.new_password}
-                onChange={(e) => setEditForm({ ...editForm, new_password: e.target.value })}
+                onChange={(e) => setEditForm(f => ({ ...f, new_password: e.target.value }))}
                 endContent={<button type="button" onClick={() => setShowEditPw(p => !p)} className="text-gray-400 hover:text-gray-600">{showEditPw ? <EyeOff size={16} /> : <Eye size={16} />}</button>} />
             </ModalBody>
             <ModalFooter>
-              <Button variant="flat" onPress={() => setEditModal(false)}>Cancel</Button>
+              <Button variant="flat" onPress={() => { setEditModal(false); setEditError(null); }}>Cancel</Button>
               <Button color="primary" isLoading={updateMutation.isPending} onPress={handleUpdate}>
                 Save Changes
               </Button>
