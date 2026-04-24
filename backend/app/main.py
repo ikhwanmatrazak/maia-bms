@@ -13,7 +13,7 @@ from app.config import get_settings
 from app.database import init_db
 from app.routers import auth, users, clients, quotations, invoices, receipts, payments, expenses, reminders, reports, settings, documents
 from app.routers import purchase_orders, delivery_orders, super_admin, products, analytics, vendors, prospects, credit_notes, tracking
-from app.routers import gateway, bills, hr, user_claims, projects
+from app.routers import gateway, bills, hr, user_claims, projects, calendar
 
 logging.basicConfig(
     level=logging.INFO,
@@ -477,6 +477,44 @@ async def _ensure_project_tables():
     logger.info("Project tables ensured")
 
 
+async def _ensure_calendar_tables():
+    from app.database import engine
+    from sqlalchemy import text
+    stmts = [
+        """CREATE TABLE IF NOT EXISTS calendar_events (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tenant_id INT NULL,
+            organizer_id INT NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            description TEXT NULL,
+            start_at DATETIME NOT NULL,
+            end_at DATETIME NULL,
+            location VARCHAR(255) NULL,
+            meeting_link VARCHAR(500) NULL,
+            color VARCHAR(20) NOT NULL DEFAULT '#006FEE',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX ix_calendar_events_tenant (tenant_id),
+            INDEX ix_calendar_events_start (start_at)
+        )""",
+        """CREATE TABLE IF NOT EXISTS calendar_event_attendees (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            event_id INT NOT NULL,
+            user_id INT NOT NULL,
+            status ENUM('invited','accepted','declined') NOT NULL DEFAULT 'invited',
+            UNIQUE KEY uq_cal_attendee (event_id, user_id),
+            FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE
+        )""",
+    ]
+    async with engine.begin() as conn:
+        for stmt in stmts:
+            try:
+                await conn.execute(text(stmt))
+            except Exception as e:
+                logger.warning(f"_ensure_calendar_tables stmt skipped: {e}")
+    logger.info("Calendar tables ensured")
+
+
 async def _ensure_default_stages(tenant_id):
     """Seed default stages for a new tenant if none exist."""
     from app.database import engine
@@ -529,6 +567,7 @@ async def lifespan(app: FastAPI):
     await _ensure_hr_tables()
     await _ensure_user_claims_table()
     await _ensure_project_tables()
+    await _ensure_calendar_tables()
     await init_db()
     upload_dir = app_settings.upload_dir
     os.makedirs(f"{upload_dir}/payment_proofs", exist_ok=True)
@@ -604,6 +643,7 @@ app.include_router(bills.router, prefix=prefix)
 app.include_router(hr.router, prefix=prefix)
 app.include_router(user_claims.router, prefix=prefix)
 app.include_router(projects.router, prefix=prefix)
+app.include_router(calendar.router, prefix=prefix)
 
 
 @app.get("/health")

@@ -550,3 +550,16 @@ export const projectsApi = {
   updateMeeting: (meetingId: number, notes: string) => api.put(`/projects/meetings/${meetingId}`, toForm({ notes }), formConfig).then((r) => r.data),
   deleteMeeting: (meetingId: number) => api.delete(`/projects/meetings/${meetingId}`),
 };
+
+
+export const calendarApi = {
+  listEvents: (year?: number, month?: number) =>
+    api.get("/calendar/events", { params: year && month ? { year, month } : {} }).then((r) => r.data),
+  getEvent: (id: number) => api.get(`/calendar/events/${id}`).then((r) => r.data),
+  createEvent: (data: Record<string, unknown>) => api.post("/calendar/events", toForm(data), formConfig).then((r) => r.data),
+  updateEvent: (id: number, data: Record<string, unknown>) => api.patch(`/calendar/events/${id}`, toForm(data), formConfig).then((r) => r.data),
+  deleteEvent: (id: number) => api.delete(`/calendar/events/${id}`),
+  rsvp: (id: number, status: "accepted" | "declined") =>
+    api.post(`/calendar/events/${id}/rsvp`, toForm({ status }), formConfig).then((r) => r.data),
+  listUsers: () => api.get("/calendar/users").then((r) => r.data),
+};
