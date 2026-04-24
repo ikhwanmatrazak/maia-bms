@@ -53,6 +53,7 @@ export default function CalendarPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createDay, setCreateDay] = useState<number | null>(null);
   const [form, setForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] as number[] });
+  const [endEnabled, setEndEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const { data: events = [] } = useQuery<CalEvent[]>({
@@ -119,6 +120,7 @@ export default function CalendarPage() {
     const h = pad(now.getHours()), mi = pad(now.getMinutes());
     const base = `${y}-${pad(m)}-${pad(d)}T${h}:${mi}`;
     setForm({ title: "", start_at: base, end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] });
+    setEndEnabled(false);
     setCreateOpen(true);
   }
 
@@ -322,20 +324,32 @@ export default function CalendarPage() {
                     onValueChange={v => setForm(f => ({ ...f, title: v }))}
                     isRequired
                   />
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input
-                      label="Start *"
-                      type="datetime-local"
-                      value={form.start_at}
-                      onValueChange={v => setForm(f => ({ ...f, start_at: v }))}
-                      isRequired
-                    />
-                    <Input
-                      label="End"
-                      type="datetime-local"
-                      value={form.end_at}
-                      onValueChange={v => setForm(f => ({ ...f, end_at: v }))}
-                    />
+                  <Input
+                    label="Start *"
+                    type="datetime-local"
+                    value={form.start_at}
+                    onValueChange={v => setForm(f => ({ ...f, start_at: v }))}
+                    isRequired
+                  />
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <label className="text-sm text-default-600">End Time</label>
+                      <button
+                        type="button"
+                        onClick={() => { setEndEnabled(e => !e); setForm(f => ({ ...f, end_at: "" })); }}
+                        className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${endEnabled ? "bg-primary text-white border-primary" : "border-divider text-default-400 hover:border-primary hover:text-primary"}`}
+                      >
+                        {endEnabled ? "Remove" : "+ Add end time"}
+                      </button>
+                    </div>
+                    {endEnabled && (
+                      <Input
+                        type="datetime-local"
+                        value={form.end_at}
+                        onValueChange={v => setForm(f => ({ ...f, end_at: v }))}
+                        placeholder="End time"
+                      />
+                    )}
                   </div>
                   <Input
                     label="Location"
@@ -400,7 +414,10 @@ export default function CalendarPage() {
                         </div>
                       ))}
                       {allUsers.length === 0 && (
-                        <p className="text-sm text-default-400 text-center py-4">No other team members</p>
+                        <div className="text-center py-4">
+                          <p className="text-sm text-default-400">No team members found.</p>
+                          <a href="/settings/users" className="text-xs text-primary hover:underline">Add users in Settings →</a>
+                        </div>
                       )}
                     </div>
                     {form.attendee_ids.length > 0 && (

@@ -36,7 +36,7 @@ async def _send_invitations(db: AsyncSession, event_id: int, tenant_id, organize
 
     attendees = (await db.execute(
         text("""
-            SELECT u.email, u.full_name
+            SELECT u.email, u.name AS full_name
             FROM calendar_event_attendees a
             JOIN users u ON u.id = a.user_id
             WHERE a.event_id = :eid
@@ -119,7 +119,7 @@ async def list_events(
 
     rows = (await db.execute(text(f"""
         SELECT e.*,
-               u.full_name AS organizer_name,
+               u.name AS organizer_name,
                (SELECT GROUP_CONCAT(user_id) FROM calendar_event_attendees WHERE event_id=e.id) AS attendee_ids,
                (SELECT status FROM calendar_event_attendees WHERE event_id=e.id AND user_id=:uid) AS my_rsvp
         FROM calendar_events e
@@ -194,7 +194,7 @@ async def create_event(
 
     # Send invitations (fire-and-forget — don't fail the request)
     try:
-        await _send_invitations(db, event_id, tid, current_user.full_name or current_user.email)
+        await _send_invitations(db, event_id, tid, current_user.name or current_user.email)
     except Exception as e:
         logger.error(f"Invitation send error: {e}")
 
@@ -215,7 +215,7 @@ async def get_event(
         raise HTTPException(404, "Event not found")
 
     attendees = (await db.execute(text("""
-        SELECT a.user_id, a.status, u.full_name, u.email
+        SELECT a.user_id, a.status, u.name AS full_name, u.email
         FROM calendar_event_attendees a
         JOIN users u ON u.id = a.user_id
         WHERE a.event_id = :eid
@@ -278,7 +278,7 @@ async def update_event(
 
     try:
         await _send_invitations(db, event_id, current_user.tenant_id,
-                                current_user.full_name or current_user.email, is_update=True)
+                                current_user.name or current_user.email, is_update=True)
     except Exception as e:
         logger.error(f"Update invitation error: {e}")
 
@@ -328,8 +328,8 @@ async def list_users_for_calendar(
     current_user: User = Depends(get_current_user),
 ):
     rows = (await db.execute(text("""
-        SELECT id, full_name, email, role FROM users
+        SELECT id, name AS full_name, email, role FROM users
         WHERE tenant_id IS NOT DISTINCT FROM :tid AND is_active=1
-        ORDER BY full_name
+        ORDER BY name
     """), {"tid": current_user.tenant_id})).mappings().all()
     return [dict(r) for r in rows]
