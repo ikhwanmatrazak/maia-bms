@@ -65,28 +65,43 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     setLoading(true);
     setError(null);
-    try {
-      const response = await authApi.login(data.email, data.password);
-      setTokens(response.access_token, response.refresh_token);
-      setUser({
-        id: response.user_id,
-        name: response.name,
-        email: response.email,
-        role: response.role,
-        is_super_admin: response.is_super_admin,
-        tenant_id: response.tenant_id,
-      });
-      router.push(response.role === "staff" ? "/my-profile" : "/dashboard");
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: unknown } } };
-      const detail = e?.response?.data?.detail;
-      if (typeof detail === "string") {
-        setError(detail);
-      } else if (Array.isArray(detail)) {
-        setError((detail as Array<{ msg?: string }>).map((d) => d.msg ?? "").filter(Boolean).join(", ") || "Login failed.");
-      } else {
-        setError("Login failed. Please try again.");
+
+    const attempt = async (retriesLeft: number): Promise<void> => {
+      try {
+        const response = await authApi.login(data.email, data.password);
+        setTokens(response.access_token, response.refresh_token);
+        setUser({
+          id: response.user_id,
+          name: response.name,
+          email: response.email,
+          role: response.role,
+          is_super_admin: response.is_super_admin,
+          tenant_id: response.tenant_id,
+        });
+        router.push(response.role === "staff" ? "/my-profile" : "/dashboard");
+      } catch (err: unknown) {
+        const e = err as { response?: { status?: number; data?: { detail?: unknown } } };
+        const status = e?.response?.status;
+        const detail = e?.response?.data?.detail;
+
+        // Retry on 404 (proxy can't reach backend yet) or network error
+        if ((status === 404 || !status) && retriesLeft > 0) {
+          await new Promise((res) => setTimeout(res, 1200));
+          return attempt(retriesLeft - 1);
+        }
+
+        if (typeof detail === "string" && detail !== "Not Found") {
+          setError(detail);
+        } else if (Array.isArray(detail)) {
+          setError((detail as Array<{ msg?: string }>).map((d) => d.msg ?? "").filter(Boolean).join(", ") || "Login failed.");
+        } else {
+          setError("Unable to connect. Please try again in a moment.");
+        }
       }
+    };
+
+    try {
+      await attempt(2);
     } finally {
       setLoading(false);
     }
