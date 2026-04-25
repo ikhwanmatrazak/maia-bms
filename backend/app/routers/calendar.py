@@ -1,5 +1,4 @@
 import logging
-import uuid
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, Form, HTTPException
@@ -61,12 +60,14 @@ async def _send_invitations(db: AsyncSession, event_id: int, tenant_id, organize
     subject = f"{'Updated: ' if is_update else ''}Meeting Invitation: {ev['title']}"
 
     # Build iCalendar (.ics) content for Outlook one-click add
+    # Use floating time (no Z suffix) — datetimes are stored in local time,
+    # so we preserve them as-is and let each recipient's calendar app use its own timezone.
     def _dt(dt) -> str:
         if dt is None:
             return ""
-        if hasattr(dt, "astimezone"):
-            return dt.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        return datetime.fromisoformat(str(dt)).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        if isinstance(dt, datetime):
+            return dt.strftime("%Y%m%dT%H%M%S")
+        return datetime.fromisoformat(str(dt)).strftime("%Y%m%dT%H%M%S")
 
     dtstart = _dt(ev["start_at"])
     dtend = _dt(ev["end_at"]) if ev.get("end_at") else dtstart

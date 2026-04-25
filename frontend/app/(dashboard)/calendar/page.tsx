@@ -133,13 +133,21 @@ export default function CalendarPage() {
     setViewDate(v => v.month === 12 ? { year: v.year + 1, month: 1 } : { year: v.year, month: v.month + 1 });
   }
 
+  function addOneHour(localDt: string): string {
+    if (!localDt) return "";
+    const d = new Date(localDt);
+    d.setHours(d.getHours() + 1);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   function openCreate(day?: number) {
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
     const y = viewDate.year, m = viewDate.month, d = day ?? now.getDate();
     const h = pad(now.getHours()), mi = pad(now.getMinutes());
     const base = `${y}-${pad(m)}-${pad(d)}T${h}:${mi}`;
-    setForm({ title: "", start_at: base, end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [], related_type: "", related_id: "" });
+    setForm({ title: "", start_at: base, end_at: addOneHour(base), description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [], related_type: "", related_id: "" });
     setAttendeeSearch("");
     setCreateOpen(true);
   }
@@ -404,7 +412,18 @@ export default function CalendarPage() {
                               type="datetime-local"
                               required
                               value={form[key]}
-                              onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                              onChange={e => {
+                                const val = e.target.value;
+                                if (key === "start_at") {
+                                  setForm(f => ({
+                                    ...f,
+                                    start_at: val,
+                                    end_at: f.end_at === addOneHour(f.start_at) || !f.end_at ? addOneHour(val) : f.end_at,
+                                  }));
+                                } else {
+                                  setForm(f => ({ ...f, [key]: val }));
+                                }
+                              }}
                               className="w-full px-3 py-2 text-sm border border-default-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 bg-default-100 hover:bg-default-200 transition-colors"
                             />
                           </div>
