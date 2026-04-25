@@ -39,8 +39,13 @@ export default function ClientsPage() {
     mutationFn: (id: number) => clientsApi.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["clients"] }),
     onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setDeleteError(msg || "Delete failed.");
+      const detail = (err as { response?: { data?: { detail?: string }; status?: number } })?.response?.data?.detail;
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (!detail || detail === "Not Found" || status === 404) {
+        setDeleteError("Server error — please try again.");
+      } else {
+        setDeleteError(detail);
+      }
     },
   });
 
