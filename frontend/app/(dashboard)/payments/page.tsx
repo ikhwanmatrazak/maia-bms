@@ -12,6 +12,7 @@ import { paymentsApi, invoicesApi } from "@/lib/api";
 import { Payment, Invoice } from "@/types";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 const PAGE_SIZE = 10;
 const thisMonth = new Date().toISOString().slice(0, 7);
@@ -123,6 +124,13 @@ export default function PaymentsPage() {
     uploadProofMutation.mutate({ id: viewPayment.id, file });
     e.target.value = "";
   };
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Payments" />
+      <div className="p-6"><TableSkeleton rows={6} cols={4} /></div>
+    </div>
+  );
 
   return (
     <div>

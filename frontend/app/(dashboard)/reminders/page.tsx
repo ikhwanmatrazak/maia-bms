@@ -11,6 +11,7 @@ import { remindersApi } from "@/lib/api";
 import { Reminder } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 const PAGE_SIZE = 10;
 
@@ -31,7 +32,7 @@ export default function RemindersPage() {
   const [form, setForm] = useState({ title: "", description: "", due_date: "", priority: "medium" });
   const queryClient = useQueryClient();
 
-  const { data: reminders = [] } = useQuery<Reminder[]>({
+  const { data: reminders = [], isLoading } = useQuery<Reminder[]>({
     queryKey: ["reminders", filter],
     queryFn: () => remindersApi.list(filter ? { filter } : {}),
   });
@@ -58,6 +59,13 @@ export default function RemindersPage() {
       due_date: new Date(form.due_date).toISOString(),
     });
   };
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Reminders" />
+      <div className="p-6"><TableSkeleton rows={6} cols={4} /></div>
+    </div>
+  );
 
   return (
     <div>

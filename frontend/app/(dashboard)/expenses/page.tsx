@@ -12,6 +12,7 @@ import { expensesApi } from "@/lib/api";
 import { Expense, ExpenseCategory } from "@/types";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 const CURRENCIES = ["MYR", "USD", "EUR", "GBP", "SGD"];
 const PAGE_SIZE = 10;
@@ -70,6 +71,13 @@ export default function ExpensesPage() {
       expense_date: new Date(form.expense_date).toISOString(),
     });
   };
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Expenses" />
+      <div className="p-6"><TableSkeleton rows={6} cols={4} /></div>
+    </div>
+  );
 
   return (
     <div>

@@ -1,5 +1,6 @@
 "use client";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -38,6 +39,13 @@ export default function EmployeesPage() {
     queryKey: ["hr-departments"],
     queryFn: hrApi.listDepartments,
   });
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Employees" />
+      <div className="p-6"><TableSkeleton rows={6} cols={5} /></div>
+    </div>
+  );
 
   return (
     <div><Topbar title="Employees" /><div className="p-6 space-y-5">
@@ -91,9 +99,7 @@ export default function EmployeesPage() {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-16 text-gray-400 text-sm">Loading...</div>
-        ) : employees.length === 0 ? (
+        {employees.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Users size={40} className="mb-3 opacity-30" />
             <p className="text-sm">No employees found</p>

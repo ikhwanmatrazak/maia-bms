@@ -12,6 +12,7 @@ import { productsApi, clientsApi } from "@/lib/api";
 import { Product, ProductPricing, ProductSubscription, Client, BillingCycle, SubscriptionStatus } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { DetailSkeleton } from "@/components/ui/PageSkeleton";
 import { Plus, Edit, Trash2, RefreshCw } from "lucide-react";
 
 const CYCLE_LABEL: Record<string, string> = {
@@ -225,7 +226,12 @@ export default function ProductDetailPage() {
   const daysUntil = (dateStr: string) =>
     Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
 
-  if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
+  if (isLoading) return (
+    <div>
+      <Topbar title="Product" />
+      <div className="p-6"><DetailSkeleton /></div>
+    </div>
+  );
   if (!product) return <div className="p-6">Product not found</div>;
 
   const activeSubs = subscriptions.filter((s) => s.status === "active");

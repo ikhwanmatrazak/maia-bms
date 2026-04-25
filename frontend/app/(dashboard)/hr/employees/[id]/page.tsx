@@ -1,6 +1,7 @@
 "use client";
 
 import { Topbar } from "@/components/ui/Topbar";
+import { DetailSkeleton } from "@/components/ui/PageSkeleton";
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -128,9 +129,12 @@ export default function EmployeeDetailPage() {
     updateMutation.mutate(data);
   };
 
-  if (isLoading || !emp || !form) {
-    return <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>;
-  }
+  if (isLoading || !emp || !form) return (
+    <div>
+      <Topbar title="Employee" />
+      <div className="p-6"><DetailSkeleton /></div>
+    </div>
+  );
 
   const TABS = [
     { key: "info", label: "Information" },

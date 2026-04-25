@@ -10,6 +10,7 @@ import {
 } from "@heroui/react";
 import { api } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 type TemplateItem = { description: string; quantity: number; unit_price: number; sub_items?: string[] };
 type DocTemplate = {
@@ -137,6 +138,13 @@ export default function TemplatesPage() {
     type, items: templates.filter((t) => t.type === type),
   }));
 
+  if (isLoading) return (
+    <div>
+      <Topbar title="Document Templates" />
+      <div className="p-6"><TableSkeleton rows={6} cols={3} /></div>
+    </div>
+  );
+
   return (
     <div>
       <Topbar title="Document Templates" />
@@ -148,9 +156,7 @@ export default function TemplatesPage() {
           <Button color="primary" size="sm" onPress={openCreate}>+ New Template</Button>
         </div>
 
-        {isLoading ? (
-          <p className="text-default-400 text-sm">Loading...</p>
-        ) : (
+        {(
           <div className="space-y-6">
             {grouped.map(({ type, items }) => (
               <Card key={type} shadow="sm">

@@ -13,6 +13,7 @@ import { deliveryOrdersApi, downloadPdf } from "@/lib/api";
 import { DeliveryOrder, DeliveryOrderStatus } from "@/types";
 import { formatDate, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 const STATUSES: DeliveryOrderStatus[] = ["draft", "sent", "delivered", "cancelled"];
 const PAGE_SIZE = 20;
@@ -56,6 +57,13 @@ export default function DeliveryOrdersPage() {
     mutationFn: (id: number) => deliveryOrdersApi.softDelete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["delivery-orders"] }),
   });
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Delivery Orders" />
+      <div className="p-6"><TableSkeleton rows={6} cols={5} /></div>
+    </div>
+  );
 
   return (
     <div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { hrApi } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
 
 export default function DepartmentsPage() {
@@ -33,6 +34,13 @@ export default function DepartmentsPage() {
     },
   });
 
+  if (isLoading) return (
+    <div>
+      <Topbar title="Departments" />
+      <div className="p-6"><TableSkeleton rows={6} cols={3} /></div>
+    </div>
+  );
+
   return (
     <div>
       <Topbar title="Departments" />
@@ -47,9 +55,7 @@ export default function DepartmentsPage() {
           </button>
         </div>
 
-        {isLoading ? (
-          <div className="text-center py-10 text-gray-400">Loading...</div>
-        ) : departments.length === 0 ? (
+        {departments.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
             <Building2 size={40} className="mx-auto mb-3 opacity-30" />
             <p>No departments yet. Create your first one.</p>

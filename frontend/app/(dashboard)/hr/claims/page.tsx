@@ -1,5 +1,6 @@
 "use client";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -65,6 +66,13 @@ export default function ClaimsPage() {
   const fmt = (v: number) => `MYR ${v.toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
   const totalApproved = claims.filter((c: any) => c.status === "approved").reduce((s: number, c: any) => s + c.amount, 0);
 
+  if (isLoading) return (
+    <div>
+      <Topbar title="Claims" />
+      <div className="p-6"><TableSkeleton rows={6} cols={4} /></div>
+    </div>
+  );
+
   return (
     <div><Topbar title="Claims" /><div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -88,9 +96,7 @@ export default function ClaimsPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        {isLoading ? (
-          <div className="py-10 text-center text-sm text-gray-400">Loading...</div>
-        ) : claims.length === 0 ? (
+        {claims.length === 0 ? (
           <div className="py-10 text-center text-sm text-gray-400">No claims found</div>
         ) : (
           <table className="w-full text-sm">

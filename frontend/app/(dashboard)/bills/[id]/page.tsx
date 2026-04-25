@@ -11,6 +11,7 @@ import { ArrowLeft, Save, Upload, Sparkles, CheckCircle, FileText, Paperclip, X 
 import { billsApi } from "@/lib/api";
 import { Bill } from "@/types";
 import { Topbar } from "@/components/ui/Topbar";
+import { DetailSkeleton } from "@/components/ui/PageSkeleton";
 import { formatDate, formatCurrency } from "@/lib/utils";
 
 const CURRENCIES = ["MYR", "USD", "EUR", "GBP", "SGD"];
@@ -157,16 +158,12 @@ export default function BillDetailPage() {
     });
   };
 
-  if (isLoading || !form) {
-    return (
-      <div>
-        <Topbar title="Bill Details" />
-        <div className="flex justify-center items-center h-64">
-          <Spinner size="lg" />
-        </div>
-      </div>
-    );
-  }
+  if (isLoading || !form) return (
+    <div>
+      <Topbar title="Bill Details" />
+      <div className="p-6"><DetailSkeleton /></div>
+    </div>
+  );
 
   return (
     <div>

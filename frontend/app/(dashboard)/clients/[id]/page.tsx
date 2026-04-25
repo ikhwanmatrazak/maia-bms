@@ -12,6 +12,7 @@ import { Pencil, Upload, Trash2, FileText, Download, Plus, Star, Phone, Mail, Us
 import { clientsApi, invoicesApi, quotationsApi, productsApi } from "@/lib/api";
 import { formatDate, formatCurrency, statusColor, formatRelative } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { DetailSkeleton } from "@/components/ui/PageSkeleton";
 import { Activity, Invoice, Quotation, Reminder, ProductSubscription } from "@/types";
 import Link from "next/link";
 
@@ -226,7 +227,12 @@ export default function ClientDetailPage() {
     setContactModal(true);
   };
 
-  if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
+  if (isLoading) return (
+    <div>
+      <Topbar title="Client" />
+      <div className="p-6"><DetailSkeleton /></div>
+    </div>
+  );
   if (!client) return <div className="p-6">Client not found</div>;
 
   const totalBilled = invoices.reduce((sum, inv) => sum + parseFloat(inv.total), 0);

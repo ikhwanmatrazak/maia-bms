@@ -1,5 +1,6 @@
 "use client";
 import { Topbar } from "@/components/ui/Topbar";
+import { CardGridSkeleton } from "@/components/ui/PageSkeleton";
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -31,6 +32,13 @@ export default function ProjectsPage() {
     onSuccess: (data) => { qc.invalidateQueries({ queryKey: ["projects"] }); onClose(); router.push(`/projects/${data.id}`); },
   });
 
+  if (isLoading) return (
+    <div>
+      <Topbar title="Projects" />
+      <div className="p-6"><CardGridSkeleton cards={6} /></div>
+    </div>
+  );
+
   const filtered = projects.filter((p: { name: string }) => p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -60,9 +68,7 @@ export default function ProjectsPage() {
         </Select>
       </div>
 
-      {isLoading ? (
-        <div className="text-center py-20 text-default-400">Loading projects...</div>
-      ) : filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="text-center py-20">
           <FolderOpen size={48} className="mx-auto text-default-300 mb-4" />
           <p className="text-default-500">No projects found</p>

@@ -14,6 +14,7 @@ import { invoicesApi, downloadPdf } from "@/lib/api";
 import { Invoice, InvoiceStatus } from "@/types";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 const STATUSES: InvoiceStatus[] = ["draft", "sent", "partial", "paid", "overdue", "cancelled"];
 const PAGE_SIZE = 10;
@@ -117,6 +118,13 @@ export default function InvoicesPage() {
     setSelectedIds(new Set());
     queryClient.invalidateQueries({ queryKey: ["invoices"] });
   };
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Invoices" />
+      <div className="p-6"><TableSkeleton rows={6} cols={5} /></div>
+    </div>
+  );
 
   return (
     <div>

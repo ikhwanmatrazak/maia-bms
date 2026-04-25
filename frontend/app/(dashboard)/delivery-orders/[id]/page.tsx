@@ -7,6 +7,7 @@ import { FileDown, Copy, Send, Truck, Trash2 } from "lucide-react";
 import { deliveryOrdersApi, downloadPdf } from "@/lib/api";
 import { formatDate, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { DetailSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function DeliveryOrderDetailPage() {
   const params = useParams();
@@ -34,7 +35,12 @@ export default function DeliveryOrderDetailPage() {
     onSuccess: () => router.push("/delivery-orders"),
   });
 
-  if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
+  if (isLoading) return (
+    <div>
+      <Topbar title="Delivery Order" />
+      <div className="p-6"><DetailSkeleton /></div>
+    </div>
+  );
   if (!order) return <div className="p-6">Delivery order not found</div>;
 
   return (

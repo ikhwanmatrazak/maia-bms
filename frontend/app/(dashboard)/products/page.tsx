@@ -12,6 +12,7 @@ import { productsApi } from "@/lib/api";
 import { Product, ProductSubscription } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 const CYCLE_LABEL: Record<string, string> = {
   one_time: "One-time",
@@ -77,6 +78,13 @@ export default function ProductsPage() {
     createMutation.mutate({ ...form, unit_price: Number(form.unit_price) || 0 });
   };
 
+  if (isLoading) return (
+    <div>
+      <Topbar title="Products & Services" />
+      <div className="p-6"><TableSkeleton rows={6} cols={4} /></div>
+    </div>
+  );
+
   return (
     <div>
       <Topbar title="Products & Services" />
@@ -115,9 +123,7 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          {isLoading ? (
-            <p className="text-sm text-gray-400 py-8 text-center">Loading...</p>
-          ) : products.length === 0 ? (
+          {products.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <p className="text-sm">No products yet.</p>
               <p className="text-xs mt-1">Add products and services to track subscriptions and renewals.</p>

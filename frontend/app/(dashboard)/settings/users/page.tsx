@@ -11,6 +11,7 @@ import { usersApi } from "@/lib/api";
 import { User } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 const ROLES = ["admin", "manager", "staff"];
 const ROLE_LABELS: Record<string, string> = { admin: "Admin", manager: "Manager", staff: "Sales" };
@@ -29,7 +30,7 @@ export default function UsersPage() {
 
   const queryClient = useQueryClient();
 
-  const { data: users = [] } = useQuery<User[]>({
+  const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ["users"],
     queryFn: usersApi.list,
   });
@@ -90,6 +91,13 @@ export default function UsersPage() {
     if (Object.keys(payload).length === 0) { setEditModal(false); return; }
     updateMutation.mutate({ id: editUser.id, data: payload });
   };
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Users" />
+      <div className="p-6"><TableSkeleton rows={6} cols={4} /></div>
+    </div>
+  );
 
   return (
     <div>

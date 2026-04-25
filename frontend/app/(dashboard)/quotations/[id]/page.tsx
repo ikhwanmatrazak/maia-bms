@@ -7,6 +7,7 @@ import { Card, CardBody, CardHeader, Button, Chip, Modal, ModalContent, ModalHea
 import { quotationsApi, settingsApi, downloadPdf } from "@/lib/api";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { DetailSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function QuotationDetailPage() {
   const params = useParams();
@@ -52,7 +53,12 @@ export default function QuotationDetailPage() {
     setEmailModal(true);
   };
 
-  if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
+  if (isLoading) return (
+    <div>
+      <Topbar title="Quotation" />
+      <div className="p-6"><DetailSkeleton /></div>
+    </div>
+  );
   if (!q) return <div className="p-6">Quotation not found</div>;
 
   return (

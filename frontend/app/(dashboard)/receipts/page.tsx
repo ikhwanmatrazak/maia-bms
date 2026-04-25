@@ -12,6 +12,7 @@ import { receiptsApi, downloadPdf } from "@/lib/api";
 import { Receipt } from "@/types";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 const PAGE_SIZE = 10;
 const thisMonth = new Date().toISOString().slice(0, 7);
@@ -105,6 +106,13 @@ export default function ReceiptsPage() {
     setSelectedIds(new Set());
     queryClient.invalidateQueries({ queryKey: ["receipts"] });
   };
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Receipts" />
+      <div className="p-6"><TableSkeleton rows={6} cols={4} /></div>
+    </div>
+  );
 
   return (
     <div>

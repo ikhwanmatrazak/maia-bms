@@ -13,6 +13,7 @@ import { purchaseOrdersApi, downloadPdf } from "@/lib/api";
 import { PurchaseOrder, PurchaseOrderStatus } from "@/types";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 const STATUSES: PurchaseOrderStatus[] = ["draft", "sent", "received", "cancelled"];
 const PAGE_SIZE = 20;
@@ -56,6 +57,13 @@ export default function PurchaseOrdersPage() {
     mutationFn: (id: number) => purchaseOrdersApi.softDelete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["purchase-orders"] }),
   });
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Purchase Orders" />
+      <div className="p-6"><TableSkeleton rows={6} cols={5} /></div>
+    </div>
+  );
 
   return (
     <div>

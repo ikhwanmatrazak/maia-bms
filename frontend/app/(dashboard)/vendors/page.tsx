@@ -11,6 +11,7 @@ import {
 import { Edit2, Trash2, Plus } from "lucide-react";
 import { vendorsApi } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 interface Vendor {
   id: number;
@@ -125,6 +126,13 @@ export default function VendorsPage() {
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
+  if (isLoading) return (
+    <div>
+      <Topbar title="Vendors" />
+      <div className="p-6"><TableSkeleton rows={6} cols={4} /></div>
+    </div>
+  );
+
   return (
     <div>
       <Topbar title="Vendors" />
@@ -146,10 +154,7 @@ export default function VendorsPage() {
 
         <Card>
           <CardBody>
-            {isLoading ? (
-              <p className="text-gray-400 text-sm">Loading...</p>
-            ) : (
-              <div className="overflow-x-auto -mx-1">
+            <div className="overflow-x-auto -mx-1">
                 <Table aria-label="Vendors">
                   <TableHeader>
                     <TableColumn>Name</TableColumn>
@@ -197,7 +202,6 @@ export default function VendorsPage() {
                   </TableBody>
                 </Table>
               </div>
-            )}
           </CardBody>
         </Card>
       </div>

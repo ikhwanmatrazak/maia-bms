@@ -10,6 +10,7 @@ import {
 import { Plus, Edit2, Trash2, CheckCircle, XCircle, FileDown } from "lucide-react";
 import { creditNotesApi, clientsApi, invoicesApi, downloadPdf } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 const STATUSES = ["draft", "issued", "applied", "cancelled"] as const;
@@ -171,6 +172,13 @@ export default function CreditNotesPage() {
     .reduce((sum, cn) => sum + parseFloat(cn.available_balance || 0), 0);
   const countDraft = creditNotes.filter((cn) => cn.status === "draft").length;
   const countIssued = creditNotes.filter((cn) => cn.status === "issued").length;
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Credit Notes" />
+      <div className="p-6"><TableSkeleton rows={6} cols={4} /></div>
+    </div>
+  );
 
   return (
     <div>

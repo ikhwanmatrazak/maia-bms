@@ -14,6 +14,7 @@ import { quotationsApi, downloadPdf } from "@/lib/api";
 import { Quotation, QuotationStatus } from "@/types";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 const STATUSES: QuotationStatus[] = ["draft", "sent", "accepted", "rejected", "expired"];
 const PAGE_SIZE = 10;
@@ -111,6 +112,13 @@ export default function QuotationsPage() {
     setSelectedIds(new Set());
     queryClient.invalidateQueries({ queryKey: ["quotations"] });
   };
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Quotations" />
+      <div className="p-6"><TableSkeleton rows={6} cols={5} /></div>
+    </div>
+  );
 
   return (
     <div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { Topbar } from "@/components/ui/Topbar";
+import { DetailSkeleton } from "@/components/ui/PageSkeleton";
 import { useState, use } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -74,7 +75,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["project-milestones", projectId] }); milestoneModal.onClose(); },
   });
 
-  if (isLoading) return <div className="p-6 text-center text-default-400">Loading project...</div>;
+  if (isLoading) return (
+    <div>
+      <Topbar title="Project" />
+      <div className="p-6"><DetailSkeleton /></div>
+    </div>
+  );
   if (!project) return <div className="p-6 text-center text-danger">Project not found.</div>;
 
   // Kanban columns

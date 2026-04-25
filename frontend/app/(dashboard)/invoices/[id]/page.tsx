@@ -11,6 +11,7 @@ import { invoicesApi, paymentsApi, settingsApi, downloadPdf } from "@/lib/api";
 import { Mail as MailIcon, Eye as EyeIcon, Link as LinkIcon, Copy as CopyIcon, CheckCheck } from "lucide-react";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { DetailSkeleton } from "@/components/ui/PageSkeleton";
 import { Payment } from "@/types";
 
 const PAYMENT_METHODS = ["cash", "bank_transfer", "cheque", "online", "other"];
@@ -127,7 +128,12 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
+  if (isLoading) return (
+    <div>
+      <Topbar title="Invoice" />
+      <div className="p-6"><DetailSkeleton /></div>
+    </div>
+  );
   if (!inv) return <div className="p-6">Invoice not found</div>;
 
   const analyzeProof = async (file: File) => {

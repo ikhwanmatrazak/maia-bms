@@ -1,5 +1,6 @@
 "use client";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -72,6 +73,13 @@ export default function LeavePage() {
     { key: "types", label: "Leave Types" },
   ] as const;
 
+  if (isLoading) return (
+    <div>
+      <Topbar title="Leave Management" />
+      <div className="p-6"><TableSkeleton rows={6} cols={5} /></div>
+    </div>
+  );
+
   return (
     <div><Topbar title="Leave Management" /><div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -112,9 +120,7 @@ export default function LeavePage() {
             </select>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-            {isLoading ? (
-              <div className="py-10 text-center text-sm text-gray-400">Loading...</div>
-            ) : applications.length === 0 ? (
+            {applications.length === 0 ? (
               <div className="py-10 text-center text-sm text-gray-400">No leave applications found</div>
             ) : (
               <table className="w-full text-sm">

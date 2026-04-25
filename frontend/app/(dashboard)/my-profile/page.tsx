@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { hrApi, userClaimsApi } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
+import { FormSkeleton } from "@/components/ui/PageSkeleton";
 import {
   User, Briefcase, Calendar, FileText, Plus, ChevronRight,
   Phone, Mail, MapPin, AlertCircle,
@@ -89,14 +90,12 @@ export default function MyProfilePage() {
     });
   };
 
-  if (isLoading) {
-    return (
-      <div>
-        <Topbar title="My Profile" />
-        <div className="flex items-center justify-center h-64 text-gray-400">Loading profile...</div>
-      </div>
-    );
-  }
+  if (isLoading) return (
+    <div>
+      <Topbar title="My Profile" />
+      <div className="p-6"><FormSkeleton fields={8} /></div>
+    </div>
+  );
 
   if (error || !emp) {
     return (

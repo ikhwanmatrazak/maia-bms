@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardBody, Button, Input, Textarea, Chip } from "@heroui/react";
 import { settingsApi } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 import { CheckCircle } from "lucide-react";
 
 interface EmailTemplate {
@@ -71,6 +72,13 @@ export default function EmailTemplatesPage() {
 
   const insertVariable = (v: string) => setBody((prev) => prev + v);
 
+  if (isLoading) return (
+    <div>
+      <Topbar title="Email Templates" />
+      <div className="p-6"><TableSkeleton rows={6} cols={3} /></div>
+    </div>
+  );
+
   return (
     <div>
       <Topbar title="Email Templates" />
@@ -100,9 +108,7 @@ export default function EmailTemplatesPage() {
 
           {/* Editor */}
           <div className="flex-1 min-w-0">
-            {isLoading ? (
-              <div className="text-gray-400 text-sm py-8 text-center">Loading...</div>
-            ) : (
+            {(
               <Card shadow="sm">
                 <CardBody className="flex flex-col gap-5 p-6">
                   {/* Header */}

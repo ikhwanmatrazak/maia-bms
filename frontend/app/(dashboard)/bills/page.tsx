@@ -18,6 +18,7 @@ function fileUrl(url: string) {
 }
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 const STATUS_TABS: { key: BillStatus | "all"; label: string }[] = [
   { key: "all", label: "All" },
@@ -70,6 +71,13 @@ export default function BillsPage() {
   const totalPending = bills
     .filter((b) => b.status !== "paid")
     .reduce((s, b) => s + (b.amount ?? 0), 0);
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Bills (Payable)" />
+      <div className="p-6"><TableSkeleton rows={6} cols={4} /></div>
+    </div>
+  );
 
   return (
     <div>

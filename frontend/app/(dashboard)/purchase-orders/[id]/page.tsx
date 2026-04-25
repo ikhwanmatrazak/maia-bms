@@ -7,6 +7,7 @@ import { FileDown, Copy, Send, PackageCheck, Trash2 } from "lucide-react";
 import { purchaseOrdersApi, downloadPdf } from "@/lib/api";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { DetailSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function PurchaseOrderDetailPage() {
   const params = useParams();
@@ -34,7 +35,12 @@ export default function PurchaseOrderDetailPage() {
     onSuccess: () => router.push("/purchase-orders"),
   });
 
-  if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
+  if (isLoading) return (
+    <div>
+      <Topbar title="Purchase Order" />
+      <div className="p-6"><DetailSkeleton /></div>
+    </div>
+  );
   if (!po) return <div className="p-6">Purchase order not found</div>;
 
   return (

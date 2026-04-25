@@ -9,13 +9,14 @@ import {
 import { settingsApi } from "@/lib/api";
 import { TaxRate } from "@/types";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 export default function TaxRatesPage() {
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ name: "", rate: "", is_default: false });
   const queryClient = useQueryClient();
 
-  const { data: taxRates = [] } = useQuery<TaxRate[]>({
+  const { data: taxRates = [], isLoading } = useQuery<TaxRate[]>({
     queryKey: ["tax-rates"],
     queryFn: settingsApi.getTaxRates,
   });
@@ -33,6 +34,13 @@ export default function TaxRatesPage() {
     mutationFn: ({ id, data }: { id: number; data: object }) => settingsApi.updateTaxRate(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tax-rates"] }),
   });
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Tax Rates" />
+      <div className="p-6"><TableSkeleton rows={6} cols={3} /></div>
+    </div>
+  );
 
   return (
     <div>

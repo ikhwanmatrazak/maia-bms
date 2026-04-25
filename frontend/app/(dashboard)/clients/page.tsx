@@ -12,6 +12,7 @@ import { clientsApi } from "@/lib/api";
 import { Client } from "@/types";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 const PAGE_SIZE = 20;
 
@@ -37,6 +38,13 @@ export default function ClientsPage() {
     mutationFn: (id: number) => clientsApi.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["clients"] }),
   });
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="Clients" />
+      <div className="p-6"><TableSkeleton rows={6} cols={5} /></div>
+    </div>
+  );
 
   return (
     <div>

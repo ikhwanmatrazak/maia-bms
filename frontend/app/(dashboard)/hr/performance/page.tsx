@@ -1,5 +1,6 @@
 "use client";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -89,6 +90,13 @@ export default function PerformancePage() {
     else createMutation.mutate(data);
   };
 
+  if (isLoading) return (
+    <div>
+      <Topbar title="Performance" />
+      <div className="p-6"><TableSkeleton rows={6} cols={4} /></div>
+    </div>
+  );
+
   return (
     <div><Topbar title="Performance" /><div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -109,9 +117,7 @@ export default function PerformancePage() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        {isLoading ? (
-          <div className="py-10 text-center text-sm text-gray-400">Loading...</div>
-        ) : reviews.length === 0 ? (
+        {reviews.length === 0 ? (
           <div className="py-10 text-center text-sm text-gray-400">No performance reviews yet</div>
         ) : (
           <table className="w-full text-sm">

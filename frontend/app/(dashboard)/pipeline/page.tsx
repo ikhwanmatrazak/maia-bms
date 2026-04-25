@@ -9,6 +9,7 @@ import {
 import { Plus, UserCheck, Trash2, Edit2 } from "lucide-react";
 import { prospectsApi } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
+import { TableSkeleton } from "@/components/ui/PageSkeleton";
 import { formatCurrency } from "@/lib/utils";
 
 const STAGES = [
@@ -64,7 +65,7 @@ export default function PipelinePage() {
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
 
-  const { data: prospects = [] } = useQuery<Prospect[]>({
+  const { data: prospects = [], isLoading } = useQuery<Prospect[]>({
     queryKey: ["prospects"],
     queryFn: () => prospectsApi.list(),
   });
@@ -145,6 +146,13 @@ export default function PipelinePage() {
     const matchStage = stageFilter === "all" || p.stage === stageFilter;
     return matchSearch && matchStage;
   });
+
+  if (isLoading) return (
+    <div>
+      <Topbar title="CRM Pipeline" />
+      <div className="p-6"><TableSkeleton rows={6} cols={4} /></div>
+    </div>
+  );
 
   return (
     <div>
