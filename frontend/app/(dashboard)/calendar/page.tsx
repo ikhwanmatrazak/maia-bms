@@ -56,6 +56,9 @@ export default function CalendarPage() {
   const [form, setForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] as number[], related_type: "" as "" | "project" | "client", related_id: "" });
   const [saving, setSaving] = useState(false);
   const [attendeeSearch, setAttendeeSearch] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] as number[], related_type: "" as "" | "project" | "client", related_id: "" });
+  const [editAttendeeSearch, setEditAttendeeSearch] = useState("");
 
   const { data: events = [] } = useQuery<CalEvent[]>({
     queryKey: ["calendar", viewDate.year, viewDate.month],
@@ -90,6 +93,14 @@ export default function CalendarPage() {
   const rsvpMut = useMutation({
     mutationFn: ({ id, status }: { id: number; status: "accepted" | "declined" }) => calendarApi.rsvp(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["calendar-event", selected?.id] }),
+  });
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) => calendarApi.updateEvent(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["calendar"] });
+      qc.invalidateQueries({ queryKey: ["calendar-event", selected?.id] });
+      setEditOpen(false);
+    },
   });
 
   // Build calendar grid
@@ -144,6 +155,46 @@ export default function CalendarPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function openEdit() {
+    if (!selected) return;
+    setEditForm({
+      title: selected.title,
+      start_at: selected.start_at ? toLocal(selected.start_at) : "",
+      end_at: selected.end_at ? toLocal(selected.end_at) : "",
+      description: selected.description ?? "",
+      location: selected.location ?? "",
+      meeting_link: selected.meeting_link ?? "",
+      color: selected.color ?? "#006FEE",
+      attendee_ids: [...(selected.attendee_ids ?? [])],
+      related_type: "",
+      related_id: "",
+    });
+    setEditAttendeeSearch("");
+    setEditOpen(true);
+  }
+
+  async function handleEdit() {
+    if (!selected || !editForm.title || !editForm.start_at) return;
+    setSaving(true);
+    try {
+      await updateMut.mutateAsync({
+        id: selected.id,
+        data: { ...editForm, attendee_ids: editForm.attendee_ids.join(",") },
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleEditAttendee(id: number) {
+    setEditForm(f => ({
+      ...f,
+      attendee_ids: f.attendee_ids.includes(id)
+        ? f.attendee_ids.filter(x => x !== id)
+        : [...f.attendee_ids, id],
+    }));
   }
 
   function toggleAttendee(id: number) {
@@ -302,9 +353,12 @@ export default function CalendarPage() {
               </ModalBody>
               <ModalFooter>
                 <Button color="danger" variant="light" onPress={() => deleteMut.mutate(selected.id)}>
-                  Delete Event
+                  Delete
                 </Button>
                 <Button variant="light" onPress={onClose}>Close</Button>
+                <Button color="default" variant="flat" onPress={() => { onClose(); openEdit(); }}>
+                  Edit Event
+                </Button>
                 {selected.meeting_link && (
                   <Button color="primary" as="a" href={selected.meeting_link} target="_blank">
                     Join Meeting
@@ -496,6 +550,181 @@ export default function CalendarPage() {
                   <Button variant="light" onPress={onClose}>Cancel</Button>
                   <Button color="primary" isLoading={saving} onPress={handleCreate} isDisabled={!form.title || !form.start_at || !form.end_at}>
                     Create & Send Invitations
+                  </Button>
+                </ModalFooter>
+              </>
+            );
+          }}
+        </ModalContent>
+      </Modal>
+
+      {/* ── Edit Event Modal ─────────────────────────────── */}
+      <Modal isOpen={editOpen} onOpenChange={open => { setEditOpen(open); if (!open) setEditAttendeeSearch(""); }} size="4xl" scrollBehavior="outside">
+        <ModalContent>
+          {(onClose) => {
+            const filteredUsers = allUsers.filter(u =>
+              u.full_name?.toLowerCase().includes(editAttendeeSearch.toLowerCase()) ||
+              u.email?.toLowerCase().includes(editAttendeeSearch.toLowerCase())
+            );
+            const relatedItems = editForm.related_type === "project" ? allProjects : editForm.related_type === "client" ? allClients : [];
+
+            return (
+              <>
+                <ModalHeader>Edit Event</ModalHeader>
+                <ModalBody>
+                  <div className="grid grid-cols-2 gap-6">
+                    {/* ── Left column ── */}
+                    <div className="space-y-3">
+                      <Input
+                        label="Title"
+                        placeholder="e.g. Weekly Stand-up"
+                        value={editForm.title}
+                        onValueChange={v => setEditForm(f => ({ ...f, title: v }))}
+                        isRequired
+                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        {(["start_at", "end_at"] as const).map(key => (
+                          <div key={key} className="flex flex-col gap-1">
+                            <label className="text-xs text-default-500 px-1">
+                              {key === "start_at" ? "Start" : "End"}
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={editForm[key]}
+                              onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                              className="w-full px-3 py-2 text-sm border border-default-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 bg-default-100 hover:bg-default-200 transition-colors"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <Input
+                        label="Location"
+                        placeholder="e.g. Conference Room A"
+                        startContent={<MapPin size={14} className="text-default-400 shrink-0" />}
+                        value={editForm.location}
+                        onValueChange={v => setEditForm(f => ({ ...f, location: v }))}
+                      />
+                      <Textarea
+                        label="Description / Agenda"
+                        placeholder="What's the meeting about?"
+                        value={editForm.description}
+                        onValueChange={v => setEditForm(f => ({ ...f, description: v }))}
+                        minRows={3}
+                      />
+                      {/* Color */}
+                      <div>
+                        <p className="text-xs font-semibold text-default-500 uppercase tracking-wide mb-2">Color</p>
+                        <div className="flex gap-2">
+                          {EVENT_COLORS.map(c => (
+                            <button
+                              key={c.value}
+                              title={c.label}
+                              onClick={() => setEditForm(f => ({ ...f, color: c.value }))}
+                              className={`w-7 h-7 rounded-full border-2 transition-all ${editForm.color === c.value ? "border-foreground scale-110" : "border-transparent"}`}
+                              style={{ backgroundColor: c.value }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Right column ── */}
+                    <div className="space-y-3 flex flex-col">
+                      {/* Related to */}
+                      <div>
+                        <p className="text-xs font-semibold text-default-500 uppercase tracking-wide mb-1.5">Related To</p>
+                        <div className="flex gap-2 mb-2">
+                          {(["", "project", "client"] as const).map(t => (
+                            <button
+                              key={t}
+                              onClick={() => setEditForm(f => ({ ...f, related_type: t, related_id: "" }))}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                                editForm.related_type === t
+                                  ? "bg-primary text-white border-primary"
+                                  : "border-default-200 text-default-600 hover:bg-default-100"
+                              }`}
+                            >
+                              {t === "" && "None"}
+                              {t === "project" && <><Briefcase size={12} />Project</>}
+                              {t === "client" && <><User2 size={12} />Client</>}
+                            </button>
+                          ))}
+                        </div>
+                        {editForm.related_type !== "" && (
+                          relatedItems.length > 0 ? (
+                            <select
+                              className="w-full px-3 py-2 text-sm border border-default-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                              value={editForm.related_id}
+                              onChange={e => setEditForm(f => ({ ...f, related_id: e.target.value }))}
+                            >
+                              <option value="">Select {editForm.related_type}…</option>
+                              {relatedItems.map((item: any) => (
+                                <option key={item.id} value={item.id}>{item.name ?? item.company_name}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <div className="text-xs text-default-400 bg-default-50 rounded-lg px-3 py-2">
+                              No {editForm.related_type}s yet.
+                            </div>
+                          )
+                        )}
+                      </div>
+
+                      {/* Meeting URL */}
+                      <Input
+                        label="Meeting URL"
+                        placeholder="https://meet.google.com/..."
+                        startContent={<Link2 size={14} className="text-default-400 shrink-0" />}
+                        value={editForm.meeting_link}
+                        onValueChange={v => setEditForm(f => ({ ...f, meeting_link: v }))}
+                      />
+
+                      {/* Attendees */}
+                      <div className="flex flex-col flex-1 min-h-0">
+                        <p className="text-xs font-semibold text-default-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                          <Users size={12} /> Team Members
+                          {editForm.attendee_ids.length > 0 && (
+                            <Chip size="sm" color="primary" variant="flat" className="ml-1">{editForm.attendee_ids.length}</Chip>
+                          )}
+                        </p>
+                        <div className="relative mb-1.5">
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-default-400" />
+                          <input
+                            type="text"
+                            placeholder="Search by name or email…"
+                            value={editAttendeeSearch}
+                            onChange={e => setEditAttendeeSearch(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 text-sm border border-default-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                          />
+                        </div>
+                        <div className="overflow-y-auto space-y-0.5" style={{ maxHeight: 200 }}>
+                          {filteredUsers.length === 0 && (
+                            <p className="text-sm text-default-400 text-center py-4">No match found</p>
+                          )}
+                          {filteredUsers.map(u => (
+                            <div
+                              key={u.id}
+                              onClick={() => toggleEditAttendee(u.id)}
+                              className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors select-none ${
+                                editForm.attendee_ids.includes(u.id) ? "bg-primary/10 text-primary" : "hover:bg-default-100"
+                              }`}
+                            >
+                              <div>
+                                <p className="text-sm font-medium leading-tight">{u.full_name}</p>
+                                <p className="text-xs text-default-400">{u.email}</p>
+                              </div>
+                              {editForm.attendee_ids.includes(u.id) && <Check size={15} className="shrink-0" />}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </ModalBody>
+                <ModalFooter>
+                  <Button variant="light" onPress={onClose}>Cancel</Button>
+                  <Button color="primary" isLoading={saving} onPress={handleEdit} isDisabled={!editForm.title || !editForm.start_at}>
+                    Save & Send Updates
                   </Button>
                 </ModalFooter>
               </>
