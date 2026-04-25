@@ -186,6 +186,7 @@ export default function SettingsPage() {
                 <Input variant="bordered" labelPlacement="outside" label="SST No." {...f(company, "sst_no", setCompany)} />
                 <Input variant="bordered" labelPlacement="outside" label="TIN No." {...f(company, "tin_no", setCompany)} />
                 </>)}
+              </div>
               {!isLoading && <Textarea variant="bordered" labelPlacement="outside" label="Address" {...f(company, "address", setCompany)} />}
               <div className="flex items-center gap-3">
                 <Button color="primary" isLoading={updateMutation.isPending} isDisabled={isLoading} onPress={() => { setSaveError(null); updateMutation.mutate(company); }}>Save Company Info</Button>
@@ -265,6 +266,7 @@ export default function SettingsPage() {
                 <Input variant="bordered" labelPlacement="outside" label="From Email" type="email" {...f(smtp, "smtp_from_email", setSmtp)} />
                 <Input variant="bordered" labelPlacement="outside" label="From Name" {...f(smtp, "smtp_from_name", setSmtp)} />
                 </>)}
+              </div>
               <div className="flex gap-3 items-center flex-wrap">
                 <Button color="primary" isLoading={updateMutation.isPending} onPress={() => {
                   setSaveError(null);
