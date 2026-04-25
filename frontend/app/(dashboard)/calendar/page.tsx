@@ -341,20 +341,20 @@ export default function CalendarPage() {
                         isRequired
                       />
                       <div className="grid grid-cols-2 gap-3">
-                        <Input
-                          label="Start"
-                          type="datetime-local"
-                          value={form.start_at}
-                          onValueChange={v => setForm(f => ({ ...f, start_at: v }))}
-                          isRequired
-                        />
-                        <Input
-                          label="End"
-                          type="datetime-local"
-                          value={form.end_at}
-                          onValueChange={v => setForm(f => ({ ...f, end_at: v }))}
-                          isRequired
-                        />
+                        {(["start_at", "end_at"] as const).map(key => (
+                          <div key={key} className="flex flex-col gap-1">
+                            <label className="text-xs text-default-500 px-1">
+                              {key === "start_at" ? "Start" : "End"} <span className="text-danger">*</span>
+                            </label>
+                            <input
+                              type="datetime-local"
+                              required
+                              value={form[key]}
+                              onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                              className="w-full px-3 py-2 text-sm border border-default-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 bg-default-100 hover:bg-default-200 transition-colors"
+                            />
+                          </div>
+                        ))}
                       </div>
                       <Input
                         label="Location"
