@@ -11,6 +11,8 @@ from datetime import datetime as dt
 from app.database import get_db
 from app.models.client import Client, ClientStatus
 from app.models.invoice import Invoice, InvoiceStatus
+from app.models.quotation import Quotation
+from app.models.receipt import Receipt
 from app.models.activity import Activity, ActivityType
 from app.models.reminder import Reminder
 from app.models.user import User, UserRole
@@ -147,6 +149,17 @@ async def delete_client(
     eff_tenant = get_effective_tenant_id(current_user)
     if eff_tenant is not None and client.tenant_id != eff_tenant:
         raise HTTPException(status_code=403, detail="Access denied")
+
+    # Block delete if client has linked documents
+    inv_count = (await db.execute(select(func.count()).select_from(Invoice).where(Invoice.client_id == client_id))).scalar()
+    qt_count = (await db.execute(select(func.count()).select_from(Quotation).where(Quotation.client_id == client_id))).scalar()
+    rc_count = (await db.execute(select(func.count()).select_from(Receipt).where(Receipt.client_id == client_id))).scalar()
+    if (inv_count or 0) + (qt_count or 0) + (rc_count or 0) > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete client with existing records ({inv_count} invoice(s), {qt_count} quotation(s), {rc_count} receipt(s)). Archive the client instead."
+        )
+
     await db.delete(client)
     await db.commit()
 

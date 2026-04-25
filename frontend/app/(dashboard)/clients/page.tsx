@@ -34,9 +34,14 @@ export default function ClientsPage() {
     }),
   });
 
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const deleteMutation = useMutation({
     mutationFn: (id: number) => clientsApi.delete(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["clients"] }),
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setDeleteError(msg || "Delete failed.");
+    },
   });
 
   if (isLoading) return (
@@ -82,8 +87,14 @@ export default function ClientsPage() {
           </Button>
         </div>
 
+        {deleteError && (
+          <div className="mb-3 px-4 py-2 bg-danger-50 text-danger text-sm rounded-lg border border-danger-100 flex justify-between items-center">
+            <span>{deleteError}</span>
+            <button onClick={() => setDeleteError(null)} className="ml-4 text-danger-400 hover:text-danger font-bold">✕</button>
+          </div>
+        )}
         <div className="overflow-x-auto -mx-1">
-        <Table aria-label="Clients" isLoading={isLoading}>
+        <Table aria-label="Clients">
           <TableHeader>
             <TableColumn>Company</TableColumn>
             <TableColumn>Contact</TableColumn>
