@@ -97,7 +97,7 @@ export default function SettingsPage() {
   const smtpTestMutation = useMutation({
     mutationFn: (email: string) => settingsApi.testSmtp(email),
     onSuccess: () => setSmtpTestResult("Test email sent successfully!"),
-    onError: () => setSmtpTestResult("Failed to send test email. Check SMTP settings."),
+    onError: (err: any) => setSmtpTestResult(err?.response?.data?.detail ?? "Failed to send test email. Check SMTP settings."),
   });
 
   const f = (obj: Record<string, string>, key: string, setter: (v: Record<string, string>) => void) => ({

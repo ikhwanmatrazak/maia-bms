@@ -373,7 +373,10 @@ async def test_smtp(
     if settings.smtp_pass_encrypted:
         smtp_password = _decrypt(settings.smtp_pass_encrypted)
 
-    await send_test_email(settings, smtp_password, body.to_email)
+    try:
+        await send_test_email(settings, smtp_password, body.to_email)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"SMTP error: {e}")
     return {"message": f"Test email sent to {body.to_email}"}
 
 
