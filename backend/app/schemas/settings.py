@@ -37,19 +37,19 @@ class CompanySettingsUpdate(BaseModel):
 
 class CompanySettingsResponse(BaseModel):
     id: int
-    name: str
-    logo_url: Optional[str]
+    name: Optional[str] = None
+    logo_url: Optional[str] = None
     address: Optional[str]
     phone: Optional[str]
     email: Optional[str]
     website: Optional[str]
-    default_currency: str
-    default_payment_terms: int
-    invoice_prefix: str
-    quotation_prefix: str
-    receipt_prefix: str
-    po_prefix: str = "PO"
-    do_prefix: str = "DO"
+    default_currency: Optional[str] = None
+    default_payment_terms: Optional[int] = None
+    invoice_prefix: Optional[str] = None
+    quotation_prefix: Optional[str] = None
+    receipt_prefix: Optional[str] = None
+    po_prefix: Optional[str] = "PO"
+    do_prefix: Optional[str] = "DO"
     smtp_host: Optional[str]
     smtp_port: Optional[int]
     smtp_user: Optional[str]
@@ -64,8 +64,8 @@ class CompanySettingsResponse(BaseModel):
     bank_account_no: Optional[str]
     bank_account_name: Optional[str]
     signature_image_url: Optional[str]
-    primary_color: str
-    accent_color: str
+    primary_color: Optional[str] = None
+    accent_color: Optional[str] = None
     updated_at: datetime
 
     model_config = {"from_attributes": True}
