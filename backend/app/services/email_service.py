@@ -39,8 +39,10 @@ async def send_email(
     html_body: str,
     pdf_bytes: Optional[bytes] = None,
     pdf_filename: Optional[str] = None,
+    ics_content: Optional[str] = None,
+    ics_filename: Optional[str] = "invite.ics",
 ):
-    msg = MIMEMultipart("alternative")
+    msg = MIMEMultipart("mixed")
     msg["Subject"] = subject
     msg["From"] = f"{settings.smtp_from_name or settings.smtp_from_email} <{settings.smtp_from_email}>"
     msg["To"] = to_email
@@ -53,6 +55,11 @@ async def send_email(
         encoders.encode_base64(part)
         part.add_header("Content-Disposition", f'attachment; filename="{pdf_filename}"')
         msg.attach(part)
+
+    if ics_content:
+        ics_part = MIMEText(ics_content, "calendar; method=REQUEST", "utf-8")
+        ics_part.add_header("Content-Disposition", f'attachment; filename="{ics_filename}"')
+        msg.attach(ics_part)
 
     try:
         port = int(settings.smtp_port or 587)

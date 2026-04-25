@@ -1,5 +1,6 @@
 import logging
-from datetime import datetime
+import uuid
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, Form, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,6 +60,50 @@ async def _send_invitations(db: AsyncSession, event_id: int, tenant_id, organize
     end_fmt = ev["end_at"].strftime("%I:%M %p") if ev["end_at"] else ""
     subject = f"{'Updated: ' if is_update else ''}Meeting Invitation: {ev['title']}"
 
+    # Build iCalendar (.ics) content for Outlook one-click add
+    def _dt(dt) -> str:
+        if dt is None:
+            return ""
+        if hasattr(dt, "astimezone"):
+            return dt.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        return datetime.fromisoformat(str(dt)).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    dtstart = _dt(ev["start_at"])
+    dtend = _dt(ev["end_at"]) if ev.get("end_at") else dtstart
+    dtstamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    uid_val = f"{event_id}-{dtstamp}@maia-bms"
+    organizer_email = company.get("smtp_from_email", "noreply@maia-bms.com")
+    method = "REQUEST"
+    sequence = "1" if is_update else "0"
+
+    attendee_lines = "\n".join(
+        f"ATTENDEE;CN={a['full_name'] or a['email']};RSVP=TRUE:mailto:{a['email']}"
+        for a in attendees
+    )
+    desc_line = (ev.get("description") or "").replace("\n", "\\n")
+    loc_line = (ev.get("location") or "")
+
+    ics = (
+        "BEGIN:VCALENDAR\r\n"
+        "VERSION:2.0\r\n"
+        "PRODID:-//MAIA BMS//Calendar//EN\r\n"
+        f"METHOD:{method}\r\n"
+        "BEGIN:VEVENT\r\n"
+        f"UID:{uid_val}\r\n"
+        f"SEQUENCE:{sequence}\r\n"
+        f"DTSTAMP:{dtstamp}\r\n"
+        f"DTSTART:{dtstart}\r\n"
+        f"DTEND:{dtend}\r\n"
+        f"SUMMARY:{ev['title']}\r\n"
+        f"DESCRIPTION:{desc_line}\r\n"
+        f"LOCATION:{loc_line}\r\n"
+        f"ORGANIZER;CN={organizer_name}:mailto:{organizer_email}\r\n"
+        f"{attendee_lines}\r\n"
+        "STATUS:CONFIRMED\r\n"
+        "END:VEVENT\r\n"
+        "END:VCALENDAR\r\n"
+    )
+
     meeting_link_html = ""
     if ev.get("meeting_link"):
         meeting_link_html = f'<p><a href="{ev["meeting_link"]}" style="background:#006FEE;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:8px">Join Meeting</a></p>'
@@ -92,7 +137,8 @@ async def _send_invitations(db: AsyncSession, event_id: int, tenant_id, organize
         </body></html>
         """
         try:
-            await send_email(company, smtp_password, att["email"], subject, html)
+            await send_email(company, smtp_password, att["email"], subject, html,
+                             ics_content=ics, ics_filename="invite.ics")
         except Exception as e:
             logger.error(f"Calendar invite email failed for {att['email']}: {e}")
 
