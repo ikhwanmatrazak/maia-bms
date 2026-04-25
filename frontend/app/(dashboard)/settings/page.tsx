@@ -13,7 +13,7 @@ export default function SettingsPage() {
   const [smtpTestEmail, setSmtpTestEmail] = useState("");
   const [smtpTestResult, setSmtpTestResult] = useState<string | null>(null);
 
-  const { data: settings, isLoading } = useQuery<CompanySettings>({
+  const { data: settings, isLoading, isFetching } = useQuery<CompanySettings>({
     queryKey: ["settings", "company"],
     queryFn: settingsApi.getCompany,
     staleTime: 5 * 60 * 1000,   // cache for 5 min — no refetch on every visit
@@ -172,7 +172,7 @@ export default function SettingsPage() {
           <CardBody>
             <div className="flex flex-col gap-6">
               <div className="grid grid-cols-2 gap-6">
-                {isLoading ? Array.from({ length: 12 }).map((_, i) => <SkeletonField key={i} />) : (<>
+                {(isLoading || !company.name) ? Array.from({ length: 12 }).map((_, i) => <SkeletonField key={i} />) : (<>
                 <Input variant="bordered" labelPlacement="outside" label="Company Name" {...f(company, "name", setCompany)} />
                 <Input variant="bordered" labelPlacement="outside" label="Email" type="email" {...f(company, "email", setCompany)} />
                 <Input variant="bordered" labelPlacement="outside" label="Phone" {...f(company, "phone", setCompany)} />
@@ -187,9 +187,9 @@ export default function SettingsPage() {
                 <Input variant="bordered" labelPlacement="outside" label="TIN No." {...f(company, "tin_no", setCompany)} />
                 </>)}
               </div>
-              {!isLoading && <Textarea variant="bordered" labelPlacement="outside" label="Address" {...f(company, "address", setCompany)} />}
+              {(!isLoading && company.name) && <Textarea variant="bordered" labelPlacement="outside" label="Address" {...f(company, "address", setCompany)} />}
               <div className="flex items-center gap-3">
-                <Button color="primary" isLoading={updateMutation.isPending} isDisabled={isLoading} onPress={() => { setSaveError(null); updateMutation.mutate(company); }}>Save Company Info</Button>
+                <Button color="primary" isLoading={updateMutation.isPending} isDisabled={isLoading || !company.name} onPress={() => { setSaveError(null); updateMutation.mutate(company); }}>Save Company Info</Button>
                 {saveOk && <span className="text-success text-sm">Saved successfully!</span>}
                 {saveError && <span className="text-danger text-sm">{saveError}</span>}
               </div>
@@ -229,7 +229,7 @@ export default function SettingsPage() {
           <CardHeader><h3 className="font-semibold">Payment Settings</h3></CardHeader>
           <CardBody>
             <div className="flex flex-col gap-6">
-              {isLoading ? (
+              {(isLoading || !payment.bank_name && !payment.payment_terms_text && isFetching) ? (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {Array.from({ length: 4 }).map((_, i) => <SkeletonField key={i} />)}
                 </div>
@@ -258,7 +258,7 @@ export default function SettingsPage() {
           <CardBody>
             <div className="flex flex-col gap-6">
               <div className="grid grid-cols-2 gap-6">
-                {isLoading ? Array.from({ length: 6 }).map((_, i) => <SkeletonField key={i} />) : (<>
+                {(isLoading || !smtp.smtp_host && isFetching) ? Array.from({ length: 6 }).map((_, i) => <SkeletonField key={i} />) : (<>
                 <Input variant="bordered" labelPlacement="outside" label="SMTP Host" {...f(smtp, "smtp_host", setSmtp)} />
                 <Input variant="bordered" labelPlacement="outside" label="SMTP Port" type="number" {...f(smtp, "smtp_port", setSmtp)} />
                 <Input variant="bordered" labelPlacement="outside" label="SMTP User" {...f(smtp, "smtp_user", setSmtp)} />
