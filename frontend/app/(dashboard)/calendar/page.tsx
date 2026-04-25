@@ -4,9 +4,9 @@ import { Topbar } from "@/components/ui/Topbar";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
-  Input, Textarea, Select, SelectItem, Chip, Tooltip } from "@heroui/react";
-import { ChevronLeft, ChevronRight, Plus, X, Calendar, MapPin, Link2, Users, Check, XCircle } from "lucide-react";
-import { calendarApi } from "@/lib/api";
+  Input, Textarea, Chip, Tooltip } from "@heroui/react";
+import { ChevronLeft, ChevronRight, Plus, Calendar, MapPin, Link2, Users, Check, XCircle, Search, Briefcase, User2 } from "lucide-react";
+import { calendarApi, clientsApi, projectsApi } from "@/lib/api";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -53,8 +53,9 @@ export default function CalendarPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createDay, setCreateDay] = useState<number | null>(null);
-  const [form, setForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] as number[] });
+  const [form, setForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] as number[], related_type: "" as "" | "project" | "client", related_id: "" });
   const [saving, setSaving] = useState(false);
+  const [attendeeSearch, setAttendeeSearch] = useState("");
 
   const { data: events = [] } = useQuery<CalEvent[]>({
     queryKey: ["calendar", viewDate.year, viewDate.month],
@@ -63,6 +64,14 @@ export default function CalendarPage() {
   const { data: allUsers = [] } = useQuery<{ id: number; full_name: string; email: string }[]>({
     queryKey: ["calendar-users"],
     queryFn: () => calendarApi.listUsers(),
+  });
+  const { data: allClients = [] } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["clients-list"],
+    queryFn: () => clientsApi.list(),
+  });
+  const { data: allProjects = [] } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["projects-list"],
+    queryFn: () => projectsApi.list(),
   });
   const { data: detail } = useQuery<{ attendees: Attendee[] } & CalEvent>({
     queryKey: ["calendar-event", selected?.id],
@@ -119,7 +128,8 @@ export default function CalendarPage() {
     const y = viewDate.year, m = viewDate.month, d = day ?? now.getDate();
     const h = pad(now.getHours()), mi = pad(now.getMinutes());
     const base = `${y}-${pad(m)}-${pad(d)}T${h}:${mi}`;
-    setForm({ title: "", start_at: base, end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] });
+    setForm({ title: "", start_at: base, end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [], related_type: "", related_id: "" });
+    setAttendeeSearch("");
     setCreateOpen(true);
   }
 
@@ -307,121 +317,190 @@ export default function CalendarPage() {
       </Modal>
 
       {/* ── Create Event Modal ─────────────────────────────── */}
-      <Modal isOpen={createOpen} onOpenChange={setCreateOpen} size="2xl" scrollBehavior="inside">
+      <Modal isOpen={createOpen} onOpenChange={open => { setCreateOpen(open); if (!open) setAttendeeSearch(""); }} size="4xl" scrollBehavior="outside">
         <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader>New Event</ModalHeader>
-              <ModalBody>
-                <div className="space-y-4">
-                  <Input
-                    label="Title *"
-                    placeholder="e.g. Weekly Stand-up"
-                    value={form.title}
-                    onValueChange={v => setForm(f => ({ ...f, title: v }))}
-                    isRequired
-                  />
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input
-                      label="Start *"
-                      type="datetime-local"
-                      value={form.start_at}
-                      onValueChange={v => setForm(f => ({ ...f, start_at: v }))}
-                      isRequired
-                    />
-                    <Input
-                      label="End *"
-                      type="datetime-local"
-                      value={form.end_at}
-                      onValueChange={v => setForm(f => ({ ...f, end_at: v }))}
-                      isRequired
-                    />
-                  </div>
-                  <Input
-                    label="Location"
-                    placeholder="e.g. Conference Room A"
-                    startContent={<MapPin size={14} className="text-default-400" />}
-                    value={form.location}
-                    onValueChange={v => setForm(f => ({ ...f, location: v }))}
-                  />
-                  <Input
-                    label="Meeting Link"
-                    placeholder="https://meet.google.com/..."
-                    startContent={<Link2 size={14} className="text-default-400" />}
-                    value={form.meeting_link}
-                    onValueChange={v => setForm(f => ({ ...f, meeting_link: v }))}
-                  />
-                  <Textarea
-                    label="Description / Agenda"
-                    placeholder="What's the meeting about?"
-                    value={form.description}
-                    onValueChange={v => setForm(f => ({ ...f, description: v }))}
-                    minRows={2}
-                  />
+          {(onClose) => {
+            const filteredUsers = allUsers.filter(u =>
+              u.full_name?.toLowerCase().includes(attendeeSearch.toLowerCase()) ||
+              u.email?.toLowerCase().includes(attendeeSearch.toLowerCase())
+            );
+            const relatedItems = form.related_type === "project" ? allProjects : form.related_type === "client" ? allClients : [];
 
-                  {/* Color picker */}
-                  <div>
-                    <p className="text-sm font-medium mb-2">Color</p>
-                    <div className="flex gap-2 flex-wrap">
-                      {EVENT_COLORS.map(c => (
-                        <button
-                          key={c.value}
-                          title={c.label}
-                          onClick={() => setForm(f => ({ ...f, color: c.value }))}
-                          className={`w-7 h-7 rounded-full border-2 transition-all ${form.color === c.value ? "border-foreground scale-110" : "border-transparent"}`}
-                          style={{ backgroundColor: c.value }}
+            return (
+              <>
+                <ModalHeader>New Event</ModalHeader>
+                <ModalBody>
+                  <div className="grid grid-cols-2 gap-6">
+                    {/* ── Left column ── */}
+                    <div className="space-y-3">
+                      <Input
+                        label="Title"
+                        placeholder="e.g. Weekly Stand-up"
+                        value={form.title}
+                        onValueChange={v => setForm(f => ({ ...f, title: v }))}
+                        isRequired
+                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <Input
+                          label="Start"
+                          type="datetime-local"
+                          value={form.start_at}
+                          onValueChange={v => setForm(f => ({ ...f, start_at: v }))}
+                          isRequired
                         />
-                      ))}
+                        <Input
+                          label="End"
+                          type="datetime-local"
+                          value={form.end_at}
+                          onValueChange={v => setForm(f => ({ ...f, end_at: v }))}
+                          isRequired
+                        />
+                      </div>
+                      <Input
+                        label="Location"
+                        placeholder="e.g. Conference Room A"
+                        startContent={<MapPin size={14} className="text-default-400 shrink-0" />}
+                        value={form.location}
+                        onValueChange={v => setForm(f => ({ ...f, location: v }))}
+                      />
+                      <Textarea
+                        label="Description / Agenda"
+                        placeholder="What's the meeting about?"
+                        value={form.description}
+                        onValueChange={v => setForm(f => ({ ...f, description: v }))}
+                        minRows={3}
+                      />
+                      {/* Color */}
+                      <div>
+                        <p className="text-xs font-semibold text-default-500 uppercase tracking-wide mb-2">Color</p>
+                        <div className="flex gap-2">
+                          {EVENT_COLORS.map(c => (
+                            <button
+                              key={c.value}
+                              title={c.label}
+                              onClick={() => setForm(f => ({ ...f, color: c.value }))}
+                              className={`w-7 h-7 rounded-full border-2 transition-all ${form.color === c.value ? "border-foreground scale-110" : "border-transparent"}`}
+                              style={{ backgroundColor: c.value }}
+                            />
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Attendees */}
-                  <div>
-                    <p className="text-sm font-medium mb-2 flex items-center gap-1">
-                      <Users size={14} /> Invite Team Members
-                      {form.attendee_ids.length > 0 && (
-                        <Chip size="sm" color="primary" variant="flat">{form.attendee_ids.length} selected</Chip>
-                      )}
-                    </p>
-                    <div className="max-h-48 overflow-y-auto space-y-1 border border-divider rounded-lg p-2">
-                      {allUsers.map(u => (
-                        <div
-                          key={u.id}
-                          onClick={() => toggleAttendee(u.id)}
-                          className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                            form.attendee_ids.includes(u.id) ? "bg-primary/10 text-primary" : "hover:bg-default-100"
-                          }`}
-                        >
-                          <div>
-                            <p className="text-sm font-medium">{u.full_name}</p>
-                            <p className="text-xs text-default-400">{u.email}</p>
-                          </div>
-                          {form.attendee_ids.includes(u.id) && <Check size={16} />}
+                    {/* ── Right column ── */}
+                    <div className="space-y-3 flex flex-col">
+                      {/* Related to project/client */}
+                      <div>
+                        <p className="text-xs font-semibold text-default-500 uppercase tracking-wide mb-1.5">Related To</p>
+                        <div className="flex gap-2 mb-2">
+                          {(["", "project", "client"] as const).map(t => (
+                            <button
+                              key={t}
+                              onClick={() => setForm(f => ({ ...f, related_type: t, related_id: "" }))}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                                form.related_type === t
+                                  ? "bg-primary text-white border-primary"
+                                  : "border-default-200 text-default-600 hover:bg-default-100"
+                              }`}
+                            >
+                              {t === "" && "None"}
+                              {t === "project" && <><Briefcase size={12} />Project</>}
+                              {t === "client" && <><User2 size={12} />Client</>}
+                            </button>
+                          ))}
                         </div>
-                      ))}
-                      {allUsers.length === 0 && (
-                        <div className="text-center py-4">
-                          <p className="text-sm text-default-400">No team members found.</p>
-                          <a href="/settings/users" className="text-xs text-primary hover:underline">Add users in Settings →</a>
+                        {form.related_type !== "" && (
+                          relatedItems.length > 0 ? (
+                            <select
+                              className="w-full px-3 py-2 text-sm border border-default-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                              value={form.related_id}
+                              onChange={e => setForm(f => ({ ...f, related_id: e.target.value }))}
+                            >
+                              <option value="">Select {form.related_type}…</option>
+                              {relatedItems.map((item: any) => (
+                                <option key={item.id} value={item.id}>{item.name}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <div className="text-xs text-default-400 bg-default-50 rounded-lg px-3 py-2">
+                              No {form.related_type}s yet.{" "}
+                              <a href={form.related_type === "project" ? "/projects" : "/clients/new"} className="text-primary hover:underline">
+                                Create one →
+                              </a>
+                            </div>
+                          )
+                        )}
+                      </div>
+
+                      {/* Meeting URL */}
+                      <Input
+                        label="Meeting URL"
+                        placeholder="https://meet.google.com/..."
+                        startContent={<Link2 size={14} className="text-default-400 shrink-0" />}
+                        value={form.meeting_link}
+                        onValueChange={v => setForm(f => ({ ...f, meeting_link: v }))}
+                      />
+
+                      {/* Invite Team Members */}
+                      <div className="flex flex-col flex-1 min-h-0">
+                        <p className="text-xs font-semibold text-default-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                          <Users size={12} /> Invite Team Members
+                          {form.attendee_ids.length > 0 && (
+                            <Chip size="sm" color="primary" variant="flat" className="ml-1">{form.attendee_ids.length}</Chip>
+                          )}
+                        </p>
+                        {/* Search */}
+                        <div className="relative mb-1.5">
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-default-400" />
+                          <input
+                            type="text"
+                            placeholder="Search by name or email…"
+                            value={attendeeSearch}
+                            onChange={e => setAttendeeSearch(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 text-sm border border-default-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                          />
                         </div>
-                      )}
+                        {/* List */}
+                        <div className="overflow-y-auto space-y-0.5" style={{ maxHeight: 200 }}>
+                          {filteredUsers.length === 0 && (
+                            <p className="text-sm text-default-400 text-center py-4">
+                              {attendeeSearch ? "No match found" : "No team members found."}
+                            </p>
+                          )}
+                          {filteredUsers.map(u => (
+                            <div
+                              key={u.id}
+                              onClick={() => toggleAttendee(u.id)}
+                              className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors select-none ${
+                                form.attendee_ids.includes(u.id) ? "bg-primary/10 text-primary" : "hover:bg-default-100"
+                              }`}
+                            >
+                              <div>
+                                <p className="text-sm font-medium leading-tight">{u.full_name}</p>
+                                <p className="text-xs text-default-400">{u.email}</p>
+                              </div>
+                              {form.attendee_ids.includes(u.id) && <Check size={15} className="shrink-0" />}
+                            </div>
+                          ))}
+                        </div>
+                        {form.attendee_ids.length > 0 && (
+                          <p className="text-xs text-default-400 mt-1.5">
+                            Invitations will be sent to {form.attendee_ids.length} member{form.attendee_ids.length > 1 ? "s" : ""}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    {form.attendee_ids.length > 0 && (
-                      <p className="text-xs text-default-400 mt-1">
-                        Invitation emails will be sent to {form.attendee_ids.length} member{form.attendee_ids.length > 1 ? "s" : ""}
-                      </p>
-                    )}
                   </div>
-                </div>
-              </ModalBody>
-              <ModalFooter>
-                <Button variant="light" onPress={onClose}>Cancel</Button>
-                <Button color="primary" isLoading={saving} onPress={handleCreate} isDisabled={!form.title || !form.start_at || !form.end_at}>
-                  Create & Send Invitations
-                </Button>
-              </ModalFooter>
-            </>
-          )}
+                </ModalBody>
+                <ModalFooter>
+                  <Button variant="light" onPress={onClose}>Cancel</Button>
+                  <Button color="primary" isLoading={saving} onPress={handleCreate} isDisabled={!form.title || !form.start_at || !form.end_at}>
+                    Create & Send Invitations
+                  </Button>
+                </ModalFooter>
+              </>
+            );
+          }}
         </ModalContent>
       </Modal>
     </div>
