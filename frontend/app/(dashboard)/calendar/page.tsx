@@ -418,7 +418,7 @@ export default function CalendarPage() {
                             >
                               <option value="">Select {form.related_type}…</option>
                               {relatedItems.map((item: any) => (
-                                <option key={item.id} value={item.id}>{item.name}</option>
+                                <option key={item.id} value={item.id}>{item.name ?? item.company_name}</option>
                               ))}
                             </select>
                           ) : (
