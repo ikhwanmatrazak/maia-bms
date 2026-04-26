@@ -2,7 +2,7 @@
 
 import { Topbar } from "@/components/ui/Topbar";
 import { DetailSkeleton } from "@/components/ui/PageSkeleton";
-import { useState, use } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
@@ -23,8 +23,8 @@ const STATUS_COLORS: Record<string, "default" | "primary" | "warning" | "success
 const STATUSES = ["todo", "in_progress", "review", "done"];
 const STATUS_LABELS: Record<string, string> = { todo: "To Do", in_progress: "In Progress", review: "Review", done: "Done" };
 
-export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function ProjectDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const projectId = Number(id);
   const router = useRouter();
   const qc = useQueryClient();
