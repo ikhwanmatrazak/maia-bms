@@ -24,7 +24,8 @@ export default function ProjectsPage() {
   const { data: stages = [] } = useQuery({ queryKey: ["project-stages"], queryFn: projectsApi.listStages });
   const { data: projects = [], isLoading } = useQuery({ queryKey: ["projects", filterStage], queryFn: () => projectsApi.list(filterStage ? Number(filterStage) : undefined) });
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: () => api.get("/users").then((r) => r.data) });
-  const { data: clients = [] } = useQuery<{ id: number; company_name: string }[]>({ queryKey: ["clients-dropdown"], queryFn: () => clientsApi.list() });
+  const { data: clientsRaw } = useQuery({ queryKey: ["clients-dropdown"], queryFn: () => clientsApi.list() });
+  const clients: { id: number; company_name: string }[] = Array.isArray(clientsRaw) ? clientsRaw : [];
 
   const [form, setForm] = useState({ name: "", description: "", stage_id: "", client_id: "", priority: "medium", start_date: "", end_date: "", budget: "", member_ids: "" });
 
@@ -135,9 +136,19 @@ export default function ProjectsPage() {
                 {["low", "medium", "high", "critical"].map((p) => <SelectItem key={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</SelectItem>)}
               </Select>
             </div>
-            <Select label="Client (optional)" placeholder="Select a client" selectedKeys={form.client_id ? [form.client_id] : []} onSelectionChange={(k) => setForm({ ...form, client_id: Array.from(k)[0] as string ?? "" })}>
-              {(clients as { id: number; company_name: string }[]).map((c) => <SelectItem key={String(c.id)}>{c.company_name}</SelectItem>)}
-            </Select>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-default-500 px-1">Client (optional)</label>
+              <select
+                value={form.client_id}
+                onChange={(e) => setForm({ ...form, client_id: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-default-200 rounded-xl bg-default-100 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">— None —</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={String(c.id)}>{c.company_name}</option>
+                ))}
+              </select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <Input label="Start Date" type="date" value={form.start_date} onValueChange={(v) => setForm({ ...form, start_date: v })} />
               <Input label="End Date" type="date" value={form.end_date} onValueChange={(v) => setForm({ ...form, end_date: v })} />
