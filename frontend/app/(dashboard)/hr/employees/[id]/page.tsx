@@ -37,6 +37,11 @@ export default function EmployeeDetailPage() {
     queryFn: hrApi.listDepartments,
   });
 
+  const { data: users = [] } = useQuery({
+    queryKey: ["users"],
+    queryFn: () => import("@/lib/api").then((m) => m.api.get("/users").then((r) => r.data)),
+  });
+
   const { data: documents = [], refetch: refetchDocs } = useQuery({
     queryKey: ["hr-employee-docs", id],
     queryFn: () => hrApi.listDocuments(Number(id)),
@@ -84,6 +89,7 @@ export default function EmployeeDetailPage() {
       income_tax_no: emp.income_tax_no || "",
       children_count: emp.children_count || 0,
       spouse_working: emp.spouse_working || false,
+      user_id: emp.user_id ?? "",
     });
   }
 
@@ -123,6 +129,7 @@ export default function EmployeeDetailPage() {
     else data.department_id = null;
     if (data.basic_salary) data.basic_salary = Number(data.basic_salary);
     if (data.children_count) data.children_count = Number(data.children_count);
+    data.user_id = data.user_id ? Number(data.user_id) : null;
     ["join_date", "confirmation_date", "date_of_birth"].forEach((k) => {
       if (!data[k]) data[k] = null;
     });
@@ -242,6 +249,16 @@ export default function EmployeeDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div><label className={LABEL}>Join Date</label><input type="date" className={INPUT} value={form.join_date} onChange={e => set("join_date", e.target.value)} /></div>
                 <div><label className={LABEL}>Confirmation Date</label><input type="date" className={INPUT} value={form.confirmation_date} onChange={e => set("confirmation_date", e.target.value)} /></div>
+              </div>
+              <div>
+                <label className={LABEL}>Linked User Account</label>
+                <select className={SELECT} value={form.user_id} onChange={e => set("user_id", e.target.value)}>
+                  <option value="">— None —</option>
+                  {(users as any[]).map((u: any) => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Link this employee to a login account so they can access their HR profile, payslips, and leave.</p>
               </div>
             </div>
           </div>
