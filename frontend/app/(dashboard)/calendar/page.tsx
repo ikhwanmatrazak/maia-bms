@@ -5,7 +5,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Input, Textarea, Chip, Tooltip } from "@heroui/react";
-import { ChevronLeft, ChevronRight, Plus, Calendar, MapPin, Link2, Users, Check, XCircle, Search, Briefcase, User2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar, MapPin, Link2, Users, Check, XCircle, Search, Briefcase, User2, LayoutList, CalendarDays } from "lucide-react";
 import { calendarApi, clientsApi, projectsApi } from "@/lib/api";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -60,6 +60,7 @@ export default function CalendarPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] as number[], related_type: "" as "" | "project" | "client", related_id: "" });
   const [editAttendeeSearch, setEditAttendeeSearch] = useState("");
+  const [view, setView] = useState<"month" | "list">("month");
 
   const { data: events = [] } = useQuery<CalEvent[]>({
     queryKey: ["calendar", viewDate.year, viewDate.month],
@@ -231,6 +232,20 @@ export default function CalendarPage() {
         <Button color="primary" startContent={<Plus size={16} />} onPress={() => openCreate()}>
           New Event
         </Button>
+        <div className="flex items-center gap-1 bg-default-100 p-1 rounded-lg">
+          <button
+            onClick={() => setView("month")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "month" ? "bg-white shadow text-foreground" : "text-default-500 hover:text-foreground"}`}
+          >
+            <CalendarDays size={15} /> Month
+          </button>
+          <button
+            onClick={() => setView("list")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "list" ? "bg-white shadow text-foreground" : "text-default-500 hover:text-foreground"}`}
+          >
+            <LayoutList size={15} /> List
+          </button>
+        </div>
       </div>
 
       {/* Month navigation */}
@@ -242,8 +257,56 @@ export default function CalendarPage() {
           className="ml-2 text-xs text-primary hover:underline">Today</button>
       </div>
 
+      {/* ── List View ─────────────────────────────── */}
+      {view === "list" && (() => {
+        const sorted = [...events].sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
+        // Group by date string
+        const groups: Record<string, CalEvent[]> = {};
+        for (const ev of sorted) {
+          const key = new Date(ev.start_at).toLocaleDateString("en-MY", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(ev);
+        }
+        const entries = Object.entries(groups);
+        return (
+          <div className="space-y-4">
+            {entries.length === 0 && (
+              <div className="text-center py-16 text-default-400">
+                <LayoutList size={40} className="mx-auto mb-3 opacity-30" />
+                <p>No events this month</p>
+              </div>
+            )}
+            {entries.map(([dateLabel, dayEvs]) => (
+              <div key={dateLabel}>
+                <div className="text-xs font-semibold text-default-500 uppercase tracking-wide mb-2 px-1">{dateLabel}</div>
+                <div className="space-y-2">
+                  {dayEvs.map(ev => (
+                    <div
+                      key={ev.id}
+                      onClick={() => { setSelected(ev); setDetailOpen(true); }}
+                      className="flex items-start gap-3 bg-content1 border border-divider rounded-xl px-4 py-3 cursor-pointer hover:bg-default-50 transition-colors"
+                    >
+                      <div className="w-1 self-stretch rounded-full shrink-0 mt-0.5" style={{ backgroundColor: ev.color }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{ev.title}</p>
+                        <p className="text-xs text-default-400 mt-0.5">
+                          {fmtTime(ev.start_at)}{ev.end_at ? ` – ${fmtTime(ev.end_at)}` : ""}
+                          {ev.location ? ` · ${ev.location}` : ""}
+                        </p>
+                        {ev.description && <p className="text-xs text-default-500 mt-1 truncate">{ev.description}</p>}
+                      </div>
+                      <div className="text-xs text-default-400 shrink-0">{ev.organizer_name}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* Calendar grid */}
-      <div className="bg-content1 border border-divider rounded-xl overflow-hidden">
+      {view === "month" && <div className="bg-content1 border border-divider rounded-xl overflow-hidden">
         {/* Day headers */}
         <div className="grid grid-cols-7 border-b border-divider">
           {DAYS.map(d => (
@@ -290,7 +353,7 @@ export default function CalendarPage() {
             })}
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* ── Event Detail Modal ─────────────────────────────── */}
       <Modal isOpen={detailOpen} onOpenChange={open => { setDetailOpen(open); if (!open) setDeleteError(null); }} size="lg">
