@@ -104,6 +104,9 @@ export default function EmployeeDetailPage() {
       qc.invalidateQueries({ queryKey: ["hr-employees"] });
       alert("Saved successfully");
     },
+    onError: (err: any) => {
+      alert("Failed to save: " + (err?.response?.data?.detail || err?.message || "Unknown error"));
+    },
   });
 
   const photoMutation = useMutation({
@@ -129,13 +132,17 @@ export default function EmployeeDetailPage() {
   const handleSave = () => {
     if (!form) return;
     const data: any = { ...form };
-    if (data.department_id) data.department_id = Number(data.department_id);
-    else data.department_id = null;
-    if (data.basic_salary) data.basic_salary = Number(data.basic_salary);
-    if (data.children_count) data.children_count = Number(data.children_count);
+    // Convert numeric fields — send null instead of empty string
+    data.department_id = data.department_id ? Number(data.department_id) : null;
+    data.basic_salary = data.basic_salary !== "" && data.basic_salary != null ? Number(data.basic_salary) : null;
+    data.children_count = data.children_count !== "" && data.children_count != null ? Number(data.children_count) : 0;
     data.user_id = data.user_id ? Number(data.user_id) : null;
-    ["join_date", "confirmation_date", "date_of_birth"].forEach((k) => {
-      if (!data[k]) data[k] = null;
+    // Convert empty strings to null for optional string/date fields
+    ["join_date", "confirmation_date", "date_of_birth", "phone", "ic_no", "passport_no",
+     "gender", "nationality", "religion", "marital_status", "address",
+     "emergency_contact_name", "emergency_contact_phone", "emergency_contact_relation",
+     "bank_name", "bank_account_no", "epf_no", "socso_no", "income_tax_no", "designation"].forEach((k) => {
+      if (data[k] === "") data[k] = null;
     });
     updateMutation.mutate(data);
   };
