@@ -57,8 +57,9 @@ async def send_email(
         msg.attach(part)
 
     if ics_content:
-        ics_part = MIMEText(ics_content, "calendar; method=REQUEST", "utf-8")
-        ics_part.add_header("Content-Disposition", f'attachment; filename="{ics_filename}"')
+        ics_part = MIMEText(ics_content, "calendar", "utf-8")
+        ics_part.set_param("method", "REQUEST")
+        ics_part.add_header("Content-Disposition", f'inline; filename="{ics_filename}"')
         msg.attach(ics_part)
 
     try:

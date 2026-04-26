@@ -60,8 +60,10 @@ async def _send_invitations(db: AsyncSession, event_id: int, tenant_id, organize
     subject = f"{'Updated: ' if is_update else ''}Meeting Invitation: {ev['title']}"
 
     # Build iCalendar (.ics) content for Outlook one-click add
-    # Use floating time (no Z suffix) — datetimes are stored in local time,
-    # so we preserve them as-is and let each recipient's calendar app use its own timezone.
+    # Datetimes are stored as Malaysia local time (UTC+8 / Asia/Kuala_Lumpur).
+    # Emit TZID so Outlook interprets them correctly instead of guessing UTC.
+    TZID = "Asia/Kuala_Lumpur"
+
     def _dt(dt) -> str:
         if dt is None:
             return ""
@@ -77,7 +79,7 @@ async def _send_invitations(db: AsyncSession, event_id: int, tenant_id, organize
     method = "REQUEST"
     sequence = "1" if is_update else "0"
 
-    attendee_lines = "\n".join(
+    attendee_lines = "\r\n".join(
         f"ATTENDEE;CN={a['full_name'] or a['email']};RSVP=TRUE:mailto:{a['email']}"
         for a in attendees
     )
@@ -89,12 +91,22 @@ async def _send_invitations(db: AsyncSession, event_id: int, tenant_id, organize
         "VERSION:2.0\r\n"
         "PRODID:-//MAIA BMS//Calendar//EN\r\n"
         f"METHOD:{method}\r\n"
+        # VTIMEZONE block for Asia/Kuala_Lumpur (UTC+8, no DST)
+        "BEGIN:VTIMEZONE\r\n"
+        f"TZID:{TZID}\r\n"
+        "BEGIN:STANDARD\r\n"
+        "TZOFFSETFROM:+0800\r\n"
+        "TZOFFSETTO:+0800\r\n"
+        "TZNAME:MYT\r\n"
+        "DTSTART:19700101T000000\r\n"
+        "END:STANDARD\r\n"
+        "END:VTIMEZONE\r\n"
         "BEGIN:VEVENT\r\n"
         f"UID:{uid_val}\r\n"
         f"SEQUENCE:{sequence}\r\n"
         f"DTSTAMP:{dtstamp}\r\n"
-        f"DTSTART:{dtstart}\r\n"
-        f"DTEND:{dtend}\r\n"
+        f"DTSTART;TZID={TZID}:{dtstart}\r\n"
+        f"DTEND;TZID={TZID}:{dtend}\r\n"
         f"SUMMARY:{ev['title']}\r\n"
         f"DESCRIPTION:{desc_line}\r\n"
         f"LOCATION:{loc_line}\r\n"
