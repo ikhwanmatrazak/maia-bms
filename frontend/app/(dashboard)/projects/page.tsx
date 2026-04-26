@@ -6,8 +6,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Button, Chip, Input, Select, SelectItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/react";
-import { Plus, Search, FolderOpen } from "lucide-react";
-import { projectsApi } from "@/lib/api";
+import { Plus, Search, FolderOpen, Building2 } from "lucide-react";
+import { projectsApi, clientsApi } from "@/lib/api";
 import { api } from "@/lib/api";
 
 const PRIORITY_COLORS: Record<string, "default" | "primary" | "warning" | "danger"> = {
@@ -24,11 +24,12 @@ export default function ProjectsPage() {
   const { data: stages = [] } = useQuery({ queryKey: ["project-stages"], queryFn: projectsApi.listStages });
   const { data: projects = [], isLoading } = useQuery({ queryKey: ["projects", filterStage], queryFn: () => projectsApi.list(filterStage ? Number(filterStage) : undefined) });
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: () => api.get("/users").then((r) => r.data) });
+  const { data: clients = [] } = useQuery<{ id: number; company_name: string }[]>({ queryKey: ["clients-list"], queryFn: () => clientsApi.list() });
 
-  const [form, setForm] = useState({ name: "", description: "", stage_id: "", priority: "medium", start_date: "", end_date: "", budget: "", member_ids: "" });
+  const [form, setForm] = useState({ name: "", description: "", stage_id: "", client_id: "", priority: "medium", start_date: "", end_date: "", budget: "", member_ids: "" });
 
   const createMutation = useMutation({
-    mutationFn: () => projectsApi.create({ ...form, stage_id: form.stage_id || undefined, budget: form.budget || undefined }),
+    mutationFn: () => projectsApi.create({ ...form, stage_id: form.stage_id || undefined, client_id: form.client_id || undefined, budget: form.budget || undefined }),
     onSuccess: (data) => { qc.invalidateQueries({ queryKey: ["projects"] }); onClose(); router.push(`/projects/${data.id}`); },
   });
 
@@ -80,6 +81,7 @@ export default function ProjectsPage() {
             id: number; name: string; description?: string; priority: string;
             stage_name?: string; stage_color?: string; start_date?: string; end_date?: string;
             member_count: number; task_count: number; done_count: number;
+            client_id?: number; client_name?: string;
           }) => (
             <div
               key={p.id}
@@ -91,9 +93,14 @@ export default function ProjectsPage() {
                 <Chip size="sm" color={PRIORITY_COLORS[p.priority] ?? "default"} variant="flat">{p.priority}</Chip>
               </div>
               {p.description && <p className="text-sm text-default-500 line-clamp-2 mb-3">{p.description}</p>}
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
                 {p.stage_name && (
                   <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium" style={{ background: p.stage_color ?? "#888" }}>{p.stage_name}</span>
+                )}
+                {p.client_name && (
+                  <span className="flex items-center gap-1 text-xs text-default-500">
+                    <Building2 size={11} />{p.client_name}
+                  </span>
                 )}
               </div>
               <div className="flex justify-between text-xs text-default-400">
@@ -128,6 +135,9 @@ export default function ProjectsPage() {
                 {["low", "medium", "high", "critical"].map((p) => <SelectItem key={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</SelectItem>)}
               </Select>
             </div>
+            <Select label="Client (optional)" placeholder="Select a client" selectedKeys={form.client_id ? [form.client_id] : []} onSelectionChange={(k) => setForm({ ...form, client_id: Array.from(k)[0] as string ?? "" })}>
+              {(clients as { id: number; company_name: string }[]).map((c) => <SelectItem key={String(c.id)}>{c.company_name}</SelectItem>)}
+            </Select>
             <div className="grid grid-cols-2 gap-3">
               <Input label="Start Date" type="date" value={form.start_date} onValueChange={(v) => setForm({ ...form, start_date: v })} />
               <Input label="End Date" type="date" value={form.end_date} onValueChange={(v) => setForm({ ...form, end_date: v })} />

@@ -43,6 +43,8 @@ class ProjectOut(BaseModel):
     stage_id: Optional[int]
     stage_name: Optional[str]
     stage_color: Optional[str]
+    client_id: Optional[int] = None
+    client_name: Optional[str] = None
     name: str
     description: Optional[str]
     priority: str
@@ -282,6 +284,8 @@ async def delete_stage(stage_id: int, db: AsyncSession = Depends(get_db), curren
 def _proj_row(row) -> ProjectOut:
     return ProjectOut(
         id=row.id, stage_id=row.stage_id, stage_name=row.stage_name, stage_color=row.stage_color,
+        client_id=row.client_id if hasattr(row, "client_id") else None,
+        client_name=row.client_name if hasattr(row, "client_name") else None,
         name=row.name, description=row.description, priority=row.priority,
         start_date=str(row.start_date) if row.start_date else None,
         end_date=str(row.end_date) if row.end_date else None,
@@ -296,11 +300,13 @@ def _proj_row(row) -> ProjectOut:
 PROJECT_SELECT = """
     SELECT p.*,
            s.name AS stage_name, s.color AS stage_color,
+           c.company_name AS client_name,
            (SELECT COUNT(*) FROM project_members m WHERE m.project_id=p.id) AS member_count,
            (SELECT COUNT(*) FROM project_tasks t WHERE t.project_id=p.id) AS task_count,
            (SELECT COUNT(*) FROM project_tasks t WHERE t.project_id=p.id AND t.status='done') AS done_count
     FROM projects p
     LEFT JOIN project_stages s ON s.id=p.stage_id
+    LEFT JOIN clients c ON c.id=p.client_id
 """
 
 
@@ -395,6 +401,7 @@ async def create_project(
     name: str = Form(...),
     description: str = Form(""),
     stage_id: Optional[int] = Form(None),
+    client_id: Optional[int] = Form(None),
     priority: str = Form("medium"),
     start_date: Optional[str] = Form(None),
     end_date: Optional[str] = Form(None),
@@ -405,9 +412,10 @@ async def create_project(
 ):
     _require_manager(current_user)
     r = await db.execute(text("""
-        INSERT INTO projects (tenant_id, stage_id, name, description, priority, start_date, end_date, budget, created_by)
-        VALUES (:tid,:sid,:name,:desc,:pri,:sd,:ed,:bud,:cb)
-    """), {"tid": current_user.tenant_id, "sid": stage_id or None, "name": name, "desc": description,
+        INSERT INTO projects (tenant_id, stage_id, client_id, name, description, priority, start_date, end_date, budget, created_by)
+        VALUES (:tid,:sid,:cid,:name,:desc,:pri,:sd,:ed,:bud,:cb)
+    """), {"tid": current_user.tenant_id, "sid": stage_id or None, "cid": client_id or None,
+           "name": name, "desc": description,
            "pri": priority, "sd": start_date or None, "ed": end_date or None,
            "bud": budget, "cb": current_user.id})
     await db.commit()
@@ -438,7 +446,8 @@ async def get_project(project_id: int, db: AsyncSession = Depends(get_db), curre
 @router.put("/{project_id}")
 async def update_project(
     project_id: int, name: Optional[str] = Form(None), description: Optional[str] = Form(None),
-    stage_id: Optional[int] = Form(None), priority: Optional[str] = Form(None),
+    stage_id: Optional[int] = Form(None), client_id: Optional[int] = Form(None),
+    priority: Optional[str] = Form(None),
     start_date: Optional[str] = Form(None), end_date: Optional[str] = Form(None),
     budget: Optional[float] = Form(None),
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user),
@@ -447,7 +456,8 @@ async def update_project(
     fields = []
     params: dict = {"pid": project_id, "tid": current_user.tenant_id}
     for k, v in [("name", name), ("description", description), ("stage_id", stage_id),
-                  ("priority", priority), ("start_date", start_date or None),
+                  ("client_id", client_id), ("priority", priority),
+                  ("start_date", start_date or None),
                   ("end_date", end_date or None), ("budget", budget)]:
         if v is not None:
             fields.append(f"{k}=:{k}")
