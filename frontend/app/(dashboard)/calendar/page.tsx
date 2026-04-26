@@ -56,6 +56,7 @@ export default function CalendarPage() {
   const [form, setForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] as number[], related_type: "" as "" | "project" | "client", related_id: "" });
   const [saving, setSaving] = useState(false);
   const [attendeeSearch, setAttendeeSearch] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] as number[], related_type: "" as "" | "project" | "client", related_id: "" });
   const [editAttendeeSearch, setEditAttendeeSearch] = useState("");
@@ -88,7 +89,11 @@ export default function CalendarPage() {
   });
   const deleteMut = useMutation({
     mutationFn: (id: number) => calendarApi.deleteEvent(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["calendar"] }); setDetailOpen(false); setSelected(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["calendar"] }); setDetailOpen(false); setSelected(null); setDeleteError(null); },
+    onError: (err: unknown) => {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setDeleteError(detail || "Failed to delete event. You may not have permission.");
+    },
   });
   const rsvpMut = useMutation({
     mutationFn: ({ id, status }: { id: number; status: "accepted" | "declined" }) => calendarApi.rsvp(id, status),
@@ -288,7 +293,7 @@ export default function CalendarPage() {
       </div>
 
       {/* ── Event Detail Modal ─────────────────────────────── */}
-      <Modal isOpen={detailOpen} onOpenChange={setDetailOpen} size="lg">
+      <Modal isOpen={detailOpen} onOpenChange={open => { setDetailOpen(open); if (!open) setDeleteError(null); }} size="lg">
         <ModalContent>
           {(onClose) => selected && (
             <>
@@ -359,8 +364,16 @@ export default function CalendarPage() {
                   </div>
                 </div>
               </ModalBody>
-              <ModalFooter>
-                <Button color="danger" variant="light" onPress={() => deleteMut.mutate(selected.id)}>
+              <ModalFooter className="flex-col items-stretch gap-2">
+                {deleteError && (
+                  <div className="w-full px-3 py-2 bg-danger-50 text-danger text-xs rounded-lg border border-danger-100 flex justify-between items-center">
+                    <span>{deleteError}</span>
+                    <button onClick={() => setDeleteError(null)} className="ml-2 font-bold">✕</button>
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                <Button color="danger" variant="light" isLoading={deleteMut.isPending}
+                  onPress={() => { if (confirm("Delete this event?")) deleteMut.mutate(selected.id); }}>
                   Delete
                 </Button>
                 <Button variant="light" onPress={onClose}>Close</Button>
@@ -372,6 +385,7 @@ export default function CalendarPage() {
                     Join Meeting
                   </Button>
                 )}
+                </div>
               </ModalFooter>
             </>
           )}
