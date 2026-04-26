@@ -56,6 +56,10 @@ export default function EmployeeDetailPage() {
 
   const [form, setForm] = useState<any>(null);
   const set = (k: string, v: any) => setForm((prev: any) => ({ ...prev, [k]: v }));
+  const setUserLink = (userId: string) => {
+    const user = (users as any[]).find((u: any) => String(u.id) === userId);
+    setForm((prev: any) => ({ ...prev, user_id: userId, email: user ? user.email : prev.email }));
+  };
 
   // Initialize form when data loads
   if (emp && !form) {
@@ -252,7 +256,7 @@ export default function EmployeeDetailPage() {
               </div>
               <div>
                 <label className={LABEL}>Linked User Account</label>
-                <select className={SELECT} value={form.user_id} onChange={e => set("user_id", e.target.value)}>
+                <select className={SELECT} value={form.user_id} onChange={e => setUserLink(e.target.value)}>
                   <option value="">— None —</option>
                   {(users as any[]).map((u: any) => (
                     <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
