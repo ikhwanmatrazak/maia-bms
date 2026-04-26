@@ -139,6 +139,12 @@ export default function CalendarPage() {
     setViewDate(v => v.month === 12 ? { year: v.year + 1, month: 1 } : { year: v.year, month: v.month + 1 });
   }
 
+  function generateJitsiLink(title: string): string {
+    const slug = (title || "meeting").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24);
+    const hex = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(16).padStart(2, "0")).join("");
+    return `https://meet.jit.si/maia-${slug}-${hex}`;
+  }
+
   function addOneHour(localDt: string): string {
     if (!localDt) return "";
     const d = new Date(localDt);
@@ -583,13 +589,24 @@ export default function CalendarPage() {
                       </div>
 
                       {/* Meeting URL */}
-                      <Input
-                        label="Meeting URL"
-                        placeholder="https://meet.google.com/..."
-                        startContent={<Link2 size={14} className="text-default-400 shrink-0" />}
-                        value={form.meeting_link}
-                        onValueChange={v => setForm(f => ({ ...f, meeting_link: v }))}
-                      />
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-sm text-default-500">Meeting URL</label>
+                          <button
+                            type="button"
+                            onClick={() => setForm(f => ({ ...f, meeting_link: generateJitsiLink(f.title) }))}
+                            className="text-xs text-primary hover:underline flex items-center gap-1"
+                          >
+                            <Link2 size={11} /> Auto-generate Jitsi link
+                          </button>
+                        </div>
+                        <Input
+                          placeholder="https://meet.jit.si/..."
+                          startContent={<Link2 size={14} className="text-default-400 shrink-0" />}
+                          value={form.meeting_link}
+                          onValueChange={v => setForm(f => ({ ...f, meeting_link: v }))}
+                        />
+                      </div>
 
                       {/* Invite Team Members */}
                       <div className="flex flex-col flex-1 min-h-0">
@@ -767,13 +784,24 @@ export default function CalendarPage() {
                       </div>
 
                       {/* Meeting URL */}
-                      <Input
-                        label="Meeting URL"
-                        placeholder="https://meet.google.com/..."
-                        startContent={<Link2 size={14} className="text-default-400 shrink-0" />}
-                        value={editForm.meeting_link}
-                        onValueChange={v => setEditForm(f => ({ ...f, meeting_link: v }))}
-                      />
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-sm text-default-500">Meeting URL</label>
+                          <button
+                            type="button"
+                            onClick={() => setEditForm(f => ({ ...f, meeting_link: generateJitsiLink(f.title) }))}
+                            className="text-xs text-primary hover:underline flex items-center gap-1"
+                          >
+                            <Link2 size={11} /> Auto-generate Jitsi link
+                          </button>
+                        </div>
+                        <Input
+                          placeholder="https://meet.jit.si/..."
+                          startContent={<Link2 size={14} className="text-default-400 shrink-0" />}
+                          value={editForm.meeting_link}
+                          onValueChange={v => setEditForm(f => ({ ...f, meeting_link: v }))}
+                        />
+                      </div>
 
                       {/* Attendees */}
                       <div className="flex flex-col flex-1 min-h-0">
