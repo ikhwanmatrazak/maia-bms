@@ -71,7 +71,7 @@ export default function CalendarPage() {
     queryFn: () => calendarApi.listUsers(),
   });
   const { data: allClients = [] } = useQuery<{ id: number; name: string }[]>({
-    queryKey: ["clients-list"],
+    queryKey: ["clients-dropdown"],
     queryFn: () => clientsApi.list(),
   });
   const { data: allProjects = [] } = useQuery<{ id: number; name: string }[]>({

@@ -24,7 +24,7 @@ export default function ProjectsPage() {
   const { data: stages = [] } = useQuery({ queryKey: ["project-stages"], queryFn: projectsApi.listStages });
   const { data: projects = [], isLoading } = useQuery({ queryKey: ["projects", filterStage], queryFn: () => projectsApi.list(filterStage ? Number(filterStage) : undefined) });
   const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: () => api.get("/users").then((r) => r.data) });
-  const { data: clients = [] } = useQuery<{ id: number; company_name: string }[]>({ queryKey: ["clients-list"], queryFn: () => clientsApi.list() });
+  const { data: clients = [] } = useQuery<{ id: number; company_name: string }[]>({ queryKey: ["clients-dropdown"], queryFn: () => clientsApi.list() });
 
   const [form, setForm] = useState({ name: "", description: "", stage_id: "", client_id: "", priority: "medium", start_date: "", end_date: "", budget: "", member_ids: "" });
 
