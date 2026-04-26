@@ -2,7 +2,31 @@
 import { Topbar } from "@/components/ui/Topbar";
 import { CardGridSkeleton } from "@/components/ui/PageSkeleton";
 
-import { useState } from "react";
+import { useState, Component } from "react";
+import type { ErrorInfo, ReactNode } from "react";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error("ProjectsPage error:", error, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-6">
+          <div className="bg-danger-50 border border-danger-200 rounded-xl p-4">
+            <p className="font-semibold text-danger">Page Error (debug):</p>
+            <p className="text-sm font-mono mt-2">{this.state.error.message}</p>
+            <pre className="text-xs mt-2 overflow-auto max-h-40">{this.state.error.stack}</pre>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Button, Chip, Input, Select, SelectItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@heroui/react";
@@ -14,7 +38,7 @@ const PRIORITY_COLORS: Record<string, "default" | "primary" | "warning" | "dange
   low: "default", medium: "primary", high: "warning", critical: "danger",
 };
 
-export default function ProjectsPage() {
+function ProjectsPageInner() {
   const router = useRouter();
   const qc = useQueryClient();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -169,4 +193,8 @@ export default function ProjectsPage() {
     </div>
     </div>
   );
+}
+
+export default function ProjectsPage() {
+  return <ErrorBoundary><ProjectsPageInner /></ErrorBoundary>;
 }
