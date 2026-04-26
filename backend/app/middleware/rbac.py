@@ -33,15 +33,27 @@ def require_roles(*roles: UserRole):
     return role_checker
 
 
-def require_admin():
+def require_admin(user: User = None):
+    if user is not None:
+        if not user.is_super_admin and user.role not in (UserRole.admin,):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+        return
     return require_roles(UserRole.admin)
 
 
-def require_admin_or_manager():
+def require_admin_or_manager(user: User = None):
+    if user is not None:
+        if not user.is_super_admin and user.role not in (UserRole.admin, UserRole.manager):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin or manager access required")
+        return
     return require_roles(UserRole.admin, UserRole.manager)
 
 
-def require_any_role():
+def require_any_role(user: User = None):
+    if user is not None:
+        if not user.is_super_admin and user.role not in (UserRole.admin, UserRole.manager, UserRole.staff):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access required")
+        return
     return require_roles(UserRole.admin, UserRole.manager, UserRole.staff)
 
 
