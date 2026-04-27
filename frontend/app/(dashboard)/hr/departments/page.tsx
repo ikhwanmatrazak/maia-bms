@@ -18,8 +18,10 @@ export default function DepartmentsPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (data: { name: string; description: string }) =>
-      modal?.id ? hrApi.updateDepartment(modal.id, data) : hrApi.createDepartment(data),
+    mutationFn: (data: { id?: number; name: string; description: string }) =>
+      data.id
+        ? hrApi.updateDepartment(data.id, { name: data.name, description: data.description })
+        : hrApi.createDepartment({ name: data.name, description: data.description }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hr-departments"] });
       setModal(null);
@@ -48,7 +50,7 @@ export default function DepartmentsPage() {
         <div className="flex justify-between items-center">
           <p className="text-sm text-gray-500">Manage company departments</p>
           <button
-            onClick={() => setModal({ name: "", description: "" })}
+            onClick={() => { saveMutation.reset(); setModal({ name: "", description: "" }); }}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#1a1a2e] text-white rounded-lg hover:bg-[#2a2a3e]"
           >
             <Plus size={16} /> Add Department
@@ -70,7 +72,7 @@ export default function DepartmentsPage() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setModal({ id: d.id, name: d.name, description: d.description || "" })}
+                    onClick={() => { saveMutation.reset(); setModal({ id: d.id, name: d.name, description: d.description || "" }); }}
                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                   >
                     <Pencil size={15} />
@@ -115,12 +117,12 @@ export default function DepartmentsPage() {
             </div>
             {saveMutation.isError && <p className="text-sm text-red-500">Failed to save. Please try again.</p>}
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setModal(null)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">
+              <button onClick={() => { saveMutation.reset(); setModal(null); }} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">
                 Cancel
               </button>
               <button
                 disabled={!modal.name.trim() || saveMutation.isPending}
-                onClick={() => saveMutation.mutate({ name: modal.name.trim(), description: modal.description.trim() })}
+                onClick={() => saveMutation.mutate({ id: modal.id, name: modal.name.trim(), description: modal.description.trim() })}
                 className="px-5 py-2 text-sm font-medium bg-[#1a1a2e] text-white rounded-lg hover:bg-[#2a2a3e] disabled:opacity-50"
               >
                 {saveMutation.isPending ? "Saving..." : "Save"}
