@@ -142,6 +142,7 @@ const navGroups = [
       { href: "/my-claims", label: "My Claims", roles: ["admin", "manager"] },
       { href: "/reminders", label: "Reminders", roles: ["admin", "manager"], permission: "reminders" },
       { href: "/settings", label: "Settings", roles: ["admin"] },
+      { href: "/settings/bugs", label: "Bug Reports", roles: ["admin"] },
     ],
   },
   {

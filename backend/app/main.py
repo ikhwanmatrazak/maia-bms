@@ -13,7 +13,7 @@ from app.config import get_settings
 from app.database import init_db
 from app.routers import auth, users, clients, quotations, invoices, receipts, payments, expenses, reminders, reports, settings, documents
 from app.routers import purchase_orders, delivery_orders, super_admin, products, analytics, vendors, prospects, credit_notes, tracking
-from app.routers import gateway, bills, hr, user_claims, projects, calendar
+from app.routers import gateway, bills, hr, user_claims, projects, calendar, bug_reports
 
 logging.basicConfig(
     level=logging.INFO,
@@ -529,6 +529,35 @@ async def _ensure_default_stages(tenant_id):
                 ), {"tid": tenant_id, "name": s["name"], "color": s["color"], "oi": s["order_index"]})
 
 
+async def _ensure_bug_reports_table():
+    from app.database import engine
+    from sqlalchemy import text
+    stmt = """CREATE TABLE IF NOT EXISTS bug_reports (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tenant_id INT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        steps TEXT NULL,
+        page_url VARCHAR(500) NULL,
+        severity ENUM('low','medium','high','critical') NOT NULL DEFAULT 'medium',
+        status ENUM('open','in_progress','fixed','closed') NOT NULL DEFAULT 'open',
+        admin_notes TEXT NULL,
+        reported_by_id INT NULL,
+        reported_by_name VARCHAR(255) NOT NULL,
+        reported_by_email VARCHAR(255) NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX ix_bug_reports_tenant_id (tenant_id),
+        INDEX ix_bug_reports_status (status)
+    )"""
+    async with engine.begin() as conn:
+        try:
+            await conn.execute(text(stmt))
+        except Exception as e:
+            logger.warning(f"_ensure_bug_reports_table skipped: {e}")
+    logger.info("bug_reports table ensured")
+
+
 async def _ensure_user_claims_table():
     from app.database import engine
     from sqlalchemy import text
@@ -568,6 +597,7 @@ async def lifespan(app: FastAPI):
     await _ensure_user_claims_table()
     await _ensure_project_tables()
     await _ensure_calendar_tables()
+    await _ensure_bug_reports_table()
     await init_db()
     upload_dir = app_settings.upload_dir
     os.makedirs(f"{upload_dir}/payment_proofs", exist_ok=True)
@@ -644,6 +674,7 @@ app.include_router(hr.router, prefix=prefix)
 app.include_router(user_claims.router, prefix=prefix)
 app.include_router(projects.router, prefix=prefix)
 app.include_router(calendar.router, prefix=prefix)
+app.include_router(bug_reports.router, prefix=prefix)
 
 
 @app.get("/health")

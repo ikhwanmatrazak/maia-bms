@@ -468,6 +468,13 @@ export const hrApi = {
   updatePerformance: (id: number, data: object) => api.put(`/hr/performance/${id}`, data).then((r) => r.data),
 };
 
+export const bugReportsApi = {
+  create: (data: object) => api.post("/bug-reports", data).then((r) => r.data),
+  list: (params?: object) => api.get("/bug-reports", { params }).then((r) => r.data),
+  update: (id: number, data: object) => api.put(`/bug-reports/${id}`, data).then((r) => r.data),
+  remove: (id: number) => api.delete(`/bug-reports/${id}`),
+};
+
 const multipartConfig = { headers: { "Content-Type": undefined } };
 
 export const userClaimsApi = {

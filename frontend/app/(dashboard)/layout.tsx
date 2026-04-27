@@ -3,6 +3,7 @@
 import { useEffect, useState, createContext, useContext } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/ui/Sidebar";
+import { BugReportButton } from "@/components/ui/BugReportButton";
 import { isAuthenticated, getUser } from "@/lib/auth";
 
 interface SidebarContextValue {
@@ -58,6 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 overflow-y-auto min-w-0">
           {children}
         </main>
+        <BugReportButton />
       </div>
     </SidebarContext.Provider>
   );
