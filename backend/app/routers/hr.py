@@ -565,6 +565,30 @@ async def list_employees(
     return [_emp_to_response(e) for e in result.scalars().all()]
 
 
+@router.get("/employees/next-no")
+async def get_next_employee_no(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin_or_manager(current_user)
+    query = select(Employee.employee_no).where(
+        Employee.employee_no.like("M-%")
+    )
+    if current_user.tenant_id is not None:
+        query = query.where(Employee.tenant_id == current_user.tenant_id)
+    result = await db.execute(query)
+    nos = result.scalars().all()
+    max_n = 0
+    for no in nos:
+        try:
+            n = int(no.split("-")[1])
+            if n > max_n:
+                max_n = n
+        except Exception:
+            pass
+    return {"next_no": f"M-{str(max_n + 1).zfill(3)}"}
+
+
 @router.post("/employees", response_model=EmployeeResponse, status_code=201)
 async def create_employee(
     body: EmployeeCreate,
@@ -572,6 +596,13 @@ async def create_employee(
     current_user: User = Depends(get_current_user),
 ):
     require_admin_or_manager(current_user)
+    # Check unique employee_no within tenant
+    dup_query = select(Employee).where(Employee.employee_no == body.employee_no)
+    if current_user.tenant_id is not None:
+        dup_query = dup_query.where(Employee.tenant_id == current_user.tenant_id)
+    dup = await db.execute(dup_query)
+    if dup.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail=f"Employee number '{body.employee_no}' already exists")
     data = body.model_dump()
     emp = Employee(**data, tenant_id=current_user.tenant_id, created_by=current_user.id)
     db.add(emp)
@@ -636,6 +667,21 @@ async def update_employee(
         select(Employee).options(selectinload(Employee.department_rel)).where(Employee.id == emp_id)
     )
     return _emp_to_response(result2.scalar_one())
+
+
+@router.delete("/employees/{emp_id}", status_code=204)
+async def delete_employee(
+    emp_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin(current_user)
+    result = await db.execute(select(Employee).where(Employee.id == emp_id))
+    emp = result.scalar_one_or_none()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    await db.delete(emp)
+    await db.commit()
 
 
 @router.post("/employees/{emp_id}/photo")

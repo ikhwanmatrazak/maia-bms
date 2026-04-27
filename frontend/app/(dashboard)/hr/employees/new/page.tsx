@@ -26,6 +26,11 @@ export default function NewEmployeePage() {
     queryFn: () => api.get("/users").then((r) => r.data),
   });
 
+  const { data: nextNo } = useQuery({
+    queryKey: ["hr-next-employee-no"],
+    queryFn: hrApi.getNextEmployeeNo,
+  });
+
   const [form, setForm] = useState({
     employee_no: "", full_name: "", department_id: "", user_id: "",
     designation: "", employment_type: "full_time", employment_status: "probation",
@@ -90,7 +95,7 @@ export default function NewEmployeePage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={LABEL}>Employee No. *</label>
-                <input required className={INPUT} value={form.employee_no} onChange={e => set("employee_no", e.target.value)} placeholder="e.g. EMP-001" />
+                <input required className={INPUT} value={form.employee_no || nextNo || ""} onChange={e => set("employee_no", e.target.value)} placeholder={nextNo || "e.g. M-001"} />
               </div>
               <div>
                 <label className={LABEL}>Full Name *</label>

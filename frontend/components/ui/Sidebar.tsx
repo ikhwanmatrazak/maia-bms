@@ -123,13 +123,13 @@ const navGroups = [
     ),
     items: [
       { href: "/hr", label: "HR Overview", roles: ["admin", "manager"], permission: "hr" },
-      { href: "/hr/employees", label: "Employees", roles: ["admin", "manager"], permission: "hr" },
-      { href: "/hr/departments", label: "Departments", roles: ["admin", "manager"], permission: "hr" },
-      { href: "/hr/leave", label: "Leave", roles: ["admin", "manager"], permission: "hr" },
-      { href: "/hr/attendance", label: "Attendance", roles: ["admin", "manager"], permission: "hr" },
-      { href: "/hr/payroll", label: "Payroll", roles: ["admin", "manager"], permission: "hr" },
-      { href: "/hr/claims", label: "Claims", roles: ["admin", "manager"], permission: "hr" },
-      { href: "/hr/performance", label: "Performance", roles: ["admin", "manager"], permission: "hr" },
+      { href: "/hr/employees", label: "Employees", roles: ["admin", "manager"], permission: "hr-employees" },
+      { href: "/hr/departments", label: "Departments", roles: ["admin", "manager"], permission: "hr-departments" },
+      { href: "/hr/leave", label: "Leave", roles: ["admin", "manager"], permission: "hr-leave" },
+      { href: "/hr/attendance", label: "Attendance", roles: ["admin", "manager"], permission: "hr-attendance" },
+      { href: "/hr/payroll", label: "Payroll", roles: ["admin", "manager"], permission: "hr-payroll" },
+      { href: "/hr/claims", label: "Claims", roles: ["admin", "manager"], permission: "hr-claims" },
+      { href: "/hr/performance", label: "Performance", roles: ["admin", "manager"], permission: "hr-performance" },
     ],
   },
   {
@@ -151,12 +151,14 @@ const navGroups = [
   {
     label: "My Workspace",
     roles: ["staff"],
+    permission: undefined,
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5">
         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
       </svg>
     ),
     items: [
+      { href: "/staff-dashboard", label: "Dashboard", roles: ["staff"] },
       { href: "/my-profile", label: "My Profile", roles: ["staff"] },
       { href: "/my-claims", label: "My Claims", roles: ["staff"] },
     ],

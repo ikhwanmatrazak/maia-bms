@@ -79,7 +79,7 @@ export default function LoginPage() {
           tenant_id: response.tenant_id,
           permissions: response.permissions ?? null,
         });
-        router.push(response.role === "staff" ? "/my-profile" : "/dashboard");
+        router.push(response.role === "staff" ? "/staff-dashboard" : "/dashboard");
       } catch (err: unknown) {
         const e = err as { response?: { status?: number; data?: { detail?: unknown } } };
         const status = e?.response?.status;

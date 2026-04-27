@@ -129,6 +129,15 @@ export default function EmployeeDetailPage() {
     onSuccess: () => refetchDocs(),
   });
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteMutation = useMutation({
+    mutationFn: () => hrApi.deleteEmployee(Number(id)),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hr-employees"] });
+      router.push("/hr/employees");
+    },
+  });
+
   const handleSave = () => {
     if (!form) return;
     const data: any = { ...form };
@@ -194,13 +203,29 @@ export default function EmployeeDetailPage() {
             </div>
           </div>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={updateMutation.isPending}
-          className="px-4 py-2 text-sm font-medium bg-[#1a1a2e] text-white rounded-lg hover:bg-[#2a2a3e] disabled:opacity-50"
-        >
-          {updateMutation.isPending ? "Saving..." : "Save Changes"}
-        </button>
+        <div className="flex gap-2">
+          {confirmDelete ? (
+            <>
+              <button onClick={() => setConfirmDelete(false)} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+              <button
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className="px-3 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >{deleteMutation.isPending ? "Deleting..." : "Confirm Delete"}</button>
+            </>
+          ) : (
+            <button onClick={() => setConfirmDelete(true)} className="px-3 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50">
+              <Trash2 size={15} className="inline mr-1" />Delete
+            </button>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={updateMutation.isPending}
+            className="px-4 py-2 text-sm font-medium bg-[#1a1a2e] text-white rounded-lg hover:bg-[#2a2a3e] disabled:opacity-50"
+          >
+            {updateMutation.isPending ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}

@@ -78,7 +78,7 @@ export default function DepartmentsPage() {
                     <Pencil size={15} />
                   </button>
                   <button
-                    onClick={() => setDeleting(d.id)}
+                    onClick={() => { deleteMutation.reset(); setDeleting(d.id); }}
                     className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                   >
                     <Trash2 size={15} />
@@ -138,8 +138,9 @@ export default function DepartmentsPage() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
             <h2 className="text-lg font-semibold">Delete Department?</h2>
             <p className="text-sm text-gray-500">This will deactivate the department. Existing employees will not be removed.</p>
+            {deleteMutation.isError && <p className="text-sm text-red-500">Failed to delete. Please try again.</p>}
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setDeleting(null)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">
+              <button onClick={() => { deleteMutation.reset(); setDeleting(null); }} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">
                 Cancel
               </button>
               <button

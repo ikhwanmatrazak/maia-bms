@@ -17,15 +17,22 @@ const ROLES = ["admin", "manager", "staff"];
 const ROLE_LABELS: Record<string, string> = { admin: "Admin", manager: "Manager", staff: "Sales" };
 
 const PERMISSION_GROUPS = [
-  { key: "dashboard", label: "Dashboard & Analytics" },
-  { key: "crm", label: "CRM (Clients & Pipeline)" },
-  { key: "sales", label: "Sales (Quotations, Invoices, Receipts)" },
-  { key: "procurement", label: "Procurement (Products, PO, Vendors, DO)" },
-  { key: "finance", label: "Finance (Payments, Expenses, Reports)" },
-  { key: "projects", label: "Projects" },
-  { key: "calendar", label: "Calendar" },
-  { key: "hr", label: "HR" },
-  { key: "reminders", label: "Reminders" },
+  { key: "dashboard", label: "Dashboard & Analytics", sub: false },
+  { key: "crm", label: "CRM (Clients & Pipeline)", sub: false },
+  { key: "sales", label: "Sales (Quotations, Invoices, Receipts)", sub: false },
+  { key: "procurement", label: "Procurement (Products, PO, Vendors, DO)", sub: false },
+  { key: "finance", label: "Finance (Payments, Expenses, Reports)", sub: false },
+  { key: "projects", label: "Projects", sub: false },
+  { key: "calendar", label: "Calendar", sub: false },
+  { key: "hr", label: "HR Overview", sub: false },
+  { key: "hr-employees", label: "↳ Employees", sub: true },
+  { key: "hr-departments", label: "↳ Departments", sub: true },
+  { key: "hr-leave", label: "↳ Leave", sub: true },
+  { key: "hr-attendance", label: "↳ Attendance", sub: true },
+  { key: "hr-payroll", label: "↳ Payroll", sub: true },
+  { key: "hr-claims", label: "↳ Claims", sub: true },
+  { key: "hr-performance", label: "↳ Performance", sub: true },
+  { key: "reminders", label: "Reminders", sub: false },
 ];
 
 export default function UsersPage() {
@@ -233,7 +240,7 @@ export default function UsersPage() {
                 <div className="flex flex-col gap-2 border-t border-divider pt-3">
                   <p className="text-xs text-default-400 mb-1">Select which screens this user can access:</p>
                   {PERMISSION_GROUPS.map((g) => (
-                    <label key={g.key} className="flex items-center gap-2 cursor-pointer">
+                    <label key={g.key} className={`flex items-center gap-2 cursor-pointer ${g.sub ? "ml-4" : ""}`}>
                       <input
                         type="checkbox"
                         checked={permSelected.includes(g.key)}
@@ -244,7 +251,7 @@ export default function UsersPage() {
                         }}
                         className="w-4 h-4 accent-primary"
                       />
-                      <span className="text-sm">{g.label}</span>
+                      <span className={`text-sm ${g.sub ? "text-default-500" : ""}`}>{g.label}</span>
                     </label>
                   ))}
                 </div>
