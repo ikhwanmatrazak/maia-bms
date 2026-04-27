@@ -2,7 +2,7 @@
 import { Topbar } from "@/components/ui/Topbar";
 import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { hrApi } from "@/lib/api";
 import Link from "next/link";
@@ -27,12 +27,18 @@ export default function EmployeesPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 500);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const { data: employees = [], isLoading } = useQuery({
-    queryKey: ["hr-employees", search, deptFilter, statusFilter],
-    queryFn: () => hrApi.listEmployees({ search: search || undefined, department_id: deptFilter || undefined, status: statusFilter || undefined }),
+    queryKey: ["hr-employees", debouncedSearch, deptFilter, statusFilter],
+    queryFn: () => hrApi.listEmployees({ search: debouncedSearch || undefined, department_id: deptFilter || undefined, status: statusFilter || undefined }),
   });
 
   const { data: departments = [] } = useQuery({

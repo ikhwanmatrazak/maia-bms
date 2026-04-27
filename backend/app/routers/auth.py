@@ -1,4 +1,5 @@
 import hashlib
+import json
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,6 +57,13 @@ async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends
     db.add(db_token)
     await db.commit()
 
+    perms = None
+    if user.permissions:
+        try:
+            perms = json.loads(user.permissions)
+        except Exception:
+            perms = None
+
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -65,6 +73,7 @@ async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends
         role=user.role,
         is_super_admin=user.is_super_admin,
         tenant_id=user.tenant_id,
+        permissions=perms,
     )
 
 
@@ -99,6 +108,13 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     db.add(RefreshToken(user_id=user.id, token_hash=new_token_hash, expires_at=expires_at))
     await db.commit()
 
+    perms = None
+    if user.permissions:
+        try:
+            perms = json.loads(user.permissions)
+        except Exception:
+            perms = None
+
     return TokenResponse(
         access_token=new_access_token,
         refresh_token=new_refresh_token,
@@ -108,6 +124,7 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
         role=user.role,
         is_super_admin=user.is_super_admin,
         tenant_id=user.tenant_id,
+        permissions=perms,
     )
 
 

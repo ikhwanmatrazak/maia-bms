@@ -16,6 +16,18 @@ import { TableSkeleton } from "@/components/ui/PageSkeleton";
 const ROLES = ["admin", "manager", "staff"];
 const ROLE_LABELS: Record<string, string> = { admin: "Admin", manager: "Manager", staff: "Sales" };
 
+const PERMISSION_GROUPS = [
+  { key: "dashboard", label: "Dashboard & Analytics" },
+  { key: "crm", label: "CRM (Clients & Pipeline)" },
+  { key: "sales", label: "Sales (Quotations, Invoices, Receipts)" },
+  { key: "procurement", label: "Procurement (Products, PO, Vendors, DO)" },
+  { key: "finance", label: "Finance (Payments, Expenses, Reports)" },
+  { key: "projects", label: "Projects" },
+  { key: "calendar", label: "Calendar" },
+  { key: "hr", label: "HR" },
+  { key: "reminders", label: "Reminders" },
+];
+
 export default function UsersPage() {
   const [createModal, setCreateModal] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "staff" });
@@ -23,6 +35,11 @@ export default function UsersPage() {
   const [editModal, setEditModal] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", role: "staff", new_password: "" });
+
+  const [permModal, setPermModal] = useState(false);
+  const [permUser, setPermUser] = useState<User | null>(null);
+  const [permSelected, setPermSelected] = useState<string[]>([]);
+  const [permUnrestricted, setPermUnrestricted] = useState(true);
   const [showCreatePw, setShowCreatePw] = useState(false);
   const [showEditPw, setShowEditPw] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -81,6 +98,27 @@ export default function UsersPage() {
     setEditModal(true);
   };
 
+  const openPermissions = (u: User) => {
+    setPermUser(u);
+    if (u.permissions == null) {
+      setPermUnrestricted(true);
+      setPermSelected(PERMISSION_GROUPS.map((g) => g.key));
+    } else {
+      setPermUnrestricted(false);
+      setPermSelected(u.permissions);
+    }
+    setPermModal(true);
+  };
+
+  const savePermissions = () => {
+    if (!permUser) return;
+    const perms = permUnrestricted ? null : permSelected;
+    updateMutation.mutate(
+      { id: permUser.id, data: { permissions: perms } },
+      { onSuccess: () => setPermModal(false) }
+    );
+  };
+
   const handleUpdate = () => {
     if (!editUser) return;
     const payload: Record<string, string> = {};
@@ -133,8 +171,11 @@ export default function UsersPage() {
                 </TableCell>
                 <TableCell>{formatDate(u.created_at)}</TableCell>
                 <TableCell>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <Button size="sm" variant="flat" onPress={() => openEdit(u)}>Edit</Button>
+                    {u.role !== "admin" && (
+                      <Button size="sm" variant="flat" color="secondary" onPress={() => openPermissions(u)}>Permissions</Button>
+                    )}
                     <Button size="sm" variant="flat"
                       onPress={() => toggleMutation.mutate({ id: u.id, data: { is_active: !u.is_active } })}>
                       {u.is_active ? "Deactivate" : "Activate"}
@@ -170,6 +211,48 @@ export default function UsersPage() {
               <Button color="primary" isLoading={createMutation.isPending}
                 isDisabled={!form.name || !form.email || !form.password}
                 onPress={() => { setCreateError(null); createMutation.mutate(form); }}>Create</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
+        {/* Permissions Modal */}
+        <Modal isOpen={permModal} onClose={() => setPermModal(false)} size="md">
+          <ModalContent>
+            <ModalHeader>Screen Access — {permUser?.name}</ModalHeader>
+            <ModalBody className="flex flex-col gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={permUnrestricted}
+                  onChange={(e) => setPermUnrestricted(e.target.checked)}
+                  className="w-4 h-4 accent-primary"
+                />
+                <span className="text-sm font-medium">Full access (no restrictions)</span>
+              </label>
+              {!permUnrestricted && (
+                <div className="flex flex-col gap-2 border-t border-divider pt-3">
+                  <p className="text-xs text-default-400 mb-1">Select which screens this user can access:</p>
+                  {PERMISSION_GROUPS.map((g) => (
+                    <label key={g.key} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={permSelected.includes(g.key)}
+                        onChange={(e) => {
+                          setPermSelected((prev) =>
+                            e.target.checked ? [...prev, g.key] : prev.filter((k) => k !== g.key)
+                          );
+                        }}
+                        className="w-4 h-4 accent-primary"
+                      />
+                      <span className="text-sm">{g.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="flat" onPress={() => setPermModal(false)}>Cancel</Button>
+              <Button color="primary" isLoading={updateMutation.isPending} onPress={savePermissions}>Save</Button>
             </ModalFooter>
           </ModalContent>
         </Modal>

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
+import json
 
 from app.database import get_db
 from app.models.user import User, UserRole
@@ -75,6 +76,10 @@ async def update_user(
     # Only admins can change roles
     if "role" in update_data and current_user.role != UserRole.admin:
         del update_data["role"]
+    # Serialize permissions list to JSON string for storage
+    if "permissions" in update_data:
+        perms = update_data["permissions"]
+        update_data["permissions"] = json.dumps(perms) if perms is not None else None
 
     for key, value in update_data.items():
         setattr(user, key, value)

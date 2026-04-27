@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr
+from typing import Optional, List
 from app.models.user import UserRole
 
 
@@ -17,6 +18,7 @@ class TokenResponse(BaseModel):
     role: UserRole
     is_super_admin: bool = False
     tenant_id: int | None = None
+    permissions: Optional[List[str]] = None
 
 
 class RefreshRequest(BaseModel):
