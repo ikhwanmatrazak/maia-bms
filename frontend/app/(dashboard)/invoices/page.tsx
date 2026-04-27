@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -56,6 +56,21 @@ export default function InvoicesPage() {
       limit: PAGE_SIZE,
     }),
   });
+
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleDelete = (id: number) => {
+    if (confirmDeleteId === id) {
+      deleteMutation.mutate(id);
+      setConfirmDeleteId(null);
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    } else {
+      setConfirmDeleteId(id);
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+      confirmTimer.current = setTimeout(() => setConfirmDeleteId(null), 3000);
+    }
+  };
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => invoicesApi.softDelete(id),
@@ -251,8 +266,13 @@ export default function InvoicesPage() {
                     <Button size="sm" variant="flat" isIconOnly title="Download PDF" onPress={() => downloadPdf(invoicesApi.getPdfUrl(inv.id), (inv.invoice_number || "invoice-" + inv.id) + ".pdf")}><FileDown size={15} /></Button>
                     <Button size="sm" variant="flat" isIconOnly title="Duplicate" onPress={() => router.push(`/invoices/new?from=${inv.id}`)}><Copy size={15} /></Button>
                     {inv.status !== "paid" && (
-                      <Button size="sm" variant="flat" color="danger" isIconOnly isLoading={deleteMutation.isPending} title="Delete"
-                        onPress={() => { if (confirm("Delete this invoice?")) deleteMutation.mutate(inv.id); }}><Trash2 size={15} /></Button>
+                      <Button size="sm" variant="flat" color="danger" isIconOnly={confirmDeleteId !== inv.id}
+                        isLoading={deleteMutation.isPending && confirmDeleteId === null}
+                        title={confirmDeleteId === inv.id ? "Click again to confirm" : "Delete"}
+                        onPress={() => handleDelete(inv.id)}
+                        className={confirmDeleteId === inv.id ? "px-2 min-w-fit" : ""}>
+                        {confirmDeleteId === inv.id ? <span className="text-xs font-medium">Confirm?</span> : <Trash2 size={15} />}
+                      </Button>
                     )}
                   </div>
                 </TableCell>
