@@ -101,6 +101,7 @@ class Employee(Base):
     employment_status = Column(Enum(EmploymentStatus), nullable=False, default=EmploymentStatus.probation)
     join_date = Column(Date, nullable=True)
     confirmation_date = Column(Date, nullable=True)
+    contract_end_date = Column(Date, nullable=True)
     resignation_date = Column(Date, nullable=True)
 
     # Payroll

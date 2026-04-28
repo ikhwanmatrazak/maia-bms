@@ -140,6 +140,7 @@ class EmployeeCreate(BaseModel):
     employment_status: EmploymentStatus = EmploymentStatus.probation
     join_date: Optional[date] = None
     confirmation_date: Optional[date] = None
+    contract_end_date: Optional[date] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     ic_no: Optional[str] = None
@@ -177,6 +178,7 @@ class EmployeeResponse(BaseModel):
     employment_status: str
     join_date: Optional[date] = None
     confirmation_date: Optional[date] = None
+    contract_end_date: Optional[date] = None
     resignation_date: Optional[date] = None
     email: Optional[str] = None
     phone: Optional[str] = None
@@ -510,6 +512,7 @@ def _emp_to_response(emp: Employee) -> EmployeeResponse:
         employment_status=emp.employment_status.value if emp.employment_status else None,
         join_date=emp.join_date,
         confirmation_date=emp.confirmation_date,
+        contract_end_date=emp.contract_end_date,
         resignation_date=emp.resignation_date,
         email=emp.email,
         phone=emp.phone,

@@ -34,7 +34,7 @@ export default function NewEmployeePage() {
   const [form, setForm] = useState({
     employee_no: "", full_name: "", department_id: "", user_id: "",
     designation: "", employment_type: "full_time", employment_status: "probation",
-    join_date: "", confirmation_date: "",
+    join_date: "", confirmation_date: "", contract_end_date: "",
     email: "", phone: "",
     ic_no: "", passport_no: "", date_of_birth: "", gender: "",
     nationality: "Malaysian", religion: "", marital_status: "",
@@ -65,7 +65,7 @@ export default function NewEmployeePage() {
     if (data.basic_salary) data.basic_salary = Number(data.basic_salary);
     else delete data.basic_salary;
     if (data.children_count) data.children_count = Number(data.children_count);
-    ["join_date", "confirmation_date", "date_of_birth"].forEach((k) => {
+    ["join_date", "confirmation_date", "contract_end_date", "date_of_birth"].forEach((k) => {
       if (!data[k]) delete data[k];
     });
     mutation.mutate(data);
@@ -155,6 +155,31 @@ export default function NewEmployeePage() {
                 <input type="date" className={INPUT} value={form.confirmation_date} onChange={e => set("confirmation_date", e.target.value)} />
               </div>
             </div>
+            {form.employment_type === "contract" && (
+              <div>
+                <label className={LABEL}>Contract End Date</label>
+                <div className="flex gap-2 items-center flex-wrap">
+                  <input type="date" className={`${INPUT} flex-1 min-w-[160px]`} value={form.contract_end_date} onChange={e => set("contract_end_date", e.target.value)} />
+                  {["3 months", "6 months", "1 year", "2 years"].map(label => {
+                    const base = form.join_date ? new Date(form.join_date) : new Date();
+                    const d = new Date(base);
+                    if (label === "3 months") d.setMonth(d.getMonth() + 3);
+                    else if (label === "6 months") d.setMonth(d.getMonth() + 6);
+                    else if (label === "1 year") d.setFullYear(d.getFullYear() + 1);
+                    else if (label === "2 years") d.setFullYear(d.getFullYear() + 2);
+                    const pad = (n: number) => String(n).padStart(2, "0");
+                    const val = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+                    return (
+                      <button key={label} type="button" onClick={() => set("contract_end_date", val)}
+                        className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors">
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Quick-set from join date, or pick a custom date above.</p>
+              </div>
+            )}
           </div>
         </div>
 

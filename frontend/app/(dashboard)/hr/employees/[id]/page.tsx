@@ -72,6 +72,7 @@ export default function EmployeeDetailPage() {
       employment_status: emp.employment_status || "active",
       join_date: emp.join_date || "",
       confirmation_date: emp.confirmation_date || "",
+      contract_end_date: emp.contract_end_date || "",
       email: emp.email || "",
       phone: emp.phone || "",
       ic_no: emp.ic_no || "",
@@ -178,7 +179,7 @@ export default function EmployeeDetailPage() {
     data.children_count = data.children_count !== "" && data.children_count != null ? Number(data.children_count) : 0;
     data.user_id = data.user_id ? Number(data.user_id) : null;
     // Convert empty strings to null for optional string/date fields
-    ["join_date", "confirmation_date", "date_of_birth", "phone", "ic_no", "passport_no",
+    ["join_date", "confirmation_date", "contract_end_date", "date_of_birth", "phone", "ic_no", "passport_no",
      "gender", "nationality", "religion", "marital_status", "address",
      "emergency_contact_name", "emergency_contact_phone", "emergency_contact_relation",
      "bank_name", "bank_account_no", "epf_no", "socso_no", "income_tax_no", "designation"].forEach((k) => {
@@ -328,6 +329,31 @@ export default function EmployeeDetailPage() {
                 <div><label className={LABEL}>Join Date</label><input type="date" className={INPUT} value={form.join_date} onChange={e => set("join_date", e.target.value)} /></div>
                 <div><label className={LABEL}>Confirmation Date</label><input type="date" className={INPUT} value={form.confirmation_date} onChange={e => set("confirmation_date", e.target.value)} /></div>
               </div>
+              {form.employment_type === "contract" && (
+                <div>
+                  <label className={LABEL}>Contract End Date</label>
+                  <div className="flex gap-2 items-center flex-wrap">
+                    <input type="date" className={`${INPUT} flex-1 min-w-[160px]`} value={form.contract_end_date} onChange={e => set("contract_end_date", e.target.value)} />
+                    {["3 months", "6 months", "1 year", "2 years"].map(label => {
+                      const base = form.join_date ? new Date(form.join_date) : new Date();
+                      const d = new Date(base);
+                      if (label === "3 months") d.setMonth(d.getMonth() + 3);
+                      else if (label === "6 months") d.setMonth(d.getMonth() + 6);
+                      else if (label === "1 year") d.setFullYear(d.getFullYear() + 1);
+                      else if (label === "2 years") d.setFullYear(d.getFullYear() + 2);
+                      const pad = (n: number) => String(n).padStart(2, "0");
+                      const val = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+                      return (
+                        <button key={label} type="button" onClick={() => set("contract_end_date", val)}
+                          className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors">
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Quick-set from join date, or pick a custom date above.</p>
+                </div>
+              )}
               <div>
                 <label className={LABEL}>Linked User Account</label>
                 <select className={SELECT} value={form.user_id} onChange={e => setUserLink(e.target.value)}>
