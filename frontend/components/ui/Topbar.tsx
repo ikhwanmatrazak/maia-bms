@@ -224,9 +224,9 @@ export function Topbar({ title }: { title?: string }) {
                   <div className="space-y-1.5">
                     {upcomingEvents.map((e: any) => (
                       <div key={e.id} className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-gray-100 flex flex-col items-center justify-center shrink-0">
-                          <p className="text-[9px] text-gray-400 uppercase leading-none">{new Date(e.start_at).toLocaleDateString("en-MY", { month: "short" })}</p>
-                          <p className="text-sm font-bold text-gray-700 leading-tight">{new Date(e.start_at).getDate()}</p>
+                        <div className="w-10 h-10 rounded-xl bg-gray-100 flex flex-col items-center justify-center shrink-0 gap-0">
+                          <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide leading-none">{new Date(e.start_at).toLocaleDateString("en-MY", { month: "short" })}</span>
+                          <span className="text-base font-bold text-gray-700 leading-none mt-0.5">{new Date(e.start_at).getDate()}</span>
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-800 truncate">{e.title}</p>
