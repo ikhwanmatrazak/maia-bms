@@ -174,7 +174,7 @@ export function Topbar({ title }: { title?: string }) {
                 )}
               </button>
             </PopoverTrigger>
-            <PopoverContent className="p-0 w-80 shadow-xl rounded-2xl overflow-hidden">
+            <PopoverContent className="p-0 w-96 shadow-xl rounded-2xl overflow-hidden">
               {/* Header */}
               <div className="px-5 py-4 bg-primary text-white flex items-center justify-between">
                 <div>
@@ -219,7 +219,7 @@ export function Topbar({ title }: { title?: string }) {
 
               {/* Upcoming events */}
               {upcomingEvents.length > 0 && (
-                <div className="px-4 pb-2 border-t pt-2 max-h-40 overflow-y-auto">
+                <div className="px-4 pb-3 border-t pt-3 max-h-48 overflow-y-auto">
                   <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Upcoming</p>
                   <div className="space-y-1.5">
                     {upcomingEvents.map((e: any) => (
