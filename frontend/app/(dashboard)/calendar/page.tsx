@@ -266,16 +266,15 @@ export default function CalendarPage() {
 
       {/* ── List View ─────────────────────────────── */}
       {view === "list" && (() => {
-        const todayDate = new Date();
-        todayDate.setHours(0, 0, 0, 0);
-        const todayStr = todayDate.toISOString().slice(0, 10);
+        // Use local date parts to avoid UTC timezone shift
+        const _now = new Date();
+        const pad2 = (n: number) => String(n).padStart(2, "0");
+        const todayStr = `${_now.getFullYear()}-${pad2(_now.getMonth() + 1)}-${pad2(_now.getDate())}`;
 
         const sorted = [...events]
           .filter((e) => {
             const evDate = e.start_at?.slice(0, 10) ?? "";
-            // hide past events (before today), unless date filter is set
             if (!listDateFilter && evDate < todayStr) return false;
-            // date filter
             if (listDateFilter && evDate !== listDateFilter) return false;
             return true;
           })
@@ -297,11 +296,12 @@ export default function CalendarPage() {
                   type="date"
                   value={listDateFilter}
                   onChange={(e) => {
-                    setListDateFilter(e.target.value);
-                    // navigate to that month if filter is set
-                    if (e.target.value) {
-                      const d = new Date(e.target.value);
-                      setViewDate({ year: d.getFullYear(), month: d.getMonth() + 1 });
+                    const val = e.target.value;
+                    setListDateFilter(val);
+                    if (val) {
+                      // parse date parts directly to avoid UTC shift
+                      const [y, m] = val.split("-").map(Number);
+                      setViewDate({ year: y, month: m });
                     }
                   }}
                   className="w-full px-3 py-2 text-sm border border-divider rounded-xl bg-content1 focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -328,7 +328,9 @@ export default function CalendarPage() {
             )}
             {entries.map(([dateKey, dayEvs]) => {
               const isToday = dateKey === todayStr;
-              const dateLabel = new Date(dateKey + "T00:00:00").toLocaleDateString("en-MY", {
+              // Parse date parts directly to avoid UTC shift in display
+              const [dy, dm, dd] = dateKey.split("-").map(Number);
+              const dateLabel = new Date(dy, dm - 1, dd).toLocaleDateString("en-MY", {
                 weekday: "long", day: "numeric", month: "long", year: "numeric",
               });
               return (
