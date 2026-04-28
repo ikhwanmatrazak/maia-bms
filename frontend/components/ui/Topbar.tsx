@@ -48,14 +48,14 @@ export function Topbar({ title }: { title?: string }) {
   });
 
   const todayEvents = calEvents.filter((e) => {
-    const start = e.start_time?.slice(0, 10);
-    const end = e.end_time?.slice(0, 10);
+    const start = e.start_at?.slice(0, 10);
+    const end = e.end_at?.slice(0, 10);
     return start <= todayStr && todayStr <= (end ?? start);
   });
 
   const upcomingEvents = calEvents
-    .filter((e) => e.start_time?.slice(0, 10) > todayStr)
-    .sort((a, b) => a.start_time.localeCompare(b.start_time))
+    .filter((e) => e.start_at?.slice(0, 10) > todayStr)
+    .sort((a: any, b: any) => a.start_at.localeCompare(b.start_at))
     .slice(0, 5);
   const [editModal, setEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", new_password: "", confirm_password: "" });
@@ -174,30 +174,44 @@ export function Topbar({ title }: { title?: string }) {
                 )}
               </button>
             </PopoverTrigger>
-            <PopoverContent className="p-0 w-80">
-              <div className="px-4 py-3 border-b flex items-center justify-between">
-                <span className="font-semibold text-sm">Calendar</span>
-                <span className="text-xs text-gray-400">{now.toLocaleDateString("en-MY", { weekday: "long", day: "numeric", month: "short" })}</span>
+            <PopoverContent className="p-0 w-80 shadow-xl rounded-2xl overflow-hidden">
+              {/* Header */}
+              <div className="px-4 py-3 bg-primary text-white flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-sm">{now.toLocaleDateString("en-MY", { weekday: "long" })}</p>
+                  <p className="text-primary-200 text-xs">{now.toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" })}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold leading-none">{now.getDate()}</p>
+                  <p className="text-primary-200 text-xs">{now.toLocaleDateString("en-MY", { month: "short", year: "numeric" })}</p>
+                </div>
               </div>
 
               {/* Today's events */}
-              <div className="px-4 py-2 bg-primary/5 border-b">
-                <p className="text-[11px] font-semibold text-primary uppercase mb-1.5 tracking-wide">Today</p>
+              <div className="px-4 pt-3 pb-2">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-primary" />
+                  <p className="text-[11px] font-bold text-primary uppercase tracking-wider">Today's Events</p>
+                </div>
                 {todayEvents.length === 0 ? (
-                  <p className="text-xs text-gray-400 py-1">No events today</p>
+                  <div className="flex flex-col items-center py-4 text-gray-300">
+                    <CalendarDays size={28} className="mb-1.5" />
+                    <p className="text-xs text-gray-400">No events scheduled for today</p>
+                  </div>
                 ) : (
-                  <div className="space-y-1.5">
-                    {todayEvents.map((e) => (
-                      <div key={e.id} className="flex items-start gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                  <div className="space-y-2">
+                    {todayEvents.map((e: any) => (
+                      <div key={e.id} className="flex items-start gap-3 bg-primary/5 border border-primary/10 rounded-xl px-3 py-2">
+                        <div className="w-1 self-stretch rounded-full bg-primary shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{e.title}</p>
-                          {e.start_time && (
-                            <p className="text-xs text-gray-400">
-                              {new Date(e.start_time).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}
-                              {e.end_time ? ` – ${new Date(e.end_time).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}` : ""}
+                          <p className="text-sm font-semibold text-gray-900 truncate">{e.title}</p>
+                          {e.start_at && (
+                            <p className="text-xs text-primary mt-0.5">
+                              {new Date(e.start_at).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}
+                              {e.end_at ? ` – ${new Date(e.end_at).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}` : ""}
                             </p>
                           )}
+                          {e.location && <p className="text-xs text-gray-400 truncate mt-0.5">📍 {e.location}</p>}
                         </div>
                       </div>
                     ))}
@@ -207,20 +221,18 @@ export function Topbar({ title }: { title?: string }) {
 
               {/* Upcoming events */}
               {upcomingEvents.length > 0 && (
-                <div className="px-4 py-2 max-h-44 overflow-y-auto">
-                  <p className="text-[11px] font-semibold text-gray-400 uppercase mb-1.5 tracking-wide">Upcoming</p>
-                  <div className="space-y-2">
-                    {upcomingEvents.map((e) => (
-                      <div key={e.id} className="flex items-start gap-2">
-                        <div className="text-center shrink-0 w-8">
-                          <p className="text-[10px] text-gray-400 leading-none">{new Date(e.start_time).toLocaleDateString("en-MY", { month: "short" })}</p>
-                          <p className="text-sm font-bold text-gray-700 leading-tight">{new Date(e.start_time).getDate()}</p>
+                <div className="px-4 pb-2 border-t pt-2 max-h-40 overflow-y-auto">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Upcoming</p>
+                  <div className="space-y-1.5">
+                    {upcomingEvents.map((e: any) => (
+                      <div key={e.id} className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-gray-100 flex flex-col items-center justify-center shrink-0">
+                          <p className="text-[9px] text-gray-400 uppercase leading-none">{new Date(e.start_at).toLocaleDateString("en-MY", { month: "short" })}</p>
+                          <p className="text-sm font-bold text-gray-700 leading-tight">{new Date(e.start_at).getDate()}</p>
                         </div>
-                        <div className="flex-1 min-w-0 border-l pl-2">
-                          <p className="text-sm font-medium text-gray-900 truncate">{e.title}</p>
-                          <p className="text-xs text-gray-400">
-                            {new Date(e.start_time).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}
-                          </p>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{e.title}</p>
+                          <p className="text-xs text-gray-400">{new Date(e.start_at).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}</p>
                         </div>
                       </div>
                     ))}
@@ -228,10 +240,12 @@ export function Topbar({ title }: { title?: string }) {
                 </div>
               )}
 
-              <div className="px-4 py-2.5 border-t text-center">
-                <button className="text-xs text-primary font-medium hover:underline"
-                  onClick={() => { setCalOpen(false); router.push("/calendar"); }}>
-                  Open Calendar →
+              <div className="px-4 py-2.5 border-t bg-gray-50 text-center">
+                <button
+                  className="text-xs text-primary font-semibold hover:underline"
+                  onClick={() => { setCalOpen(false); router.push("/calendar"); }}
+                >
+                  Open Full Calendar →
                 </button>
               </div>
             </PopoverContent>
