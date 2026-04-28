@@ -125,13 +125,25 @@ export default function CalendarPage() {
 
   const eventsByDay = useMemo(() => {
     const map: Record<number, CalEvent[]> = {};
+    const monthStart = new Date(viewDate.year, viewDate.month - 1, 1);
+    const monthEnd = new Date(viewDate.year, viewDate.month, 0);
     for (const e of events) {
-      const d = new Date(e.start_at).getDate();
-      if (!map[d]) map[d] = [];
-      map[d].push(e);
+      const start = new Date(e.start_at);
+      const end = e.end_at ? new Date(e.end_at) : start;
+      // Clamp to current month
+      const from = start < monthStart ? monthStart : start;
+      const to = end > monthEnd ? monthEnd : end;
+      const cur = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+      const toDay = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+      while (cur <= toDay) {
+        const d = cur.getDate();
+        if (!map[d]) map[d] = [];
+        if (!map[d].find(x => x.id === e.id)) map[d].push(e);
+        cur.setDate(cur.getDate() + 1);
+      }
     }
     return map;
-  }, [events]);
+  }, [events, viewDate]);
 
   function prevMonth() {
     setViewDate(v => v.month === 1 ? { year: v.year - 1, month: 12 } : { year: v.year, month: v.month - 1 });
@@ -271,20 +283,27 @@ export default function CalendarPage() {
         const pad2 = (n: number) => String(n).padStart(2, "0");
         const todayStr = `${_now.getFullYear()}-${pad2(_now.getMonth() + 1)}-${pad2(_now.getDate())}`;
 
-        const sorted = [...events]
-          .filter((e) => {
-            const evDate = e.start_at?.slice(0, 10) ?? "";
-            if (!listDateFilter && evDate < todayStr) return false;
-            if (listDateFilter && evDate !== listDateFilter) return false;
-            return true;
-          })
-          .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
+        // Expand multi-day events to appear on each day they span
+        const expandedEntries: { dateKey: string; ev: CalEvent }[] = [];
+        for (const ev of events) {
+          const start = new Date(ev.start_at);
+          const end = ev.end_at ? new Date(ev.end_at) : start;
+          const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+          const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+          while (cur <= endDay) {
+            const dateKey = `${cur.getFullYear()}-${pad2(cur.getMonth() + 1)}-${pad2(cur.getDate())}`;
+            if (!listDateFilter && dateKey < todayStr) { cur.setDate(cur.getDate() + 1); continue; }
+            if (listDateFilter && dateKey !== listDateFilter) { cur.setDate(cur.getDate() + 1); continue; }
+            expandedEntries.push({ dateKey, ev });
+            cur.setDate(cur.getDate() + 1);
+          }
+        }
+        expandedEntries.sort((a, b) => a.dateKey.localeCompare(b.dateKey) || new Date(a.ev.start_at).getTime() - new Date(b.ev.start_at).getTime());
 
         const groups: Record<string, CalEvent[]> = {};
-        for (const ev of sorted) {
-          const key = ev.start_at.slice(0, 10);
-          if (!groups[key]) groups[key] = [];
-          groups[key].push(ev);
+        for (const { dateKey, ev } of expandedEntries) {
+          if (!groups[dateKey]) groups[dateKey] = [];
+          if (!groups[dateKey].find(x => x.id === ev.id)) groups[dateKey].push(ev);
         }
         const entries = Object.entries(groups);
         return (
