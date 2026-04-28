@@ -6,8 +6,8 @@ import {
   Button, Input, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Popover, PopoverTrigger, PopoverContent,
 } from "@heroui/react";
-import { Bell, User, LogOut, Settings, ChevronDown, Check, Building2, X, Menu, Eye, EyeOff } from "lucide-react";
-import { remindersApi, authApi, usersApi, superAdminApi } from "@/lib/api";
+import { Bell, User, LogOut, Settings, ChevronDown, Check, Building2, X, Menu, Eye, EyeOff, CalendarDays } from "lucide-react";
+import { remindersApi, authApi, usersApi, superAdminApi, calendarApi } from "@/lib/api";
 import { clearAuth, getSwitchedTenant, setSwitchedTenant, setTokens } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
@@ -35,7 +35,28 @@ export function Topbar({ title }: { title?: string }) {
       setExitingTenant(false);
     }
   };
+  const [calOpen, setCalOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+
+  const { data: calEvents = [] } = useQuery<any[]>({
+    queryKey: ["calendar", now.getFullYear(), now.getMonth() + 1],
+    queryFn: () => calendarApi.listEvents(now.getFullYear(), now.getMonth() + 1),
+    refetchInterval: 10 * 60 * 1000,
+  });
+
+  const todayEvents = calEvents.filter((e) => {
+    const start = e.start_time?.slice(0, 10);
+    const end = e.end_time?.slice(0, 10);
+    return start <= todayStr && todayStr <= (end ?? start);
+  });
+
+  const upcomingEvents = calEvents
+    .filter((e) => e.start_time?.slice(0, 10) > todayStr)
+    .sort((a, b) => a.start_time.localeCompare(b.start_time))
+    .slice(0, 5);
   const [editModal, setEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", new_password: "", confirm_password: "" });
   const [pwError, setPwError] = useState("");
@@ -141,6 +162,81 @@ export function Topbar({ title }: { title?: string }) {
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Calendar quick-view */}
+          <Popover isOpen={calOpen} onOpenChange={setCalOpen} placement="bottom-end">
+            <PopoverTrigger>
+              <button className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors">
+                <CalendarDays size={18} className={todayEvents.length > 0 ? "text-primary" : "text-gray-400"} />
+                {todayEvents.length > 0 && (
+                  <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+                    {todayEvents.length > 9 ? "9+" : todayEvents.length}
+                  </span>
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="p-0 w-80">
+              <div className="px-4 py-3 border-b flex items-center justify-between">
+                <span className="font-semibold text-sm">Calendar</span>
+                <span className="text-xs text-gray-400">{now.toLocaleDateString("en-MY", { weekday: "long", day: "numeric", month: "short" })}</span>
+              </div>
+
+              {/* Today's events */}
+              <div className="px-4 py-2 bg-primary/5 border-b">
+                <p className="text-[11px] font-semibold text-primary uppercase mb-1.5 tracking-wide">Today</p>
+                {todayEvents.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-1">No events today</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {todayEvents.map((e) => (
+                      <div key={e.id} className="flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{e.title}</p>
+                          {e.start_time && (
+                            <p className="text-xs text-gray-400">
+                              {new Date(e.start_time).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}
+                              {e.end_time ? ` – ${new Date(e.end_time).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}` : ""}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Upcoming events */}
+              {upcomingEvents.length > 0 && (
+                <div className="px-4 py-2 max-h-44 overflow-y-auto">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase mb-1.5 tracking-wide">Upcoming</p>
+                  <div className="space-y-2">
+                    {upcomingEvents.map((e) => (
+                      <div key={e.id} className="flex items-start gap-2">
+                        <div className="text-center shrink-0 w-8">
+                          <p className="text-[10px] text-gray-400 leading-none">{new Date(e.start_time).toLocaleDateString("en-MY", { month: "short" })}</p>
+                          <p className="text-sm font-bold text-gray-700 leading-tight">{new Date(e.start_time).getDate()}</p>
+                        </div>
+                        <div className="flex-1 min-w-0 border-l pl-2">
+                          <p className="text-sm font-medium text-gray-900 truncate">{e.title}</p>
+                          <p className="text-xs text-gray-400">
+                            {new Date(e.start_time).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="px-4 py-2.5 border-t text-center">
+                <button className="text-xs text-primary font-medium hover:underline"
+                  onClick={() => { setCalOpen(false); router.push("/calendar"); }}>
+                  Open Calendar →
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
+
           {/* Notification Bell */}
           <Popover isOpen={notifOpen} onOpenChange={setNotifOpen} placement="bottom-end">
             <PopoverTrigger>
