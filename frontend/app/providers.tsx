@@ -14,6 +14,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             gcTime: 5 * 60 * 1000,
             retry: 1,
             retryDelay: 1000,
+            refetchOnMount: "always",
             refetchOnWindowFocus: false,
           },
         },
