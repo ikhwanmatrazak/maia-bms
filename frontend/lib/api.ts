@@ -401,6 +401,13 @@ export const hrApi = {
   createEmployee: (data: object) => api.post("/hr/employees", data).then((r) => r.data),
   updateEmployee: (id: number, data: object) => api.put(`/hr/employees/${id}`, data).then((r) => r.data),
   deleteEmployee: (id: number) => api.delete(`/hr/employees/${id}`),
+  generateOfferLetter: async (id: number, data: object) => {
+    const resp = await api.post(`/hr/employees/${id}/offer-letter`, data, { responseType: "blob" });
+    const url = URL.createObjectURL(new Blob([resp.data], { type: "application/pdf" }));
+    const a = document.createElement("a"); a.href = url; a.download = `Offer_Letter_${id}.pdf`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  },
   uploadPhoto: (id: number, file: File) => {
     const form = new FormData();
     form.append("photo", file);

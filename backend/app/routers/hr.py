@@ -754,6 +754,113 @@ async def delete_employee_document(
     await db.commit()
 
 
+# ─── Offer Letter ────────────────────────────────────────────────────────────
+
+class AllowanceItem(BaseModel):
+    name: str
+    amount: float
+
+class OfferLetterRequest(BaseModel):
+    position: str
+    department: str
+    reporting_to: Optional[str] = None
+    work_location: Optional[str] = None
+    employment_type: str = "Full-Time"
+    start_date: str
+    probation_months: Optional[int] = 3
+    basic_salary: float
+    allowances: Optional[List[AllowanceItem]] = []
+    benefits: Optional[List[str]] = []
+    conditions: Optional[List[str]] = []
+    expiry_date: str
+    signatory_name: Optional[str] = None
+    signatory_title: Optional[str] = None
+    notes: Optional[str] = None
+
+@router.post("/employees/{emp_id}/offer-letter")
+async def generate_offer_letter(
+    emp_id: int,
+    body: OfferLetterRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from fastapi.responses import Response
+    from sqlalchemy import text
+    from jinja2 import Environment, FileSystemLoader
+    from weasyprint import HTML
+    from pathlib import Path
+    import base64
+
+    require_admin_or_manager(current_user)
+
+    # Get employee
+    result = await db.execute(select(Employee).where(Employee.id == emp_id))
+    emp = result.scalar_one_or_none()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    # Get company settings
+    tid = get_effective_tenant_id(current_user)
+    cs = await db.execute(
+        text("SELECT * FROM company_settings WHERE (tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL)) LIMIT 1"),
+        {"tid": tid}
+    )
+    company = cs.mappings().first()
+
+    # Load logo
+    logo_data = None
+    if company and company.get("logo_url"):
+        logo_data = company["logo_url"]
+
+    primary_color = (company.get("primary_color") if company else None) or "#1a1a2e"
+
+    # Build context
+    total_package = body.basic_salary + sum(a.amount for a in (body.allowances or []))
+    ref_no = f"OL/{emp.employee_no}/{date.today().strftime('%Y%m')}"
+    offer_date = date.today().strftime("%d %B %Y")
+
+    context = {
+        "company": company,
+        "logo_data": logo_data,
+        "primary_color": primary_color,
+        "employee": emp,
+        "ref_no": ref_no,
+        "offer_date": offer_date,
+        "position": body.position,
+        "department": body.department,
+        "reporting_to": body.reporting_to,
+        "work_location": body.work_location,
+        "employment_type": body.employment_type,
+        "start_date": body.start_date,
+        "probation_months": body.probation_months,
+        "basic_salary": body.basic_salary,
+        "allowances": body.allowances or [],
+        "benefits": body.benefits or [],
+        "conditions": body.conditions or [],
+        "total_package": total_package,
+        "expiry_date": body.expiry_date,
+        "signatory_name": body.signatory_name,
+        "signatory_title": body.signatory_title,
+        "notes": body.notes,
+    }
+
+    templates_dir = Path(__file__).parent.parent / "templates" / "pdf"
+    jinja_env = Environment(loader=FileSystemLoader(str(templates_dir)))
+    template = jinja_env.get_template("offer_letter.html")
+    html_content = template.render(**context)
+
+    import asyncio
+    loop = asyncio.get_event_loop()
+    pdf_bytes = await loop.run_in_executor(None, lambda: HTML(string=html_content).write_pdf())
+
+    filename = f"Offer_Letter_{emp.employee_no}_{emp.full_name.replace(' ', '_')}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 # ─── Leave Types ─────────────────────────────────────────────────────────────
 
 @router.get("/leave-types", response_model=List[LeaveTypeResponse])

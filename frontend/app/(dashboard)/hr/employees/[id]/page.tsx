@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { hrApi } from "@/lib/api";
-import { ChevronLeft, Upload, Trash2, Plus, ExternalLink } from "lucide-react";
+import { ChevronLeft, Upload, Trash2, Plus, ExternalLink, FileText } from "lucide-react";
 
 const LABEL = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1";
 const INPUT = "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20";
@@ -130,6 +130,37 @@ export default function EmployeeDetailPage() {
   });
 
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [offerGenerating, setOfferGenerating] = useState(false);
+  const [offerForm, setOfferForm] = useState({
+    position: "", department: "", reporting_to: "", work_location: "",
+    employment_type: "Full-Time", start_date: "", probation_months: 3,
+    basic_salary: "", allowances: [] as { name: string; amount: string }[],
+    benefits: ["Annual Leave", "Medical Benefits", "EPF", "SOCSO", "EIS"],
+    expiry_date: "", signatory_name: "", signatory_title: "Human Resource Manager", notes: "",
+  });
+  const setOffer = (k: string, v: any) => setOfferForm((p) => ({ ...p, [k]: v }));
+
+  const handleGenerateOffer = async () => {
+    if (!offerForm.position || !offerForm.start_date || !offerForm.basic_salary || !offerForm.expiry_date) return;
+    setOfferGenerating(true);
+    try {
+      await hrApi.generateOfferLetter(Number(id), {
+        ...offerForm,
+        basic_salary: Number(offerForm.basic_salary),
+        probation_months: Number(offerForm.probation_months),
+        allowances: offerForm.allowances.filter(a => a.name && a.amount).map(a => ({ name: a.name, amount: Number(a.amount) })),
+        conditions: [
+          "This offer is subject to satisfactory reference checks and medical examination.",
+          "You are required to give adequate notice as per the Employment Act if you wish to resign.",
+          "All confidential information relating to the company must be kept strictly confidential.",
+        ],
+      });
+      setOfferOpen(false);
+    } finally {
+      setOfferGenerating(false);
+    }
+  };
   const deleteMutation = useMutation({
     mutationFn: () => hrApi.deleteEmployee(Number(id)),
     onSuccess: () => {
@@ -218,6 +249,17 @@ export default function EmployeeDetailPage() {
               <Trash2 size={15} className="inline mr-1" />Delete
             </button>
           )}
+          <button
+            onClick={() => {
+              setOffer("position", emp.designation || "");
+              setOffer("department", emp.department_name || "");
+              setOffer("basic_salary", emp.basic_salary || "");
+              setOfferOpen(true);
+            }}
+            className="px-3 py-2 text-sm font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 flex items-center gap-1.5"
+          >
+            <FileText size={15} /> Offer Letter
+          </button>
           <button
             onClick={handleSave}
             disabled={updateMutation.isPending}
@@ -455,6 +497,157 @@ export default function EmployeeDetailPage() {
         </div>
       )}
     </div>
+
+    {/* OFFER LETTER MODAL */}
+    {offerOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          {/* Modal Header */}
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Generate Offer Letter</h2>
+              <p className="text-sm text-gray-500 mt-0.5">{emp.full_name}</p>
+            </div>
+            <button onClick={() => setOfferOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none">×</button>
+          </div>
+
+          <div className="px-6 py-5 space-y-5">
+            {/* Position Details */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Position Details</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={LABEL}>Position / Job Title <span className="text-red-400">*</span></label>
+                  <input className={INPUT} value={offerForm.position} onChange={e => setOffer("position", e.target.value)} placeholder="e.g. Software Engineer" />
+                </div>
+                <div>
+                  <label className={LABEL}>Department</label>
+                  <input className={INPUT} value={offerForm.department} onChange={e => setOffer("department", e.target.value)} />
+                </div>
+                <div>
+                  <label className={LABEL}>Reporting To</label>
+                  <input className={INPUT} value={offerForm.reporting_to} onChange={e => setOffer("reporting_to", e.target.value)} placeholder="e.g. Head of Engineering" />
+                </div>
+                <div>
+                  <label className={LABEL}>Work Location</label>
+                  <input className={INPUT} value={offerForm.work_location} onChange={e => setOffer("work_location", e.target.value)} placeholder="e.g. Kuala Lumpur" />
+                </div>
+                <div>
+                  <label className={LABEL}>Employment Type</label>
+                  <select className={SELECT} value={offerForm.employment_type} onChange={e => setOffer("employment_type", e.target.value)}>
+                    <option>Full-Time</option>
+                    <option>Part-Time</option>
+                    <option>Contract</option>
+                    <option>Internship</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={LABEL}>Probation Period (months)</label>
+                  <input type="number" min="0" max="12" className={INPUT} value={offerForm.probation_months} onChange={e => setOffer("probation_months", e.target.value)} />
+                </div>
+                <div>
+                  <label className={LABEL}>Commencement Date <span className="text-red-400">*</span></label>
+                  <input type="date" className={INPUT} value={offerForm.start_date} onChange={e => setOffer("start_date", e.target.value)} />
+                </div>
+                <div>
+                  <label className={LABEL}>Offer Expiry Date <span className="text-red-400">*</span></label>
+                  <input type="date" className={INPUT} value={offerForm.expiry_date} onChange={e => setOffer("expiry_date", e.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            {/* Remuneration */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Remuneration</h3>
+              <div className="mb-3">
+                <label className={LABEL}>Basic Salary (MYR/month) <span className="text-red-400">*</span></label>
+                <input type="number" step="0.01" className={INPUT} value={offerForm.basic_salary} onChange={e => setOffer("basic_salary", e.target.value)} placeholder="0.00" />
+              </div>
+              <div>
+                <label className={LABEL}>Allowances</label>
+                <div className="space-y-2">
+                  {offerForm.allowances.map((a, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <input className={`${INPUT} flex-1`} placeholder="Name (e.g. Transport)" value={a.name} onChange={e => {
+                        const arr = [...offerForm.allowances];
+                        arr[i] = { ...arr[i], name: e.target.value };
+                        setOffer("allowances", arr);
+                      }} />
+                      <input type="number" step="0.01" className={`${INPUT} w-32`} placeholder="Amount" value={a.amount} onChange={e => {
+                        const arr = [...offerForm.allowances];
+                        arr[i] = { ...arr[i], amount: e.target.value };
+                        setOffer("allowances", arr);
+                      }} />
+                      <button onClick={() => setOffer("allowances", offerForm.allowances.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 shrink-0">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setOffer("allowances", [...offerForm.allowances, { name: "", amount: "" }])}
+                    className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    <Plus size={14} /> Add Allowance
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Benefits */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Benefits</h3>
+              <div className="flex flex-wrap gap-2">
+                {["Annual Leave", "Medical Benefits", "EPF", "SOCSO", "EIS", "Dental", "Vision", "Parking", "Phone Allowance", "Laptop"].map(b => (
+                  <label key={b} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="w-3.5 h-3.5"
+                      checked={offerForm.benefits.includes(b)}
+                      onChange={e => setOffer("benefits", e.target.checked ? [...offerForm.benefits, b] : offerForm.benefits.filter(x => x !== b))}
+                    />
+                    {b}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Signatory */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Signatory</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={LABEL}>Signatory Name</label>
+                  <input className={INPUT} value={offerForm.signatory_name} onChange={e => setOffer("signatory_name", e.target.value)} placeholder="Full name" />
+                </div>
+                <div>
+                  <label className={LABEL}>Signatory Title</label>
+                  <input className={INPUT} value={offerForm.signatory_title} onChange={e => setOffer("signatory_title", e.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className={LABEL}>Additional Notes</label>
+              <textarea rows={2} className={INPUT} value={offerForm.notes} onChange={e => setOffer("notes", e.target.value)} placeholder="Any additional remarks..." />
+            </div>
+          </div>
+
+          {/* Modal Footer */}
+          <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+            <button onClick={() => setOfferOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+            <button
+              onClick={handleGenerateOffer}
+              disabled={offerGenerating || !offerForm.position || !offerForm.start_date || !offerForm.basic_salary || !offerForm.expiry_date}
+              className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              <FileText size={14} />
+              {offerGenerating ? "Generating..." : "Generate PDF"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }
