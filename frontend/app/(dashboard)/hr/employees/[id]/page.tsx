@@ -12,6 +12,126 @@ const LABEL = "block text-xs font-semibold text-gray-500 uppercase tracking-wide
 const INPUT = "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20";
 const SELECT = "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none bg-white";
 
+function LeaveBalancesTab({ empId, emp, leaveBalances, refetchLeave }: { empId: number; emp: any; leaveBalances: any[]; refetchLeave: () => void }) {
+  const year = new Date().getFullYear();
+  const [prorating, setProrating] = useState(false);
+  const [preview, setPreview] = useState<any>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const loadPreview = async () => {
+    setProrating(true);
+    try {
+      const data = await hrApi.getProratePreview(empId, year);
+      setPreview(data);
+      setPreviewOpen(true);
+    } finally {
+      setProrating(false);
+    }
+  };
+
+  const applyProrate = async () => {
+    setProrating(true);
+    try {
+      await hrApi.applyProrate(empId, year);
+      refetchLeave();
+      setPreviewOpen(false);
+    } finally {
+      setProrating(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-gray-100">
+        <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700">Leave Balances — {year}</h2>
+            {emp.join_date && <p className="text-xs text-gray-400 mt-0.5">Join date: {emp.join_date}</p>}
+          </div>
+          <button
+            onClick={loadPreview}
+            disabled={prorating}
+            className="px-3 py-1.5 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 disabled:opacity-50"
+          >
+            {prorating ? "Calculating..." : "Auto Pro-rate"}
+          </button>
+        </div>
+        {leaveBalances.length === 0 ? (
+          <div className="py-10 text-center text-sm text-gray-400">No leave balances set for this year</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-50 bg-gray-50">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Leave Type</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Entitled</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Taken</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaveBalances.map((b: any) => (
+                <tr key={b.id} className="border-b border-gray-50">
+                  <td className="px-4 py-3 font-medium">{b.leave_type_name}</td>
+                  <td className="px-4 py-3 text-right text-gray-600">{b.entitled} days</td>
+                  <td className="px-4 py-3 text-right text-orange-600">{b.taken} days</td>
+                  <td className="px-4 py-3 text-right font-semibold text-green-700">{b.balance} days</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Pro-rate preview modal */}
+      {previewOpen && preview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-5 border-b border-gray-100">
+              <h3 className="text-base font-bold text-gray-900">Pro-rated Leave Preview</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                {preview.employee_name} · Join: {preview.join_date} · <strong>{preview.months_worked} months</strong> in {year}
+              </p>
+            </div>
+            <div className="px-6 py-4">
+              {preview.breakdown.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">No leave types are marked as pro-rated.<br />Go to HR → Leave → Leave Types and enable "Pro-rated" on the relevant types.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left py-2 text-xs text-gray-500 font-semibold">Leave Type</th>
+                      <th className="text-right py-2 text-xs text-gray-500 font-semibold">Rate/mo</th>
+                      <th className="text-right py-2 text-xs text-gray-500 font-semibold">Entitled</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.breakdown.map((r: any) => (
+                      <tr key={r.leave_type_id} className="border-b border-gray-50">
+                        <td className="py-2.5 font-medium">{r.leave_type_name}</td>
+                        <td className="py-2.5 text-right text-gray-500">{r.monthly_rate.toFixed(4)}</td>
+                        <td className="py-2.5 text-right font-semibold text-blue-700">{r.entitled} days</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+              <button onClick={() => setPreviewOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+              {preview.breakdown.length > 0 && (
+                <button onClick={applyProrate} disabled={prorating}
+                  className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {prorating ? "Applying..." : "Apply to Balances"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-100 text-green-700",
   probation: "bg-yellow-100 text-yellow-700",
@@ -441,37 +561,7 @@ export default function EmployeeDetailPage() {
       )}
 
       {/* LEAVE TAB */}
-      {tab === "leave" && (
-        <div className="bg-white rounded-xl border border-gray-100">
-          <div className="px-6 py-4 border-b border-gray-50 flex justify-between">
-            <h2 className="text-sm font-semibold text-gray-700">Leave Balances — {new Date().getFullYear()}</h2>
-          </div>
-          {leaveBalances.length === 0 ? (
-            <div className="py-10 text-center text-sm text-gray-400">No leave balances set for this year</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-50 bg-gray-50">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Leave Type</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Entitled</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Taken</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaveBalances.map((b: any) => (
-                  <tr key={b.id} className="border-b border-gray-50">
-                    <td className="px-4 py-3 font-medium">{b.leave_type_name}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{b.entitled} days</td>
-                    <td className="px-4 py-3 text-right text-orange-600">{b.taken} days</td>
-                    <td className="px-4 py-3 text-right font-semibold text-green-700">{b.balance} days</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
+      {tab === "leave" && <LeaveBalancesTab empId={Number(id)} emp={emp} leaveBalances={leaveBalances} refetchLeave={() => qc.invalidateQueries({ queryKey: ["hr-leave-balances", id] })} />}
 
       {/* DOCS TAB */}
       {tab === "docs" && (

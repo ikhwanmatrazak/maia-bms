@@ -212,6 +212,7 @@ class LeaveTypeCreate(BaseModel):
     days_per_year: int = 0
     is_paid: bool = True
     requires_document: bool = False
+    is_pro_rated: bool = False
 
 class LeaveTypeResponse(BaseModel):
     id: int
@@ -219,6 +220,7 @@ class LeaveTypeResponse(BaseModel):
     days_per_year: int
     is_paid: bool
     requires_document: bool
+    is_pro_rated: bool = False
     is_active: bool
     model_config = {"from_attributes": True}
 
@@ -974,6 +976,136 @@ async def set_leave_balance(
     await db.commit()
     await db.refresh(bal)
     return {"id": bal.id, "entitled": float(bal.entitled), "taken": float(bal.taken)}
+
+
+@router.get("/leave-balances/prorate/{employee_id}")
+async def get_prorate_preview(
+    employee_id: int,
+    year: int = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Calculate pro-rated leave entitlement for an employee based on join date."""
+    from datetime import date as date_cls
+    import math
+
+    target_year = year or date_cls.today().year
+
+    emp_result = await db.execute(select(Employee).where(Employee.id == employee_id))
+    emp = emp_result.scalar_one_or_none()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    # Determine months worked in the target year
+    year_start = date_cls(target_year, 1, 1)
+    year_end = date_cls(target_year, 12, 31)
+
+    join = emp.join_date or year_start
+    # Clamp join date to target year
+    effective_start = max(join, year_start)
+    effective_end = year_end
+
+    if effective_start > year_end:
+        months_worked = 0
+    else:
+        # Count completed months: from effective_start month to Dec
+        months_worked = (effective_end.year - effective_start.year) * 12 + (effective_end.month - effective_start.month) + 1
+        months_worked = min(months_worked, 12)
+
+    # Get all pro-rated leave types for this tenant
+    lt_result = await db.execute(
+        select(LeaveType).where(
+            LeaveType.is_pro_rated == True,
+            LeaveType.is_active == True,
+            LeaveType.tenant_id == current_user.tenant_id,
+        )
+    )
+    leave_types = lt_result.scalars().all()
+
+    results = []
+    for lt in leave_types:
+        daily_rate = lt.days_per_year / 12
+        entitled = round(daily_rate * months_worked, 2)
+        results.append({
+            "leave_type_id": lt.id,
+            "leave_type_name": lt.name,
+            "days_per_year": lt.days_per_year,
+            "months_worked": months_worked,
+            "monthly_rate": round(daily_rate, 4),
+            "entitled": entitled,
+        })
+
+    return {
+        "employee_id": employee_id,
+        "employee_name": emp.full_name,
+        "join_date": str(emp.join_date) if emp.join_date else None,
+        "year": target_year,
+        "months_worked": months_worked,
+        "breakdown": results,
+    }
+
+
+@router.post("/leave-balances/prorate/{employee_id}", status_code=201)
+async def apply_prorate(
+    employee_id: int,
+    year: int = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Auto-set leave balances for pro-rated leave types based on join date."""
+    from datetime import date as date_cls
+
+    require_admin_or_manager(current_user)
+    target_year = year or date_cls.today().year
+
+    emp_result = await db.execute(select(Employee).where(Employee.id == employee_id))
+    emp = emp_result.scalar_one_or_none()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    year_start = date_cls(target_year, 1, 1)
+    year_end = date_cls(target_year, 12, 31)
+    join = emp.join_date or year_start
+    effective_start = max(join, year_start)
+
+    if effective_start > year_end:
+        months_worked = 0
+    else:
+        months_worked = (year_end.year - effective_start.year) * 12 + (year_end.month - effective_start.month) + 1
+        months_worked = min(months_worked, 12)
+
+    lt_result = await db.execute(
+        select(LeaveType).where(LeaveType.is_pro_rated == True, LeaveType.is_active == True,
+                                LeaveType.tenant_id == current_user.tenant_id)
+    )
+    leave_types = lt_result.scalars().all()
+
+    updated = []
+    for lt in leave_types:
+        entitled = round((lt.days_per_year / 12) * months_worked, 2)
+        q = select(LeaveBalance).where(
+            LeaveBalance.employee_id == employee_id,
+            LeaveBalance.leave_type_id == lt.id,
+            LeaveBalance.year == target_year,
+        )
+        res = await db.execute(q)
+        bal = res.scalar_one_or_none()
+        if bal:
+            bal.entitled = entitled
+        else:
+            bal = LeaveBalance(
+                tenant_id=current_user.tenant_id,
+                employee_id=employee_id,
+                leave_type_id=lt.id,
+                year=target_year,
+                entitled=entitled,
+                taken=0,
+            )
+            db.add(bal)
+        updated.append({"leave_type": lt.name, "entitled": entitled})
+
+    await db.commit()
+    return {"updated": updated, "months_worked": months_worked}
 
 
 # ─── Leave Applications ───────────────────────────────────────────────────────

@@ -30,7 +30,7 @@ export default function LeavePage() {
   const setA = (k: string, v: any) => setApplyForm(prev => ({ ...prev, [k]: v }));
 
   // Leave type form
-  const [typeForm, setTypeForm] = useState({ name: "", days_per_year: 14, is_paid: true, requires_document: false });
+  const [typeForm, setTypeForm] = useState({ name: "", days_per_year: 14, is_paid: true, requires_document: false, is_pro_rated: false });
   const setT = (k: string, v: any) => setTypeForm(prev => ({ ...prev, [k]: v }));
 
   const { data: applications = [], isLoading } = useQuery({
@@ -184,7 +184,10 @@ export default function LeavePage() {
                 <tr><td colSpan={4} className="py-10 text-center text-gray-400 text-sm">No leave types. Add one above.</td></tr>
               ) : leaveTypes.map((t: any) => (
                 <tr key={t.id} className="border-b border-gray-50">
-                  <td className="px-4 py-3 font-medium">{t.name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {t.name}
+                    {t.is_pro_rated && <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">Pro-rated</span>}
+                  </td>
                   <td className="px-4 py-3 text-right">{t.days_per_year}</td>
                   <td className="px-4 py-3 text-center">{t.is_paid ? "✓" : "—"}</td>
                   <td className="px-4 py-3 text-center">{t.requires_document ? "✓" : "—"}</td>
@@ -255,9 +258,14 @@ export default function LeavePage() {
             <h2 className="text-lg font-bold">Add Leave Type</h2>
             <div><label className="block text-xs font-semibold text-gray-500 mb-1">Name</label><input className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" value={typeForm.name} onChange={e => setT("name", e.target.value)} placeholder="e.g. Annual Leave" /></div>
             <div><label className="block text-xs font-semibold text-gray-500 mb-1">Days per Year</label><input type="number" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" value={typeForm.days_per_year} onChange={e => setT("days_per_year", Number(e.target.value))} /></div>
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-2">
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={typeForm.is_paid} onChange={e => setT("is_paid", e.target.checked)} /> Paid leave</label>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={typeForm.requires_document} onChange={e => setT("requires_document", e.target.checked)} /> Requires document</label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={typeForm.is_pro_rated} onChange={e => setT("is_pro_rated", e.target.checked)} />
+                Pro-rated by join date
+                <span className="text-xs text-gray-400">(entitlement = days/12 × months worked)</span>
+              </label>
             </div>
             <div className="flex gap-3 justify-end">
               <button onClick={() => setShowTypeModal(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg">Cancel</button>

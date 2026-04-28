@@ -430,6 +430,8 @@ export const hrApi = {
   // Leave Balances
   listLeaveBalances: (params?: object) => api.get("/hr/leave-balances", { params }).then((r) => r.data),
   setLeaveBalance: (params: object) => api.post("/hr/leave-balances", null, { params }).then((r) => r.data),
+  getProratePreview: (employeeId: number, year: number) => api.get(`/hr/leave-balances/prorate/${employeeId}`, { params: { year } }).then((r) => r.data),
+  applyProrate: (employeeId: number, year: number) => api.post(`/hr/leave-balances/prorate/${employeeId}`, null, { params: { year } }).then((r) => r.data),
 
   // Leave Applications
   listLeave: (params?: object) => api.get("/hr/leave", { params }).then((r) => r.data),

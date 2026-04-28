@@ -152,6 +152,7 @@ class LeaveType(Base):
     days_per_year = Column(Integer, nullable=False, default=0)
     is_paid = Column(Boolean, default=True)
     requires_document = Column(Boolean, default=False)
+    is_pro_rated = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
 
     applications = relationship("LeaveApplication", back_populates="leave_type_rel")
