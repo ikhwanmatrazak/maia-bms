@@ -61,6 +61,7 @@ export default function CalendarPage() {
   const [editForm, setEditForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] as number[], related_type: "" as "" | "project" | "client", related_id: "" });
   const [editAttendeeSearch, setEditAttendeeSearch] = useState("");
   const [view, setView] = useState<"month" | "list">("month");
+  const [listDateFilter, setListDateFilter] = useState("");
 
   const { data: events = [] } = useQuery<CalEvent[]>({
     queryKey: ["calendar", viewDate.year, viewDate.month],
@@ -265,48 +266,108 @@ export default function CalendarPage() {
 
       {/* ── List View ─────────────────────────────── */}
       {view === "list" && (() => {
-        const sorted = [...events].sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
-        // Group by date string
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0);
+        const todayStr = todayDate.toISOString().slice(0, 10);
+
+        const sorted = [...events]
+          .filter((e) => {
+            const evDate = e.start_at?.slice(0, 10) ?? "";
+            // hide past events (before today), unless date filter is set
+            if (!listDateFilter && evDate < todayStr) return false;
+            // date filter
+            if (listDateFilter && evDate !== listDateFilter) return false;
+            return true;
+          })
+          .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
+
         const groups: Record<string, CalEvent[]> = {};
         for (const ev of sorted) {
-          const key = new Date(ev.start_at).toLocaleDateString("en-MY", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+          const key = ev.start_at.slice(0, 10);
           if (!groups[key]) groups[key] = [];
           groups[key].push(ev);
         }
         const entries = Object.entries(groups);
         return (
           <div className="space-y-4">
+            {/* Date search */}
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1 max-w-xs">
+                <input
+                  type="date"
+                  value={listDateFilter}
+                  onChange={(e) => {
+                    setListDateFilter(e.target.value);
+                    // navigate to that month if filter is set
+                    if (e.target.value) {
+                      const d = new Date(e.target.value);
+                      setViewDate({ year: d.getFullYear(), month: d.getMonth() + 1 });
+                    }
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-divider rounded-xl bg-content1 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              {listDateFilter && (
+                <button
+                  onClick={() => setListDateFilter("")}
+                  className="text-xs text-default-500 hover:text-danger px-3 py-2 border border-divider rounded-xl bg-content1"
+                >
+                  Clear filter
+                </button>
+              )}
+              {!listDateFilter && (
+                <p className="text-xs text-default-400">Showing upcoming events only</p>
+              )}
+            </div>
+
             {entries.length === 0 && (
               <div className="text-center py-16 text-default-400">
                 <LayoutList size={40} className="mx-auto mb-3 opacity-30" />
-                <p>No events this month</p>
+                <p>{listDateFilter ? "No events on this date" : "No upcoming events this month"}</p>
               </div>
             )}
-            {entries.map(([dateLabel, dayEvs]) => (
-              <div key={dateLabel}>
-                <div className="text-xs font-semibold text-default-500 uppercase tracking-wide mb-2 px-1">{dateLabel}</div>
-                <div className="space-y-2">
-                  {dayEvs.map(ev => (
-                    <div
-                      key={ev.id}
-                      onClick={() => { setSelected(ev); setDetailOpen(true); }}
-                      className="flex items-start gap-3 bg-content1 border border-divider rounded-xl px-4 py-3 cursor-pointer hover:bg-default-50 transition-colors"
-                    >
-                      <div className="w-1 self-stretch rounded-full shrink-0 mt-0.5" style={{ backgroundColor: ev.color }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{ev.title}</p>
-                        <p className="text-xs text-default-400 mt-0.5">
-                          {fmtTime(ev.start_at)}{ev.end_at ? ` – ${fmtTime(ev.end_at)}` : ""}
-                          {ev.location ? ` · ${ev.location}` : ""}
-                        </p>
-                        {ev.description && <p className="text-xs text-default-500 mt-1 truncate">{ev.description}</p>}
-                      </div>
-                      <div className="text-xs text-default-400 shrink-0">{ev.organizer_name}</div>
+            {entries.map(([dateKey, dayEvs]) => {
+              const isToday = dateKey === todayStr;
+              const dateLabel = new Date(dateKey + "T00:00:00").toLocaleDateString("en-MY", {
+                weekday: "long", day: "numeric", month: "long", year: "numeric",
+              });
+              return (
+                <div key={dateKey}>
+                  <div className={`flex items-center gap-2 mb-2 px-1`}>
+                    {isToday && (
+                      <span className="px-2 py-0.5 rounded-full bg-primary text-white text-[10px] font-bold uppercase tracking-wide">Today</span>
+                    )}
+                    <div className={`text-xs font-semibold uppercase tracking-wide ${isToday ? "text-primary" : "text-default-500"}`}>
+                      {dateLabel}
                     </div>
-                  ))}
+                  </div>
+                  <div className="space-y-2">
+                    {dayEvs.map(ev => (
+                      <div
+                        key={ev.id}
+                        onClick={() => { setSelected(ev); setDetailOpen(true); }}
+                        className={`flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer transition-colors border ${
+                          isToday
+                            ? "bg-primary/5 border-primary/20 hover:bg-primary/10"
+                            : "bg-content1 border-divider hover:bg-default-50"
+                        }`}
+                      >
+                        <div className="w-1 self-stretch rounded-full shrink-0 mt-0.5" style={{ backgroundColor: ev.color }} />
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-semibold text-sm truncate ${isToday ? "text-primary" : ""}`}>{ev.title}</p>
+                          <p className="text-xs text-default-400 mt-0.5">
+                            {fmtTime(ev.start_at)}{ev.end_at ? ` – ${fmtTime(ev.end_at)}` : ""}
+                            {ev.location ? ` · ${ev.location}` : ""}
+                          </p>
+                          {ev.description && <p className="text-xs text-default-500 mt-1 truncate">{ev.description}</p>}
+                        </div>
+                        <div className="text-xs text-default-400 shrink-0">{ev.organizer_name}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         );
       })()}
