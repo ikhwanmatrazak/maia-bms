@@ -176,15 +176,13 @@ export function Topbar({ title }: { title?: string }) {
             </PopoverTrigger>
             <PopoverContent className="p-0 w-80 shadow-xl rounded-2xl overflow-hidden">
               {/* Header */}
-              <div className="px-4 py-3 bg-primary text-white flex items-center justify-between">
+              <div className="px-5 py-4 bg-primary text-white flex items-center justify-between">
                 <div>
-                  <p className="font-semibold text-sm">{now.toLocaleDateString("en-MY", { weekday: "long" })}</p>
-                  <p className="text-primary-200 text-xs">{now.toLocaleDateString("en-MY", { day: "numeric", month: "long", year: "numeric" })}</p>
-                </div>
-                <div className="text-right">
                   <p className="text-2xl font-bold leading-none">{now.getDate()}</p>
-                  <p className="text-primary-200 text-xs">{now.toLocaleDateString("en-MY", { month: "short", year: "numeric" })}</p>
+                  <p className="font-semibold text-sm mt-0.5">{now.toLocaleDateString("en-MY", { weekday: "long" })}</p>
+                  <p className="text-primary-200 text-xs mt-0.5">{now.toLocaleDateString("en-MY", { month: "long", year: "numeric" })}</p>
                 </div>
+                <CalendarDays size={36} className="text-white/20" />
               </div>
 
               {/* Today's events */}
@@ -211,7 +209,7 @@ export function Topbar({ title }: { title?: string }) {
                               {e.end_at ? ` – ${new Date(e.end_at).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })}` : ""}
                             </p>
                           )}
-                          {e.location && <p className="text-xs text-gray-400 truncate mt-0.5">📍 {e.location}</p>}
+                          {e.location && <p className="text-xs text-gray-400 truncate mt-0.5">· {e.location}</p>}
                         </div>
                       </div>
                     ))}
