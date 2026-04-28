@@ -978,6 +978,91 @@ async def set_leave_balance(
     return {"id": bal.id, "entitled": float(bal.entitled), "taken": float(bal.taken)}
 
 
+@router.post("/leave-balances/sync-all", status_code=200)
+async def sync_all_leave_balances(
+    year: int = Query(default=None),
+    overwrite: bool = Query(default=False),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Bulk-assign all active leave types to all active employees for the given year.
+    Pro-rated types use join date. Non-pro-rated use days_per_year.
+    Set overwrite=true to update existing balances."""
+    from datetime import date as date_cls
+
+    require_admin_or_manager(current_user)
+    target_year = year or date_cls.today().year
+    year_start = date_cls(target_year, 1, 1)
+    year_end = date_cls(target_year, 12, 31)
+
+    # Load all active employees for this tenant
+    emp_result = await db.execute(
+        select(Employee).where(
+            Employee.tenant_id == current_user.tenant_id,
+            Employee.employment_status.notin_(["resigned", "terminated"]),
+        )
+    )
+    employees = emp_result.scalars().all()
+
+    # Load all active leave types for this tenant
+    lt_result = await db.execute(
+        select(LeaveType).where(
+            LeaveType.tenant_id == current_user.tenant_id,
+            LeaveType.is_active == True,
+        )
+    )
+    leave_types = lt_result.scalars().all()
+
+    created = updated = skipped = 0
+
+    for emp in employees:
+        join = emp.join_date or year_start
+        effective_start = max(join, year_start)
+        if effective_start > year_end:
+            months_worked = 0
+        else:
+            months_worked = (year_end.year - effective_start.year) * 12 + (year_end.month - effective_start.month) + 1
+            months_worked = min(months_worked, 12)
+
+        for lt in leave_types:
+            entitled = round((lt.days_per_year / 12) * months_worked, 2) if lt.is_pro_rated else float(lt.days_per_year)
+
+            q = select(LeaveBalance).where(
+                LeaveBalance.employee_id == emp.id,
+                LeaveBalance.leave_type_id == lt.id,
+                LeaveBalance.year == target_year,
+            )
+            res = await db.execute(q)
+            bal = res.scalar_one_or_none()
+
+            if bal:
+                if overwrite:
+                    bal.entitled = entitled
+                    updated += 1
+                else:
+                    skipped += 1
+            else:
+                db.add(LeaveBalance(
+                    tenant_id=current_user.tenant_id,
+                    employee_id=emp.id,
+                    leave_type_id=lt.id,
+                    year=target_year,
+                    entitled=entitled,
+                    taken=0,
+                ))
+                created += 1
+
+    await db.commit()
+    return {
+        "year": target_year,
+        "employees": len(employees),
+        "leave_types": len(leave_types),
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+    }
+
+
 @router.get("/leave-balances/prorate/{employee_id}")
 async def get_prorate_preview(
     employee_id: int,

@@ -22,6 +22,9 @@ export default function LeavePage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [rejectId, setRejectId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<any>(null);
+  const [showSyncConfirm, setShowSyncConfirm] = useState(false);
 
   // Apply leave form
   const [applyForm, setApplyForm] = useState({
@@ -89,9 +92,14 @@ export default function LeavePage() {
         </div>
         <div className="flex gap-2">
           {tab === "types" && (
-            <button onClick={() => setShowTypeModal(true)} className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">
-              <Plus size={16} /> Add Type
-            </button>
+            <>
+              <button onClick={() => setShowSyncConfirm(true)} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700">
+                <Plus size={16} /> Sync All Staff
+              </button>
+              <button onClick={() => setShowTypeModal(true)} className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">
+                <Plus size={16} /> Add Type
+              </button>
+            </>
           )}
           <button onClick={() => setShowApply(true)} className="flex items-center gap-2 bg-[#1a1a2e] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2a2a3e]">
             <Plus size={16} /> Apply Leave
@@ -273,6 +281,55 @@ export default function LeavePage() {
                 {createTypeMutation.isPending ? "Creating..." : "Create"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Sync All Staff Confirm Modal */}
+      {showSyncConfirm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4">
+            {syncResult ? (
+              <>
+                <h2 className="text-lg font-bold text-green-700">Sync Complete ✓</h2>
+                <div className="bg-green-50 rounded-xl p-4 text-sm space-y-1">
+                  <p><span className="font-semibold">{syncResult.employees}</span> employees × <span className="font-semibold">{syncResult.leave_types}</span> leave types</p>
+                  <p className="text-green-700">✓ Created: <strong>{syncResult.created}</strong> new balances</p>
+                  {syncResult.updated > 0 && <p className="text-blue-700">↻ Updated: <strong>{syncResult.updated}</strong> existing balances</p>}
+                  {syncResult.skipped > 0 && <p className="text-gray-500">— Skipped: <strong>{syncResult.skipped}</strong> (already set)</p>}
+                </div>
+                <div className="flex justify-end">
+                  <button onClick={() => { setShowSyncConfirm(false); setSyncResult(null); }} className="px-5 py-2 text-sm font-medium bg-[#1a1a2e] text-white rounded-lg">Done</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-bold">Sync Leave Balances — {new Date().getFullYear()}</h2>
+                <p className="text-sm text-gray-600">This will assign all active leave types to every active employee for <strong>{new Date().getFullYear()}</strong>.</p>
+                <ul className="text-sm text-gray-500 space-y-1 list-disc list-inside">
+                  <li>Pro-rated types → calculated by months worked (based on join date)</li>
+                  <li>Non-pro-rated types → full days_per_year</li>
+                  <li>Existing balances will be <strong>skipped</strong> (not overwritten)</li>
+                </ul>
+                <div className="flex gap-3 justify-end pt-2">
+                  <button onClick={() => setShowSyncConfirm(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg">Cancel</button>
+                  <button
+                    disabled={syncing}
+                    onClick={async () => {
+                      setSyncing(true);
+                      try {
+                        const result = await hrApi.syncAllLeaveBalances(new Date().getFullYear(), false);
+                        setSyncResult(result);
+                      } finally {
+                        setSyncing(false);
+                      }
+                    }}
+                    className="px-5 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {syncing ? "Syncing..." : "Sync Now"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
