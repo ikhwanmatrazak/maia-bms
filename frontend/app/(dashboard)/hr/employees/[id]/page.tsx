@@ -322,8 +322,11 @@ export default function EmployeeDetailPage() {
   });
   const setOffer = (k: string, v: any) => setOfferForm((p) => ({ ...p, [k]: v }));
 
+  const isContract = form.employment_type === "contract";
+  const effectiveExpiry = isContract ? form.contract_end_date : offerForm.expiry_date;
+
   const handleGenerateOffer = async () => {
-    if (!form.join_date || !offerForm.expiry_date) return;
+    if (!form.join_date || !effectiveExpiry) return;
     setOfferGenerating(true);
     try {
       await hrApi.generateOfferLetter(Number(id), {
@@ -337,7 +340,7 @@ export default function EmployeeDetailPage() {
         // Offer-letter-only fields
         reporting_to: offerForm.reporting_to,
         work_location: offerForm.work_location,
-        expiry_date: offerForm.expiry_date,
+        expiry_date: effectiveExpiry,
         allowances: offerForm.allowances.filter(a => a.name && a.amount).map(a => ({ name: a.name, amount: Number(a.amount) })),
         benefits: offerForm.benefits,
         signatory_name: offerForm.signatory_name,
@@ -626,7 +629,7 @@ export default function EmployeeDetailPage() {
               </div>
               <button
                 onClick={handleGenerateOffer}
-                disabled={offerGenerating || !form.join_date || !offerForm.expiry_date}
+                disabled={offerGenerating || !form.join_date || !effectiveExpiry}
                 className="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
               >
                 <FileText size={13} />
@@ -647,10 +650,12 @@ export default function EmployeeDetailPage() {
                   <label className={LABEL}>Work Location</label>
                   <input className={INPUT} value={offerForm.work_location} onChange={e => setOffer("work_location", e.target.value)} placeholder="e.g. Kuala Lumpur" />
                 </div>
-                <div>
-                  <label className={LABEL}>Offer Expiry Date <span className="text-red-400">*</span></label>
-                  <input type="date" className={INPUT} value={offerForm.expiry_date} onChange={e => setOffer("expiry_date", e.target.value)} />
-                </div>
+                {!isContract && (
+                  <div>
+                    <label className={LABEL}>Offer Expiry Date <span className="text-red-400">*</span></label>
+                    <input type="date" className={INPUT} value={offerForm.expiry_date} onChange={e => setOffer("expiry_date", e.target.value)} />
+                  </div>
+                )}
               </div>
               <div>
                 <label className={LABEL}>Allowances</label>
