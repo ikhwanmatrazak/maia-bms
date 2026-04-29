@@ -700,7 +700,7 @@ export default function EmployeeDetailPage() {
                     value={offerForm.signatory_name}
                     onChange={(name, position) => {
                       setOffer("signatory_name", name);
-                      if (position && !offerForm.signatory_title) setOffer("signatory_title", position);
+                      if (position) setOffer("signatory_title", position);
                     }}
                     employees={allEmployees}
                   />
