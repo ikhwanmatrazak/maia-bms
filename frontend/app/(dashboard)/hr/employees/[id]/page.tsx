@@ -312,7 +312,6 @@ export default function EmployeeDetailPage() {
   });
 
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [offerOpen, setOfferOpen] = useState(false);
   const [offerGenerating, setOfferGenerating] = useState(false);
   const [offerForm, setOfferForm] = useState({
     position: "", department: "", reporting_to: "", work_location: "",
@@ -338,7 +337,6 @@ export default function EmployeeDetailPage() {
           "All confidential information relating to the company must be kept strictly confidential.",
         ],
       });
-      setOfferOpen(false);
     } finally {
       setOfferGenerating(false);
     }
@@ -380,6 +378,7 @@ export default function EmployeeDetailPage() {
     { key: "info", label: "Information" },
     { key: "leave", label: "Leave Balances" },
     { key: "docs", label: "Documents" },
+    { key: "offer", label: "Offer Letter" },
   ] as const;
 
   return (
@@ -432,17 +431,6 @@ export default function EmployeeDetailPage() {
             </button>
           )}
           <button
-            onClick={() => {
-              setOffer("position", emp.designation || "");
-              setOffer("department", emp.department_name || "");
-              setOffer("basic_salary", emp.basic_salary || "");
-              setOfferOpen(true);
-            }}
-            className="px-3 py-2 text-sm font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 flex items-center gap-1.5"
-          >
-            <FileText size={15} /> Offer Letter
-          </button>
-          <button
             onClick={handleSave}
             disabled={updateMutation.isPending}
             className="px-4 py-2 text-sm font-medium bg-[#1a1a2e] text-white rounded-lg hover:bg-[#2a2a3e] disabled:opacity-50"
@@ -457,7 +445,14 @@ export default function EmployeeDetailPage() {
         {TABS.map(t => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => {
+              if (t.key === "offer" && tab !== "offer") {
+                setOffer("position", emp.designation || offerForm.position);
+                setOffer("department", emp.department_name || offerForm.department);
+                setOffer("basic_salary", emp.basic_salary || offerForm.basic_salary);
+              }
+              setTab(t.key);
+            }}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === t.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
           >
             {t.label}
@@ -624,6 +619,152 @@ export default function EmployeeDetailPage() {
       {/* LEAVE TAB */}
       {tab === "leave" && <LeaveBalancesTab empId={Number(id)} emp={emp} leaveBalances={leaveBalances} refetchLeave={() => qc.invalidateQueries({ queryKey: ["hr-leave-balances", id] })} />}
 
+      {/* OFFER LETTER TAB */}
+      {tab === "offer" && (
+        <div className="space-y-5">
+          {/* Position Details */}
+          <div className="bg-white rounded-xl border border-gray-100">
+            <div className="px-6 py-4 border-b border-gray-50"><h2 className="text-sm font-semibold text-gray-700">Position Details</h2></div>
+            <div className="px-6 py-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={LABEL}>Position / Job Title <span className="text-red-400">*</span></label>
+                  <input className={INPUT} value={offerForm.position} onChange={e => setOffer("position", e.target.value)} placeholder="e.g. Software Engineer" />
+                </div>
+                <div>
+                  <label className={LABEL}>Department</label>
+                  <input className={INPUT} value={offerForm.department} onChange={e => setOffer("department", e.target.value)} />
+                </div>
+                <div>
+                  <label className={LABEL}>Reporting To</label>
+                  <ReportingToCombobox
+                    value={offerForm.reporting_to}
+                    onChange={(v) => setOffer("reporting_to", v)}
+                    employees={allEmployees.filter((e: any) => e.id !== Number(id))}
+                  />
+                </div>
+                <div>
+                  <label className={LABEL}>Work Location</label>
+                  <input className={INPUT} value={offerForm.work_location} onChange={e => setOffer("work_location", e.target.value)} placeholder="e.g. Kuala Lumpur" />
+                </div>
+                <div>
+                  <label className={LABEL}>Employment Type</label>
+                  <select className={SELECT} value={offerForm.employment_type} onChange={e => setOffer("employment_type", e.target.value)}>
+                    <option>Full-Time</option>
+                    <option>Part-Time</option>
+                    <option>Contract</option>
+                    <option>Internship</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={LABEL}>Probation Period (months)</label>
+                  <input type="number" min="0" max="12" className={INPUT} value={offerForm.probation_months} onChange={e => setOffer("probation_months", e.target.value)} />
+                </div>
+                <div>
+                  <label className={LABEL}>Commencement Date <span className="text-red-400">*</span></label>
+                  <input type="date" className={INPUT} value={offerForm.start_date} onChange={e => setOffer("start_date", e.target.value)} />
+                </div>
+                <div>
+                  <label className={LABEL}>Offer Expiry Date <span className="text-red-400">*</span></label>
+                  <input type="date" className={INPUT} value={offerForm.expiry_date} onChange={e => setOffer("expiry_date", e.target.value)} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Remuneration */}
+          <div className="bg-white rounded-xl border border-gray-100">
+            <div className="px-6 py-4 border-b border-gray-50"><h2 className="text-sm font-semibold text-gray-700">Remuneration</h2></div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className={LABEL}>Basic Salary (MYR/month) <span className="text-red-400">*</span></label>
+                <input type="number" step="0.01" className={INPUT} value={offerForm.basic_salary} onChange={e => setOffer("basic_salary", e.target.value)} placeholder="0.00" />
+              </div>
+              <div>
+                <label className={LABEL}>Allowances</label>
+                <div className="space-y-2">
+                  {offerForm.allowances.map((a, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <input className={`${INPUT} flex-1`} placeholder="Name (e.g. Transport)" value={a.name} onChange={e => {
+                        const arr = [...offerForm.allowances];
+                        arr[i] = { ...arr[i], name: e.target.value };
+                        setOffer("allowances", arr);
+                      }} />
+                      <input type="number" step="0.01" className={`${INPUT} w-32`} placeholder="Amount" value={a.amount} onChange={e => {
+                        const arr = [...offerForm.allowances];
+                        arr[i] = { ...arr[i], amount: e.target.value };
+                        setOffer("allowances", arr);
+                      }} />
+                      <button onClick={() => setOffer("allowances", offerForm.allowances.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 shrink-0">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setOffer("allowances", [...offerForm.allowances, { name: "", amount: "" }])}
+                    className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    <Plus size={14} /> Add Allowance
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Benefits */}
+          <div className="bg-white rounded-xl border border-gray-100">
+            <div className="px-6 py-4 border-b border-gray-50"><h2 className="text-sm font-semibold text-gray-700">Benefits</h2></div>
+            <div className="px-6 py-5">
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                {["Annual Leave", "Medical Benefits", "EPF", "SOCSO", "EIS", "Dental", "Vision", "Parking", "Phone Allowance", "Laptop"].map(b => (
+                  <label key={b} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="w-3.5 h-3.5"
+                      checked={offerForm.benefits.includes(b)}
+                      onChange={e => setOffer("benefits", e.target.checked ? [...offerForm.benefits, b] : offerForm.benefits.filter(x => x !== b))}
+                    />
+                    {b}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Signatory & Notes */}
+          <div className="bg-white rounded-xl border border-gray-100">
+            <div className="px-6 py-4 border-b border-gray-50"><h2 className="text-sm font-semibold text-gray-700">Signatory & Notes</h2></div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={LABEL}>Signatory Name</label>
+                  <input className={INPUT} value={offerForm.signatory_name} onChange={e => setOffer("signatory_name", e.target.value)} placeholder="Full name" />
+                </div>
+                <div>
+                  <label className={LABEL}>Signatory Title</label>
+                  <input className={INPUT} value={offerForm.signatory_title} onChange={e => setOffer("signatory_title", e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className={LABEL}>Additional Notes</label>
+                <textarea rows={2} className={INPUT} value={offerForm.notes} onChange={e => setOffer("notes", e.target.value)} placeholder="Any additional remarks..." />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={handleGenerateOffer}
+              disabled={offerGenerating || !offerForm.position || !offerForm.start_date || !offerForm.basic_salary || !offerForm.expiry_date}
+              className="px-6 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              <FileText size={14} />
+              {offerGenerating ? "Generating..." : "Generate PDF"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* DOCS TAB */}
       {tab === "docs" && (
         <div className="space-y-4">
@@ -675,160 +816,6 @@ export default function EmployeeDetailPage() {
       )}
     </div>
 
-    {/* OFFER LETTER MODAL */}
-    {offerOpen && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-          {/* Modal Header */}
-          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Generate Offer Letter</h2>
-              <p className="text-sm text-gray-500 mt-0.5">{emp.full_name}</p>
-            </div>
-            <button onClick={() => setOfferOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none">×</button>
-          </div>
-
-          <div className="px-6 py-5 space-y-5">
-            {/* Position Details */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Position Details</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={LABEL}>Position / Job Title <span className="text-red-400">*</span></label>
-                  <input className={INPUT} value={offerForm.position} onChange={e => setOffer("position", e.target.value)} placeholder="e.g. Software Engineer" />
-                </div>
-                <div>
-                  <label className={LABEL}>Department</label>
-                  <input className={INPUT} value={offerForm.department} onChange={e => setOffer("department", e.target.value)} />
-                </div>
-                <div className="relative">
-                  <label className={LABEL}>Reporting To</label>
-                  <ReportingToCombobox
-                    value={offerForm.reporting_to}
-                    onChange={(v) => setOffer("reporting_to", v)}
-                    employees={allEmployees.filter((e: any) => e.id !== Number(id))}
-                  />
-                </div>
-                <div>
-                  <label className={LABEL}>Work Location</label>
-                  <input className={INPUT} value={offerForm.work_location} onChange={e => setOffer("work_location", e.target.value)} placeholder="e.g. Kuala Lumpur" />
-                </div>
-                <div>
-                  <label className={LABEL}>Employment Type</label>
-                  <select className={SELECT} value={offerForm.employment_type} onChange={e => setOffer("employment_type", e.target.value)}>
-                    <option>Full-Time</option>
-                    <option>Part-Time</option>
-                    <option>Contract</option>
-                    <option>Internship</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={LABEL}>Probation Period (months)</label>
-                  <input type="number" min="0" max="12" className={INPUT} value={offerForm.probation_months} onChange={e => setOffer("probation_months", e.target.value)} />
-                </div>
-                <div>
-                  <label className={LABEL}>Commencement Date <span className="text-red-400">*</span></label>
-                  <input type="date" className={INPUT} value={offerForm.start_date} onChange={e => setOffer("start_date", e.target.value)} />
-                </div>
-                <div>
-                  <label className={LABEL}>Offer Expiry Date <span className="text-red-400">*</span></label>
-                  <input type="date" className={INPUT} value={offerForm.expiry_date} onChange={e => setOffer("expiry_date", e.target.value)} />
-                </div>
-              </div>
-            </div>
-
-            {/* Remuneration */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Remuneration</h3>
-              <div className="mb-3">
-                <label className={LABEL}>Basic Salary (MYR/month) <span className="text-red-400">*</span></label>
-                <input type="number" step="0.01" className={INPUT} value={offerForm.basic_salary} onChange={e => setOffer("basic_salary", e.target.value)} placeholder="0.00" />
-              </div>
-              <div>
-                <label className={LABEL}>Allowances</label>
-                <div className="space-y-2">
-                  {offerForm.allowances.map((a, i) => (
-                    <div key={i} className="flex gap-2 items-center">
-                      <input className={`${INPUT} flex-1`} placeholder="Name (e.g. Transport)" value={a.name} onChange={e => {
-                        const arr = [...offerForm.allowances];
-                        arr[i] = { ...arr[i], name: e.target.value };
-                        setOffer("allowances", arr);
-                      }} />
-                      <input type="number" step="0.01" className={`${INPUT} w-32`} placeholder="Amount" value={a.amount} onChange={e => {
-                        const arr = [...offerForm.allowances];
-                        arr[i] = { ...arr[i], amount: e.target.value };
-                        setOffer("allowances", arr);
-                      }} />
-                      <button onClick={() => setOffer("allowances", offerForm.allowances.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 shrink-0">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => setOffer("allowances", [...offerForm.allowances, { name: "", amount: "" }])}
-                    className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    <Plus size={14} /> Add Allowance
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Benefits */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Benefits</h3>
-              <div className="flex flex-wrap gap-2">
-                {["Annual Leave", "Medical Benefits", "EPF", "SOCSO", "EIS", "Dental", "Vision", "Parking", "Phone Allowance", "Laptop"].map(b => (
-                  <label key={b} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="w-3.5 h-3.5"
-                      checked={offerForm.benefits.includes(b)}
-                      onChange={e => setOffer("benefits", e.target.checked ? [...offerForm.benefits, b] : offerForm.benefits.filter(x => x !== b))}
-                    />
-                    {b}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Signatory */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Signatory</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={LABEL}>Signatory Name</label>
-                  <input className={INPUT} value={offerForm.signatory_name} onChange={e => setOffer("signatory_name", e.target.value)} placeholder="Full name" />
-                </div>
-                <div>
-                  <label className={LABEL}>Signatory Title</label>
-                  <input className={INPUT} value={offerForm.signatory_title} onChange={e => setOffer("signatory_title", e.target.value)} />
-                </div>
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label className={LABEL}>Additional Notes</label>
-              <textarea rows={2} className={INPUT} value={offerForm.notes} onChange={e => setOffer("notes", e.target.value)} placeholder="Any additional remarks..." />
-            </div>
-          </div>
-
-          {/* Modal Footer */}
-          <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-            <button onClick={() => setOfferOpen(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
-            <button
-              onClick={handleGenerateOffer}
-              disabled={offerGenerating || !offerForm.position || !offerForm.start_date || !offerForm.basic_salary || !offerForm.expiry_date}
-              className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-            >
-              <FileText size={14} />
-              {offerGenerating ? "Generating..." : "Generate PDF"}
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
     </div>
   );
 }
