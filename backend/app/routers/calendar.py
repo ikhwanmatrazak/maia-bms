@@ -129,26 +129,98 @@ async def _send_invitations(db: AsyncSession, event_id: int, tenant_id, organize
     if ev.get("description"):
         notes_html = f'<p style="color:#555;margin-top:12px;">{ev["description"]}</p>'
 
+    # Build a mini day-schedule visual for the email
+    start_dt = ev["start_at"]
+    end_dt = ev.get("end_at") or start_dt
+    day_label = start_dt.strftime("%A, %d %B %Y") if start_dt else ""
+    day_num = start_dt.strftime("%d") if start_dt else ""
+    month_label = start_dt.strftime("%b").upper() if start_dt else ""
+    time_range = f"{start_dt.strftime('%I:%M %p')} – {end_dt.strftime('%I:%M %p')}" if start_dt else ""
+
+    # Generate hour slots from 2 hours before to 2 hours after the event
+    schedule_rows = ""
+    if start_dt:
+        event_start_h = start_dt.hour
+        event_end_h = end_dt.hour if end_dt else event_start_h + 1
+        slot_start = max(0, event_start_h - 2)
+        slot_end = min(23, event_end_h + 2)
+        for h in range(slot_start, slot_end + 1):
+            ampm = "AM" if h < 12 else "PM"
+            hh = h if h <= 12 else h - 12
+            hh = 12 if hh == 0 else hh
+            label = f"{hh} {ampm}"
+            in_event = event_start_h <= h < event_end_h or (h == event_start_h)
+            if in_event:
+                schedule_rows += f"""
+                <tr>
+                  <td style="padding:2px 10px 2px 0;font-size:11px;color:#888;white-space:nowrap;vertical-align:top;width:50px;">{label}</td>
+                  <td style="padding:2px 0;">
+                    <div style="background:#006FEE;color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:600;">
+                      {ev['title']}{"  " + time_range if h == event_start_h else ""}
+                    </div>
+                  </td>
+                </tr>"""
+            else:
+                schedule_rows += f"""
+                <tr>
+                  <td style="padding:4px 10px 4px 0;font-size:11px;color:#bbb;white-space:nowrap;border-top:1px dashed #f0f0f0;">{label}</td>
+                  <td style="border-top:1px dashed #f0f0f0;"></td>
+                </tr>"""
+
     for att in attendees:
-        html = f"""
-        <html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-        <div style="background:#006FEE;padding:20px;border-radius:8px 8px 0 0;">
-            <h2 style="color:#fff;margin:0;">{'Updated: ' if is_update else ''}Meeting Invitation</h2>
-        </div>
-        <div style="border:1px solid #e0e0e0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
-            <p>Hi {att['full_name'] or att['email']},</p>
-            <p><strong>{organizer_name}</strong> has {'updated a' if is_update else 'invited you to a'} meeting:</p>
-            <div style="background:#f5f7ff;border-left:4px solid #006FEE;padding:16px;border-radius:4px;margin:16px 0;">
-                <h3 style="margin:0 0 8px 0;color:#1a1a2e;">{ev['title']}</h3>
-                <p style="color:#555;margin:0;">🗓️ {start_fmt}{' – ' + end_fmt if end_fmt else ''}</p>
-                {location_html}
-                {notes_html}
-            </div>
-            {meeting_link_html}
-            <p style="color:#888;font-size:13px;margin-top:24px;">You are receiving this because you were added as an attendee.</p>
-        </div>
-        </body></html>
-        """
+        html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:30px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+
+  <!-- Header -->
+  <tr><td style="background:#006FEE;padding:24px 30px;">
+    <h2 style="color:#fff;margin:0;font-size:22px;">{'📅 Updated: ' if is_update else '📅 '}Meeting Invitation</h2>
+  </td></tr>
+
+  <!-- Greeting -->
+  <tr><td style="padding:24px 30px 0;">
+    <p style="margin:0;font-size:15px;color:#333;">Hi <strong>{att['full_name'] or att['email']}</strong>,</p>
+    <p style="margin:8px 0 0;font-size:14px;color:#555;"><strong>{organizer_name}</strong> has {'updated a' if is_update else 'invited you to a'} meeting.</p>
+  </td></tr>
+
+  <!-- Event card -->
+  <tr><td style="padding:20px 30px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f5ff;border-radius:10px;overflow:hidden;">
+      <tr>
+        <!-- Date chip -->
+        <td width="70" style="background:#006FEE;text-align:center;padding:16px 12px;vertical-align:top;">
+          <div style="color:#fff;font-size:11px;font-weight:600;letter-spacing:1px;">{month_label}</div>
+          <div style="color:#fff;font-size:32px;font-weight:700;line-height:1;">{day_num}</div>
+          <div style="color:#c8dcff;font-size:10px;margin-top:4px;">{start_dt.strftime('%A') if start_dt else ''}</div>
+        </td>
+        <!-- Event info -->
+        <td style="padding:16px 20px;vertical-align:top;">
+          <h3 style="margin:0 0 6px;font-size:17px;color:#1a1a2e;">{ev['title']}</h3>
+          <p style="margin:0;font-size:13px;color:#006FEE;font-weight:600;">🕐 {time_range}</p>
+          {f'<p style="margin:6px 0 0;font-size:13px;color:#555;">📍 {ev["location"]}</p>' if ev.get("location") else ''}
+          {f'<p style="margin:6px 0 0;font-size:13px;color:#666;">{ev["description"]}</p>' if ev.get("description") else ''}
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+
+  <!-- Mini schedule -->
+  {'<tr><td style="padding:0 30px 20px;"><p style="font-size:11px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">Schedule</p><table cellpadding="0" cellspacing="0" width="100%">' + schedule_rows + '</table></td></tr>' if schedule_rows else ''}
+
+  <!-- CTA -->
+  {f'<tr><td style="padding:0 30px 24px;">{meeting_link_html}</td></tr>' if meeting_link_html else ''}
+
+  <!-- Footer -->
+  <tr><td style="padding:16px 30px;border-top:1px solid #f0f0f0;">
+    <p style="margin:0;font-size:12px;color:#aaa;">You are receiving this because <strong>{organizer_name}</strong> added you as an attendee. The .ics file attached can be imported into your calendar app.</p>
+  </td></tr>
+
+</table>
+</td></tr></table>
+</body></html>"""
         try:
             await send_email(company, smtp_password, att["email"], subject, html,
                              ics_content=ics, ics_filename="invite.ics")

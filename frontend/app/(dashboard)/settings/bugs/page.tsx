@@ -119,6 +119,24 @@ export default function BugsPage() {
                       {bug.reported_by_name} · {bug.page_url} · {new Date(bug.created_at).toLocaleDateString()}
                     </p>
                   </div>
+                  <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                    {bug.status !== "fixed" && bug.status !== "closed" && (
+                      <button
+                        onClick={() => updateMutation.mutate({ id: bug.id, data: { status: "fixed" } })}
+                        className="px-2.5 py-1 text-xs font-medium text-green-700 border border-green-200 rounded-lg hover:bg-green-50"
+                      >
+                        Mark Fixed
+                      </button>
+                    )}
+                    {bug.status === "fixed" && (
+                      <button
+                        onClick={() => updateMutation.mutate({ id: bug.id, data: { status: "closed" } })}
+                        className="px-2.5 py-1 text-xs font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50"
+                      >
+                        Close
+                      </button>
+                    )}
+                  </div>
                   <ChevronDown
                     size={16}
                     className={`text-gray-400 mt-1 shrink-0 transition-transform ${expanded === bug.id ? "rotate-180" : ""}`}
