@@ -42,12 +42,39 @@ async def send_email(
     ics_content: Optional[str] = None,
     ics_filename: Optional[str] = "invite.ics",
 ):
-    msg = MIMEMultipart("mixed")
-    msg["Subject"] = subject
-    msg["From"] = f"{settings.smtp_from_name or settings.smtp_from_email} <{settings.smtp_from_email}>"
-    msg["To"] = to_email
+    if ics_content:
+        # For calendar invites: Outlook requires multipart/mixed wrapping a
+        # multipart/alternative that contains both HTML and text/calendar parts.
+        # This is what makes Outlook render the event block in the preview.
+        msg = MIMEMultipart("mixed")
+        msg["Subject"] = subject
+        msg["From"] = f"{settings.smtp_from_name or settings.smtp_from_email} <{settings.smtp_from_email}>"
+        msg["To"] = to_email
+        msg["MIME-Version"] = "1.0"
 
-    msg.attach(MIMEText(html_body, "html"))
+        # Inner alternative: HTML body + calendar part side by side
+        alt = MIMEMultipart("alternative")
+        alt.attach(MIMEText(html_body, "html", "utf-8"))
+
+        cal_part = MIMEText(ics_content, "calendar", "utf-8")
+        cal_part.set_param("method", "REQUEST")
+        alt.attach(cal_part)
+        msg.attach(alt)
+
+        # Also attach the .ics as a downloadable file for non-Outlook clients
+        ics_attach = MIMEBase("application", "ics")
+        ics_attach.set_payload(ics_content.encode("utf-8"))
+        ics_attach.add_header("Content-Disposition", f'attachment; filename="{ics_filename}"')
+        ics_attach.add_header("Content-Transfer-Encoding", "base64")
+        encoders.encode_base64(ics_attach)
+        msg.attach(ics_attach)
+
+    else:
+        msg = MIMEMultipart("mixed")
+        msg["Subject"] = subject
+        msg["From"] = f"{settings.smtp_from_name or settings.smtp_from_email} <{settings.smtp_from_email}>"
+        msg["To"] = to_email
+        msg.attach(MIMEText(html_body, "html"))
 
     if pdf_bytes and pdf_filename:
         part = MIMEBase("application", "octet-stream")
@@ -55,12 +82,6 @@ async def send_email(
         encoders.encode_base64(part)
         part.add_header("Content-Disposition", f'attachment; filename="{pdf_filename}"')
         msg.attach(part)
-
-    if ics_content:
-        ics_part = MIMEText(ics_content, "calendar", "utf-8")
-        ics_part.set_param("method", "REQUEST")
-        ics_part.add_header("Content-Disposition", f'inline; filename="{ics_filename}"')
-        msg.attach(ics_part)
 
     try:
         port = int(settings.smtp_port or 587)

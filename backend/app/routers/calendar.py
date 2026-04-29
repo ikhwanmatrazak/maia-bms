@@ -113,6 +113,12 @@ async def _send_invitations(db: AsyncSession, event_id: int, tenant_id, organize
         f"ORGANIZER;CN={organizer_name}:mailto:{organizer_email}\r\n"
         f"{attendee_lines}\r\n"
         "STATUS:CONFIRMED\r\n"
+        "TRANSP:OPAQUE\r\n"
+        "X-MICROSOFT-CDO-BUSYSTATUS:BUSY\r\n"
+        "X-MICROSOFT-CDO-INTENDEDSTATUS:BUSY\r\n"
+        "X-MICROSOFT-CDO-ALLDAYEVENT:FALSE\r\n"
+        "X-MICROSOFT-CDO-IMPORTANCE:1\r\n"
+        "X-MS-OLK-FORCEINSPECTOROPEN:TRUE\r\n"
         "END:VEVENT\r\n"
         "END:VCALENDAR\r\n"
     )
