@@ -259,7 +259,7 @@ export default function UsersPage() {
         <Modal isOpen={permModal} onClose={() => setPermModal(false)} size="md">
           <ModalContent>
             <ModalHeader>Screen Access — {permUser?.name}</ModalHeader>
-            <ModalBody className="flex flex-col gap-4">
+            <ModalBody className="flex flex-col gap-4 overflow-y-auto max-h-[70vh]">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
