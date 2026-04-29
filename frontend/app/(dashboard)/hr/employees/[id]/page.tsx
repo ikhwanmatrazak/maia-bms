@@ -244,8 +244,9 @@ export default function EmployeeDetailPage() {
     setForm((prev: any) => ({ ...prev, user_id: userId, email: user ? user.email : prev.email }));
   };
 
-  // Initialize form when data loads
-  if (emp && !form) {
+  // Initialize form when employee data loads or employee changes
+  useEffect(() => {
+    if (!emp) return;
     setForm({
       employee_no: emp.employee_no || "",
       full_name: emp.full_name || "",
@@ -279,7 +280,7 @@ export default function EmployeeDetailPage() {
       spouse_working: emp.spouse_working || false,
       user_id: emp.user_id ?? "",
     });
-  }
+  }, [emp?.id]);
 
   const updateMutation = useMutation({
     mutationFn: (data: object) => hrApi.updateEmployee(Number(id), data),
