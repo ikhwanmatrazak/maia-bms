@@ -2,7 +2,7 @@
 
 import { Topbar } from "@/components/ui/Topbar";
 import { DetailSkeleton } from "@/components/ui/PageSkeleton";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { hrApi } from "@/lib/api";
@@ -11,6 +11,62 @@ import { ChevronLeft, Upload, Trash2, Plus, ExternalLink, FileText } from "lucid
 const LABEL = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1";
 const INPUT = "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20";
 const SELECT = "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none bg-white";
+
+function ReportingToCombobox({ value, onChange, employees }: {
+  value: string;
+  onChange: (v: string) => void;
+  employees: any[];
+}) {
+  const [search, setSearch] = useState(value);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setSearch(value); }, [value]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = employees.filter((e) =>
+    e.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+    e.position?.toLowerCase().includes(search.toLowerCase())
+  ).slice(0, 10);
+
+  return (
+    <div ref={ref} className="relative">
+      <input
+        className={INPUT}
+        value={search}
+        placeholder="Search employee or type name…"
+        onChange={(e) => { setSearch(e.target.value); onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {filtered.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm flex flex-col"
+              onMouseDown={() => {
+                onChange(e.full_name);
+                setSearch(e.full_name);
+                setOpen(false);
+              }}
+            >
+              <span className="font-medium text-gray-800">{e.full_name}</span>
+              {e.position && <span className="text-xs text-gray-400">{e.position}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function LeaveBalancesTab({ empId, emp, leaveBalances, refetchLeave }: { empId: number; emp: any; leaveBalances: any[]; refetchLeave: () => void }) {
   const year = new Date().getFullYear();
@@ -160,6 +216,11 @@ export default function EmployeeDetailPage() {
   const { data: users = [] } = useQuery({
     queryKey: ["users"],
     queryFn: () => import("@/lib/api").then((m) => m.api.get("/users").then((r) => r.data)),
+  });
+
+  const { data: allEmployees = [] } = useQuery<any[]>({
+    queryKey: ["hr-employees-all"],
+    queryFn: () => hrApi.listEmployees(),
   });
 
   const { data: documents = [], refetch: refetchDocs } = useQuery({
@@ -640,9 +701,13 @@ export default function EmployeeDetailPage() {
                   <label className={LABEL}>Department</label>
                   <input className={INPUT} value={offerForm.department} onChange={e => setOffer("department", e.target.value)} />
                 </div>
-                <div>
+                <div className="relative">
                   <label className={LABEL}>Reporting To</label>
-                  <input className={INPUT} value={offerForm.reporting_to} onChange={e => setOffer("reporting_to", e.target.value)} placeholder="e.g. Head of Engineering" />
+                  <ReportingToCombobox
+                    value={offerForm.reporting_to}
+                    onChange={(v) => setOffer("reporting_to", v)}
+                    employees={allEmployees.filter((e: any) => e.id !== Number(id))}
+                  />
                 </div>
                 <div>
                   <label className={LABEL}>Work Location</label>
