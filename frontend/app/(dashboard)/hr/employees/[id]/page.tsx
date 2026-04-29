@@ -378,7 +378,6 @@ export default function EmployeeDetailPage() {
     { key: "info", label: "Information" },
     { key: "leave", label: "Leave Balances" },
     { key: "docs", label: "Documents" },
-    { key: "offer", label: "Offer Letter" },
   ] as const;
 
   return (
@@ -445,14 +444,7 @@ export default function EmployeeDetailPage() {
         {TABS.map(t => (
           <button
             key={t.key}
-            onClick={() => {
-              if (t.key === "offer" && tab !== "offer") {
-                setOffer("position", emp.designation || offerForm.position);
-                setOffer("department", emp.department_name || offerForm.department);
-                setOffer("basic_salary", emp.basic_salary || offerForm.basic_salary);
-              }
-              setTab(t.key);
-            }}
+            onClick={() => setTab(t.key)}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === t.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
           >
             {t.label}
@@ -613,19 +605,20 @@ export default function EmployeeDetailPage() {
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* LEAVE TAB */}
-      {tab === "leave" && <LeaveBalancesTab empId={Number(id)} emp={emp} leaveBalances={leaveBalances} refetchLeave={() => qc.invalidateQueries({ queryKey: ["hr-leave-balances", id] })} />}
-
-      {/* OFFER LETTER TAB */}
-      {tab === "offer" && (
-        <div className="space-y-5">
-          {/* Position Details */}
+          {/* Offer Letter */}
           <div className="bg-white rounded-xl border border-gray-100">
-            <div className="px-6 py-4 border-b border-gray-50"><h2 className="text-sm font-semibold text-gray-700">Position Details</h2></div>
-            <div className="px-6 py-5">
+            <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-700">Offer Letter</h2>
+              <button
+                onClick={handleGenerateOffer}
+                disabled={offerGenerating || !offerForm.position || !offerForm.start_date || !offerForm.basic_salary || !offerForm.expiry_date}
+                className="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <FileText size={13} />
+                {offerGenerating ? "Generating..." : "Generate PDF"}
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={LABEL}>Position / Job Title <span className="text-red-400">*</span></label>
@@ -669,13 +662,7 @@ export default function EmployeeDetailPage() {
                   <input type="date" className={INPUT} value={offerForm.expiry_date} onChange={e => setOffer("expiry_date", e.target.value)} />
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Remuneration */}
-          <div className="bg-white rounded-xl border border-gray-100">
-            <div className="px-6 py-4 border-b border-gray-50"><h2 className="text-sm font-semibold text-gray-700">Remuneration</h2></div>
-            <div className="px-6 py-5 space-y-4">
+              {/* Allowances */}
               <div>
                 <label className={LABEL}>Basic Salary (MYR/month) <span className="text-red-400">*</span></label>
                 <input type="number" step="0.01" className={INPUT} value={offerForm.basic_salary} onChange={e => setOffer("basic_salary", e.target.value)} placeholder="0.00" />
@@ -686,55 +673,33 @@ export default function EmployeeDetailPage() {
                   {offerForm.allowances.map((a, i) => (
                     <div key={i} className="flex gap-2 items-center">
                       <input className={`${INPUT} flex-1`} placeholder="Name (e.g. Transport)" value={a.name} onChange={e => {
-                        const arr = [...offerForm.allowances];
-                        arr[i] = { ...arr[i], name: e.target.value };
-                        setOffer("allowances", arr);
+                        const arr = [...offerForm.allowances]; arr[i] = { ...arr[i], name: e.target.value }; setOffer("allowances", arr);
                       }} />
                       <input type="number" step="0.01" className={`${INPUT} w-32`} placeholder="Amount" value={a.amount} onChange={e => {
-                        const arr = [...offerForm.allowances];
-                        arr[i] = { ...arr[i], amount: e.target.value };
-                        setOffer("allowances", arr);
+                        const arr = [...offerForm.allowances]; arr[i] = { ...arr[i], amount: e.target.value }; setOffer("allowances", arr);
                       }} />
-                      <button onClick={() => setOffer("allowances", offerForm.allowances.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 shrink-0">
-                        <Trash2 size={14} />
-                      </button>
+                      <button onClick={() => setOffer("allowances", offerForm.allowances.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 shrink-0"><Trash2 size={14} /></button>
                     </div>
                   ))}
-                  <button
-                    onClick={() => setOffer("allowances", [...offerForm.allowances, { name: "", amount: "" }])}
-                    className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium"
-                  >
+                  <button onClick={() => setOffer("allowances", [...offerForm.allowances, { name: "", amount: "" }])} className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium">
                     <Plus size={14} /> Add Allowance
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Benefits */}
-          <div className="bg-white rounded-xl border border-gray-100">
-            <div className="px-6 py-4 border-b border-gray-50"><h2 className="text-sm font-semibold text-gray-700">Benefits</h2></div>
-            <div className="px-6 py-5">
-              <div className="flex flex-wrap gap-x-5 gap-y-2">
-                {["Annual Leave", "Medical Benefits", "EPF", "SOCSO", "EIS", "Dental", "Vision", "Parking", "Phone Allowance", "Laptop"].map(b => (
-                  <label key={b} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="w-3.5 h-3.5"
-                      checked={offerForm.benefits.includes(b)}
-                      onChange={e => setOffer("benefits", e.target.checked ? [...offerForm.benefits, b] : offerForm.benefits.filter(x => x !== b))}
-                    />
-                    {b}
-                  </label>
-                ))}
+              {/* Benefits */}
+              <div>
+                <label className={LABEL}>Benefits</label>
+                <div className="flex flex-wrap gap-x-5 gap-y-2 mt-1">
+                  {["Annual Leave", "Medical Benefits", "EPF", "SOCSO", "EIS", "Dental", "Vision", "Parking", "Phone Allowance", "Laptop"].map(b => (
+                    <label key={b} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                      <input type="checkbox" className="w-3.5 h-3.5" checked={offerForm.benefits.includes(b)}
+                        onChange={e => setOffer("benefits", e.target.checked ? [...offerForm.benefits, b] : offerForm.benefits.filter(x => x !== b))} />
+                      {b}
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
-          </div>
-
-          {/* Signatory & Notes */}
-          <div className="bg-white rounded-xl border border-gray-100">
-            <div className="px-6 py-4 border-b border-gray-50"><h2 className="text-sm font-semibold text-gray-700">Signatory & Notes</h2></div>
-            <div className="px-6 py-5 space-y-4">
+              {/* Signatory */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={LABEL}>Signatory Name</label>
@@ -751,19 +716,11 @@ export default function EmployeeDetailPage() {
               </div>
             </div>
           </div>
-
-          <div className="flex justify-end">
-            <button
-              onClick={handleGenerateOffer}
-              disabled={offerGenerating || !offerForm.position || !offerForm.start_date || !offerForm.basic_salary || !offerForm.expiry_date}
-              className="px-6 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-            >
-              <FileText size={14} />
-              {offerGenerating ? "Generating..." : "Generate PDF"}
-            </button>
-          </div>
         </div>
       )}
+
+      {/* LEAVE TAB */}
+      {tab === "leave" && <LeaveBalancesTab empId={Number(id)} emp={emp} leaveBalances={leaveBalances} refetchLeave={() => qc.invalidateQueries({ queryKey: ["hr-leave-balances", id] })} />}
 
       {/* DOCS TAB */}
       {tab === "docs" && (
