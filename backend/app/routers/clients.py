@@ -41,7 +41,7 @@ async def list_clients(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(Client)
+    query = select(Client).options(selectinload(Client.pic_employee))
     query = apply_tenant_filter(query, Client, current_user)
     if search:
         query = query.where(
@@ -82,6 +82,7 @@ async def list_clients(
     for client in clients:
         r = ClientListResponse.model_validate(client)
         r.outstanding_balance = balances.get(client.id, Decimal("0.00")) or Decimal("0.00")
+        r.pic_employee_name = client.pic_employee.full_name if client.pic_employee else None
         responses.append(r)
     return responses
 
@@ -105,14 +106,16 @@ async def get_client(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Client).where(Client.id == client_id))
+    result = await db.execute(select(Client).options(selectinload(Client.pic_employee)).where(Client.id == client_id))
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     eff_tenant = get_effective_tenant_id(current_user)
     if eff_tenant is not None and client.tenant_id != eff_tenant:
         raise HTTPException(status_code=403, detail="Access denied")
-    return client
+    r = ClientResponse.model_validate(client)
+    r.pic_employee_name = client.pic_employee.full_name if client.pic_employee else None
+    return r
 
 
 @router.put("/{client_id}", response_model=ClientResponse)
@@ -122,7 +125,7 @@ async def update_client(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin_or_manager()),
 ):
-    result = await db.execute(select(Client).where(Client.id == client_id))
+    result = await db.execute(select(Client).options(selectinload(Client.pic_employee)).where(Client.id == client_id))
     client = result.scalar_one_or_none()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -133,7 +136,10 @@ async def update_client(
         setattr(client, key, value)
     await db.commit()
     await db.refresh(client)
-    return client
+    await db.refresh(client, ["pic_employee"])
+    r = ClientResponse.model_validate(client)
+    r.pic_employee_name = client.pic_employee.full_name if client.pic_employee else None
+    return r
 
 
 @router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)

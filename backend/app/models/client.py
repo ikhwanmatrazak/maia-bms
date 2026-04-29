@@ -31,11 +31,14 @@ class Client(Base):
     tags = Column(String(500), nullable=True)  # comma-separated
     region = Column(String(100), nullable=True)
     company_size = Column(String(50), nullable=True)  # "1-10", "11-50", "51-200", "200+"
+    branch = Column(String(255), nullable=True)
+    pic_employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
+    pic_employee = relationship("Employee", foreign_keys=[pic_employee_id], lazy="select")
     contacts = relationship("ClientContact", back_populates="client", cascade="all, delete-orphan")
     activities = relationship("Activity", back_populates="client", cascade="all, delete-orphan")
     reminders = relationship("Reminder", back_populates="client", cascade="all, delete-orphan")

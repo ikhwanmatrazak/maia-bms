@@ -9,7 +9,7 @@ import {
   Input, Select, SelectItem, Textarea, Pagination,
 } from "@heroui/react";
 import { Pencil, Upload, Trash2, FileText, Download, Plus, Star, Phone, Mail, User as UserIcon } from "lucide-react";
-import { clientsApi, invoicesApi, quotationsApi, productsApi } from "@/lib/api";
+import { clientsApi, invoicesApi, quotationsApi, productsApi, hrApi } from "@/lib/api";
 import { formatDate, formatCurrency, statusColor, formatRelative } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
 import { DetailSkeleton } from "@/components/ui/PageSkeleton";
@@ -132,6 +132,11 @@ export default function ClientDetailPage() {
     queryFn: () => clientsApi.getContacts(clientId),
   });
 
+  const { data: allEmployees = [] } = useQuery<any[]>({
+    queryKey: ["hr-employees-all"],
+    queryFn: () => hrApi.listEmployees({ limit: 500 }),
+  });
+
   // Pagination state per tab
   const invPager = usePage(invoices);
   const quotPager = usePage(quotations);
@@ -205,6 +210,8 @@ export default function ClientDetailPage() {
       tags: client?.tags ?? "",
       region: client?.region ?? "",
       company_size: client?.company_size ?? "",
+      branch: (client as any)?.branch ?? "",
+      pic_employee_id: (client as any)?.pic_employee_id ?? "",
     });
     setEditModal(true);
   };
@@ -276,6 +283,12 @@ export default function ClientDetailPage() {
               )}
               {client.region && (
                 <div><span className="text-gray-400 block text-xs mb-0.5">Region</span><span className="font-medium">{client.region}</span></div>
+              )}
+              {(client as any).branch && (
+                <div><span className="text-gray-400 block text-xs mb-0.5">Branch</span><span className="font-medium">{(client as any).branch}</span></div>
+              )}
+              {(client as any).pic_employee_name && (
+                <div><span className="text-gray-400 block text-xs mb-0.5">PIC</span><span className="font-medium">{(client as any).pic_employee_name}</span></div>
               )}
               {client.tags && (
                 <div className="sm:col-span-2">
@@ -632,6 +645,15 @@ export default function ClientDetailPage() {
               value={editForm.country} onChange={(e) => setEditForm({ ...editForm, country: e.target.value })} />
             <Input variant="bordered" label="Region"
               value={editForm.region} onChange={(e) => setEditForm({ ...editForm, region: e.target.value })} />
+            <Input variant="bordered" label="Branch"
+              value={(editForm as any).branch ?? ""} onChange={(e) => setEditForm({ ...editForm, branch: e.target.value } as any)}
+              placeholder="e.g. HQ, Penang, Johor" />
+            <Select variant="bordered" label="PIC (Person In Charge)"
+              selectedKeys={(editForm as any).pic_employee_id ? [String((editForm as any).pic_employee_id)] : []}
+              onSelectionChange={(k) => setEditForm({ ...editForm, pic_employee_id: Number(Array.from(k)[0]) || null } as any)}>
+              <SelectItem key="">— None —</SelectItem>
+              {allEmployees.map((e: any) => <SelectItem key={String(e.id)}>{e.full_name}{e.designation ? ` (${e.designation})` : ""}</SelectItem>)}
+            </Select>
             <Input variant="bordered" label="Industry"
               value={editForm.industry} onChange={(e) => setEditForm({ ...editForm, industry: e.target.value })} />
             <Select variant="bordered" label="Company Size" selectedKeys={editForm.company_size ? [editForm.company_size] : []}

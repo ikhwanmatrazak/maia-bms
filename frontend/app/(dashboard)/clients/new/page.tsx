@@ -1,12 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardBody, CardHeader, Input, Button, Select, SelectItem, Textarea } from "@heroui/react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { clientsApi } from "@/lib/api";
+import { clientsApi, hrApi } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
 
 const schema = z.object({
@@ -19,6 +19,8 @@ const schema = z.object({
   country: z.string().optional(),
   currency: z.string().default("MYR"),
   notes: z.string().optional(),
+  branch: z.string().optional(),
+  pic_employee_id: z.number().nullable().optional(),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -29,6 +31,11 @@ export default function NewClientPage() {
   const { register, handleSubmit, control, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { currency: "MYR" },
+  });
+
+  const { data: allEmployees = [] } = useQuery<any[]>({
+    queryKey: ["hr-employees-all"],
+    queryFn: () => hrApi.listEmployees({ limit: 500 }),
   });
 
   const mutation = useMutation({
@@ -54,31 +61,37 @@ export default function NewClientPage() {
                 {...register("company_name")}
               />
               <div className="grid grid-cols-2 gap-4">
-                <Input
-                  variant="bordered"
-                  label="Contact Person"
-                  {...register("contact_person")}
-                />
+                <Input variant="bordered" label="Contact Person" {...register("contact_person")} />
                 <Input variant="bordered" label="Email" type="email" {...register("email")} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Input
-                  variant="bordered"
-                  label="Phone"
-                  {...register("phone")}
-                />
+                <Input variant="bordered" label="Phone" {...register("phone")} />
                 <Controller
                   name="currency"
                   control={control}
                   render={({ field }) => (
-                    <Select
-                      variant="bordered"
-                      label="Currency"
-                      selectedKeys={[field.value]}
-                      onSelectionChange={(keys) => field.onChange(Array.from(keys)[0])}
-                    >
-                      {CURRENCIES.map((c) => (
-                        <SelectItem key={c}>{c}</SelectItem>
+                    <Select variant="bordered" label="Currency" selectedKeys={[field.value]}
+                      onSelectionChange={(keys) => field.onChange(Array.from(keys)[0])}>
+                      {CURRENCIES.map((c) => <SelectItem key={c}>{c}</SelectItem>)}
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Input variant="bordered" label="Branch" placeholder="e.g. HQ, Penang, Johor" {...register("branch")} />
+                <Controller
+                  name="pic_employee_id"
+                  control={control}
+                  render={({ field }) => (
+                    <Select variant="bordered" label="PIC (Person In Charge)"
+                      selectedKeys={field.value ? [String(field.value)] : []}
+                      onSelectionChange={(keys) => {
+                        const v = Array.from(keys)[0];
+                        field.onChange(v ? Number(v) : null);
+                      }}>
+                      <SelectItem key="">— None —</SelectItem>
+                      {allEmployees.map((e: any) => (
+                        <SelectItem key={String(e.id)}>{e.full_name}{e.designation ? ` (${e.designation})` : ""}</SelectItem>
                       ))}
                     </Select>
                   )}

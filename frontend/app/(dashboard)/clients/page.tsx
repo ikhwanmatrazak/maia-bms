@@ -102,6 +102,8 @@ export default function ClientsPage() {
         <Table aria-label="Clients">
           <TableHeader>
             <TableColumn>Company</TableColumn>
+            <TableColumn>Branch</TableColumn>
+            <TableColumn>PIC</TableColumn>
             <TableColumn>Contact</TableColumn>
             <TableColumn>Email</TableColumn>
             <TableColumn>Currency</TableColumn>
@@ -118,6 +120,8 @@ export default function ClientsPage() {
                     {client.company_name}
                   </Link>
                 </TableCell>
+                <TableCell>{(client as any).branch ?? "—"}</TableCell>
+                <TableCell>{(client as any).pic_employee_name ?? "—"}</TableCell>
                 <TableCell>{client.contact_person ?? "—"}</TableCell>
                 <TableCell>{client.email ?? "—"}</TableCell>
                 <TableCell>{client.currency}</TableCell>

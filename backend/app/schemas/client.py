@@ -20,6 +20,8 @@ class ClientCreate(BaseModel):
     tags: Optional[str] = None
     region: Optional[str] = None
     company_size: Optional[str] = None
+    branch: Optional[str] = None
+    pic_employee_id: Optional[int] = None
 
 
 class ClientUpdate(BaseModel):
@@ -37,6 +39,8 @@ class ClientUpdate(BaseModel):
     tags: Optional[str] = None
     region: Optional[str] = None
     company_size: Optional[str] = None
+    branch: Optional[str] = None
+    pic_employee_id: Optional[int] = None
 
 
 class ClientResponse(BaseModel):
@@ -58,6 +62,9 @@ class ClientResponse(BaseModel):
     tags: Optional[str] = None
     region: Optional[str] = None
     company_size: Optional[str] = None
+    branch: Optional[str] = None
+    pic_employee_id: Optional[int] = None
+    pic_employee_name: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -76,5 +83,7 @@ class ClientListResponse(BaseModel):
     tags: Optional[str] = None
     region: Optional[str] = None
     company_size: Optional[str] = None
+    branch: Optional[str] = None
+    pic_employee_name: Optional[str] = None
 
     model_config = {"from_attributes": True}
