@@ -16,35 +16,57 @@ import { TableSkeleton } from "@/components/ui/PageSkeleton";
 const ROLES = ["admin", "manager", "staff"];
 const ROLE_LABELS: Record<string, string> = { admin: "Admin", manager: "Manager", staff: "Sales" };
 
-const PERMISSION_GROUPS = [
-  { key: "dashboard", label: "Dashboard", sub: false },
-  { key: "analytics", label: "↳ Analytics", sub: true },
-  { key: "clients", label: "Clients", sub: false },
-  { key: "pipeline", label: "↳ Pipeline", sub: true },
-  { key: "quotations", label: "Quotations", sub: false },
-  { key: "invoices", label: "↳ Invoices", sub: true },
-  { key: "receipts", label: "↳ Receipts", sub: true },
-  { key: "products", label: "Products", sub: false },
-  { key: "purchase-orders", label: "↳ Purchase Orders", sub: true },
-  { key: "vendors", label: "↳ Vendors", sub: true },
-  { key: "delivery-orders", label: "↳ Delivery Orders", sub: true },
-  { key: "payments", label: "Payments", sub: false },
-  { key: "credit-notes", label: "↳ Credit Notes", sub: true },
-  { key: "expenses", label: "↳ Expenses", sub: true },
-  { key: "bills", label: "↳ Bills", sub: true },
-  { key: "reports", label: "↳ Reports", sub: true },
-  { key: "projects", label: "Projects", sub: false },
-  { key: "calendar", label: "Calendar", sub: false },
-  { key: "hr", label: "HR Overview", sub: false },
-  { key: "hr-employees", label: "↳ Employees", sub: true },
-  { key: "hr-departments", label: "↳ Departments", sub: true },
-  { key: "hr-leave", label: "↳ Leave", sub: true },
-  { key: "hr-attendance", label: "↳ Attendance", sub: true },
-  { key: "hr-payroll", label: "↳ Payroll", sub: true },
-  { key: "hr-claims", label: "↳ Claims", sub: true },
-  { key: "hr-performance", label: "↳ Performance", sub: true },
-  { key: "reminders", label: "Reminders", sub: false },
+const PERMISSION_TREE = [
+  { key: "overview", label: "Overview", children: [
+    { key: "dashboard", label: "Dashboard" },
+    { key: "analytics", label: "Analytics" },
+  ]},
+  { key: "crm", label: "CRM", children: [
+    { key: "clients", label: "Clients" },
+    { key: "pipeline", label: "Pipeline" },
+  ]},
+  { key: "sales", label: "Sales", children: [
+    { key: "quotations", label: "Quotations" },
+    { key: "invoices", label: "Invoices" },
+    { key: "receipts", label: "Receipts" },
+  ]},
+  { key: "procurement", label: "Procurement", children: [
+    { key: "products", label: "Products" },
+    { key: "purchase-orders", label: "Purchase Orders" },
+    { key: "vendors", label: "Vendors" },
+    { key: "delivery-orders", label: "Delivery Orders" },
+  ]},
+  { key: "finance", label: "Finance", children: [
+    { key: "payments", label: "Payments" },
+    { key: "credit-notes", label: "Credit Notes" },
+    { key: "expenses", label: "Expenses" },
+    { key: "bills", label: "Bills" },
+    { key: "reports", label: "Reports" },
+  ]},
+  { key: "projects", label: "Projects", children: [] },
+  { key: "calendar", label: "Calendar", children: [] },
+  { key: "hr", label: "HR", children: [
+    { key: "hr-employees", label: "Employees" },
+    { key: "hr-departments", label: "Departments" },
+    { key: "hr-leave", label: "Leave" },
+    { key: "hr-attendance", label: "Attendance" },
+    { key: "hr-payroll", label: "Payroll" },
+    { key: "hr-claims", label: "Claims" },
+    { key: "hr-performance", label: "Performance" },
+  ]},
+  { key: "reminders", label: "Reminders", children: [] },
 ];
+
+// Flat list of all keys (for "select all" and migration compat)
+const ALL_PERM_KEYS = PERMISSION_TREE.flatMap(g => [g.key, ...g.children.map(c => c.key)]);
+
+function getAllChildKeys(parentKey: string): string[] {
+  const group = PERMISSION_TREE.find(g => g.key === parentKey);
+  return group ? group.children.map(c => c.key) : [];
+}
+
+// Legacy flat list kept for backward compat reading saved permissions
+const PERMISSION_GROUPS = ALL_PERM_KEYS.map(k => ({ key: k }));
 
 export default function UsersPage() {
   const [createModal, setCreateModal] = useState(false);
@@ -120,7 +142,7 @@ export default function UsersPage() {
     setPermUser(u);
     if (u.permissions == null) {
       setPermUnrestricted(true);
-      setPermSelected(PERMISSION_GROUPS.map((g) => g.key));
+      setPermSelected(ALL_PERM_KEYS);
     } else {
       setPermUnrestricted(false);
       setPermSelected(u.permissions);
@@ -248,23 +270,64 @@ export default function UsersPage() {
                 <span className="text-sm font-medium">Full access (no restrictions)</span>
               </label>
               {!permUnrestricted && (
-                <div className="flex flex-col gap-2 border-t border-divider pt-3">
-                  <p className="text-xs text-default-400 mb-1">Select which screens this user can access:</p>
-                  {PERMISSION_GROUPS.map((g) => (
-                    <label key={g.key} className={`flex items-center gap-2 cursor-pointer ${g.sub ? "ml-4" : ""}`}>
-                      <input
-                        type="checkbox"
-                        checked={permSelected.includes(g.key)}
-                        onChange={(e) => {
-                          setPermSelected((prev) =>
-                            e.target.checked ? [...prev, g.key] : prev.filter((k) => k !== g.key)
-                          );
-                        }}
-                        className="w-4 h-4 accent-primary"
-                      />
-                      <span className={`text-sm ${g.sub ? "text-default-500" : ""}`}>{g.label}</span>
-                    </label>
-                  ))}
+                <div className="flex flex-col gap-1 border-t border-divider pt-3">
+                  <p className="text-xs text-default-400 mb-2">Select which screens this user can access:</p>
+                  {PERMISSION_TREE.map((group) => {
+                    const childKeys = group.children.map(c => c.key);
+                    const allChildChecked = childKeys.length === 0
+                      ? permSelected.includes(group.key)
+                      : childKeys.every(k => permSelected.includes(k));
+                    const someChildChecked = childKeys.some(k => permSelected.includes(k));
+
+                    const toggleParent = (checked: boolean) => {
+                      setPermSelected(prev => {
+                        let next = prev.filter(k => k !== group.key && !childKeys.includes(k));
+                        if (checked) {
+                          next = [...next, group.key, ...childKeys];
+                        }
+                        return next;
+                      });
+                    };
+
+                    const toggleChild = (childKey: string, checked: boolean) => {
+                      setPermSelected(prev => {
+                        let next = checked ? [...prev, childKey] : prev.filter(k => k !== childKey);
+                        // Auto-check parent if any child is checked
+                        const anyChild = group.children.some(c => next.includes(c.key));
+                        if (anyChild && !next.includes(group.key)) next = [...next, group.key];
+                        if (!anyChild) next = next.filter(k => k !== group.key);
+                        return next;
+                      });
+                    };
+
+                    return (
+                      <div key={group.key} className="mb-1">
+                        {/* Parent row */}
+                        <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-default-100 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 accent-primary"
+                            checked={allChildChecked}
+                            ref={el => { if (el) el.indeterminate = !allChildChecked && someChildChecked; }}
+                            onChange={e => toggleParent(e.target.checked)}
+                          />
+                          <span className="text-sm font-semibold text-default-800">{group.label}</span>
+                        </label>
+                        {/* Children */}
+                        {group.children.map(child => (
+                          <label key={child.key} className="flex items-center gap-2.5 pl-8 pr-2 py-1 rounded-lg hover:bg-default-50 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="w-3.5 h-3.5 accent-primary"
+                              checked={permSelected.includes(child.key)}
+                              onChange={e => toggleChild(child.key, e.target.checked)}
+                            />
+                            <span className="text-sm text-default-600">{child.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </ModalBody>
