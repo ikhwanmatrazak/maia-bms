@@ -27,6 +27,9 @@ export default function LeavePage() {
   const [assignSearch, setAssignSearch] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [assignResult, setAssignResult] = useState<any>(null);
+  const [editLeaveType, setEditLeaveType] = useState<any>(null);
+  const [editTypeForm, setEditTypeForm] = useState({ name: "", days_per_year: 14, is_paid: true, requires_document: false, is_pro_rated: false });
+  const setET = (k: string, v: any) => setEditTypeForm(prev => ({ ...prev, [k]: v }));
 
   // Apply leave form
   const [applyForm, setApplyForm] = useState({
@@ -70,8 +73,22 @@ export default function LeavePage() {
 
   const createTypeMutation = useMutation({
     mutationFn: (data: object) => hrApi.createLeaveType(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-leave-types"] }); setShowTypeModal(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-leave-types"] }); setShowTypeModal(false); setTypeForm({ name: "", days_per_year: 14, is_paid: true, requires_document: false, is_pro_rated: false }); },
   });
+
+  const updateTypeMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: object }) => hrApi.updateLeaveType(id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-leave-types"] }); setEditLeaveType(null); },
+  });
+
+  // Fetch existing balances for current leave type being assigned
+  const currentYear = new Date().getFullYear();
+  const { data: existingBalances = [] } = useQuery({
+    queryKey: ["hr-leave-balances-type", assignLeaveType?.id, currentYear],
+    queryFn: () => hrApi.listLeaveBalances({ leave_type_id: assignLeaveType!.id, year: currentYear }),
+    enabled: !!assignLeaveType,
+  });
+  const alreadyAssignedIds = new Set((existingBalances as any[]).map((b: any) => b.employee_id));
 
   const TABS = [
     { key: "applications", label: "Applications" },
@@ -198,12 +215,20 @@ export default function LeavePage() {
                   <td className="px-4 py-3 text-center">{t.is_paid ? "✓" : "—"}</td>
                   <td className="px-4 py-3 text-center">{t.requires_document ? "✓" : "—"}</td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => { setAssignLeaveType(t); setAssignSelected([]); setAssignSearch(""); setAssignResult(null); }}
-                      className="px-3 py-1.5 text-xs font-medium text-green-700 border border-green-200 rounded-lg hover:bg-green-50"
-                    >
-                      Assign to Staff
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => { setEditLeaveType(t); setEditTypeForm({ name: t.name, days_per_year: t.days_per_year, is_paid: t.is_paid, requires_document: t.requires_document, is_pro_rated: t.is_pro_rated ?? false }); }}
+                        className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => { setAssignLeaveType(t); setAssignSelected([]); setAssignSearch(""); setAssignResult(null); }}
+                        className="px-3 py-1.5 text-xs font-medium text-green-700 border border-green-200 rounded-lg hover:bg-green-50"
+                      >
+                        Assign to Staff
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -332,7 +357,7 @@ export default function LeavePage() {
                     <span className="text-xs text-gray-400">{assignSelected.length} selected</span>
                     <div className="flex gap-3">
                       <button
-                        onClick={() => setAssignSelected((employees as any[]).map((e: any) => e.id))}
+                        onClick={() => setAssignSelected((employees as any[]).filter((e: any) => !alreadyAssignedIds.has(e.id)).map((e: any) => e.id))}
                         className="text-xs text-blue-600 hover:underline"
                       >Select all</button>
                       <button onClick={() => setAssignSelected([])} className="text-xs text-gray-400 hover:underline">Clear</button>
@@ -342,10 +367,14 @@ export default function LeavePage() {
 
                 {/* Employee list */}
                 <div className="flex-1 overflow-y-auto px-6 py-2 space-y-1 min-h-0">
+                  {(employees as any[]).filter((e: any) => !alreadyAssignedIds.has(e.id)).length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-6">All active staff already have this leave type assigned.</p>
+                  )}
                   {(employees as any[])
                     .filter((e: any) =>
-                      !assignSearch || e.full_name.toLowerCase().includes(assignSearch.toLowerCase()) ||
-                      (e.employee_no || "").toLowerCase().includes(assignSearch.toLowerCase())
+                      !alreadyAssignedIds.has(e.id) &&
+                      (!assignSearch || e.full_name.toLowerCase().includes(assignSearch.toLowerCase()) ||
+                      (e.employee_no || "").toLowerCase().includes(assignSearch.toLowerCase()))
                     )
                     .map((e: any) => {
                       const checked = assignSelected.includes(e.id);
@@ -412,6 +441,40 @@ export default function LeavePage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+      {/* Edit Leave Type Modal */}
+      {editLeaveType && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="text-lg font-bold">Edit Leave Type</h2>
+            <div><label className="block text-xs font-semibold text-gray-500 mb-1">Name</label><input className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" value={editTypeForm.name} onChange={e => setET("name", e.target.value)} /></div>
+            <div><label className="block text-xs font-semibold text-gray-500 mb-1">Days per Year</label><input type="number" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" value={editTypeForm.days_per_year} onChange={e => setET("days_per_year", Number(e.target.value))} /></div>
+            <div className="flex flex-col gap-2.5">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={editTypeForm.is_paid} onChange={e => setET("is_paid", e.target.checked)} />
+                Paid leave
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={editTypeForm.requires_document} onChange={e => setET("requires_document", e.target.checked)} />
+                Requires document
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={editTypeForm.is_pro_rated} onChange={e => setET("is_pro_rated", e.target.checked)} />
+                <span>Pro-rated by join date <span className="text-xs text-gray-400">(days/12 × months worked)</span></span>
+              </label>
+            </div>
+            <div className="flex gap-3 justify-end pt-1">
+              <button onClick={() => setEditLeaveType(null)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg">Cancel</button>
+              <button
+                disabled={!editTypeForm.name || updateTypeMutation.isPending}
+                onClick={() => updateTypeMutation.mutate({ id: editLeaveType.id, data: editTypeForm })}
+                className="px-4 py-2 text-sm font-medium bg-[#1a1a2e] text-white rounded-lg disabled:opacity-40"
+              >
+                {updateTypeMutation.isPending ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
           </div>
         </div>
       )}

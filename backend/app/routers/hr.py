@@ -917,6 +917,7 @@ async def update_leave_type(
 @router.get("/leave-balances", response_model=List[LeaveBalanceResponse])
 async def list_leave_balances(
     employee_id: Optional[int] = Query(None),
+    leave_type_id: Optional[int] = Query(None),
     year: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -925,6 +926,8 @@ async def list_leave_balances(
     query = apply_tenant_filter(query, LeaveBalance, current_user)
     if employee_id:
         query = query.where(LeaveBalance.employee_id == employee_id)
+    if leave_type_id:
+        query = query.where(LeaveBalance.leave_type_id == leave_type_id)
     if year:
         query = query.where(LeaveBalance.year == year)
     result = await db.execute(query)
