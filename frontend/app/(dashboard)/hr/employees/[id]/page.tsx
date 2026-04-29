@@ -387,7 +387,10 @@ export default function EmployeeDetailPage() {
   );
 
   const isContract = form.employment_type === "contract";
-  const effectiveExpiry = isContract ? form.contract_end_date : offerForm.expiry_date;
+  const isFullTime = form.employment_type === "full-time" || form.employment_type === "Full-Time";
+  // Contract uses contract_end_date from above; part-time/intern show expiry field; full-time has no end date
+  const effectiveExpiry = isContract ? form.contract_end_date : (!isFullTime ? offerForm.expiry_date : null);
+  const showExpiryField = !isContract && !isFullTime;
 
   const TABS = [
     { key: "info", label: "Information" },
@@ -629,7 +632,7 @@ export default function EmployeeDetailPage() {
               </div>
               <button
                 onClick={handleGenerateOffer}
-                disabled={offerGenerating || !form.join_date || !effectiveExpiry}
+                disabled={offerGenerating || !form.join_date || (showExpiryField && !offerForm.expiry_date)}
                 className="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
               >
                 <FileText size={13} />
@@ -650,7 +653,7 @@ export default function EmployeeDetailPage() {
                   <label className={LABEL}>Work Location</label>
                   <input className={INPUT} value={offerForm.work_location} onChange={e => setOffer("work_location", e.target.value)} placeholder="e.g. Kuala Lumpur" />
                 </div>
-                {!isContract && (
+                {showExpiryField && (
                   <div>
                     <label className={LABEL}>Offer Expiry Date <span className="text-red-400">*</span></label>
                     <input type="date" className={INPUT} value={offerForm.expiry_date} onChange={e => setOffer("expiry_date", e.target.value)} />
