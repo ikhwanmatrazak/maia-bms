@@ -1017,29 +1017,6 @@ async def sync_all_leave_balances(
     Pro-rated types use join date. Non-pro-rated use days_per_year.
     Set overwrite=true to update existing balances."""
     from datetime import date as date_cls
-    _completed_months = _prorate_months
-        """Count months where the employee has completed a full calendar month
-        within the target year, as of today. A month is 'completed' once its
-        last day has passed."""
-        today = date_cls.today()
-        year_start = date_cls(target_year, 1, 1)
-        year_end = date_cls(target_year, 12, 31)
-        effective_start = max(join, year_start)
-        if effective_start > min(today, year_end):
-            return 0
-        count = 0
-        m_year, m_month = effective_start.year, effective_start.month
-        while (m_year < target_year) or (m_year == target_year and m_month <= 12):
-            last_day = date_cls(m_year, m_month, _monthrange(m_year, m_month)[1])
-            if last_day <= today and last_day <= year_end:
-                count += 1
-            m_month += 1
-            if m_month > 12:
-                m_month = 1
-                m_year += 1
-            if m_year > target_year:
-                break
-        return min(count, 12)
 
     require_admin_or_manager(current_user)
     target_year = year or date_cls.today().year
