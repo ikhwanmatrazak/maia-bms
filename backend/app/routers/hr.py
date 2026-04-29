@@ -4,6 +4,7 @@ Covers: Departments, Employees, Leave, Attendance, Payroll, Claims, Performance
 """
 import os
 import uuid
+from calendar import monthrange as _monthrange
 from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
@@ -36,6 +37,30 @@ app_settings = get_settings()
 
 
 # ─── helpers ────────────────────────────────────────────────────────────────
+
+def _prorate_months(join: date, target_year: int) -> int:
+    """Count calendar months fully completed by the employee within target_year,
+    as of today. A month is 'completed' once its last day has passed."""
+    today = date.today()
+    year_start = date(target_year, 1, 1)
+    year_end = date(target_year, 12, 31)
+    effective_start = max(join, year_start)
+    if effective_start > min(today, year_end):
+        return 0
+    count = 0
+    m_year, m_month = effective_start.year, effective_start.month
+    while m_year < target_year or (m_year == target_year and m_month <= 12):
+        last_day = date(m_year, m_month, _monthrange(m_year, m_month)[1])
+        if last_day <= today and last_day <= year_end:
+            count += 1
+        m_month += 1
+        if m_month > 12:
+            m_month = 1
+            m_year += 1
+        if m_year > target_year:
+            break
+    return min(count, 12)
+
 
 async def _save_file(upload: UploadFile, subfolder: str = "hr") -> str:
     upload_dir = app_settings.upload_dir
@@ -992,6 +1017,29 @@ async def sync_all_leave_balances(
     Pro-rated types use join date. Non-pro-rated use days_per_year.
     Set overwrite=true to update existing balances."""
     from datetime import date as date_cls
+    _completed_months = _prorate_months
+        """Count months where the employee has completed a full calendar month
+        within the target year, as of today. A month is 'completed' once its
+        last day has passed."""
+        today = date_cls.today()
+        year_start = date_cls(target_year, 1, 1)
+        year_end = date_cls(target_year, 12, 31)
+        effective_start = max(join, year_start)
+        if effective_start > min(today, year_end):
+            return 0
+        count = 0
+        m_year, m_month = effective_start.year, effective_start.month
+        while (m_year < target_year) or (m_year == target_year and m_month <= 12):
+            last_day = date_cls(m_year, m_month, _monthrange(m_year, m_month)[1])
+            if last_day <= today and last_day <= year_end:
+                count += 1
+            m_month += 1
+            if m_month > 12:
+                m_month = 1
+                m_year += 1
+            if m_year > target_year:
+                break
+        return min(count, 12)
 
     require_admin_or_manager(current_user)
     target_year = year or date_cls.today().year
@@ -1020,12 +1068,7 @@ async def sync_all_leave_balances(
 
     for emp in employees:
         join = emp.join_date or year_start
-        effective_start = max(join, year_start)
-        if effective_start > year_end:
-            months_worked = 0
-        else:
-            months_worked = (year_end.year - effective_start.year) * 12 + (year_end.month - effective_start.month) + 1
-            months_worked = min(months_worked, 12)
+        months_worked = _completed_months(join, target_year)
 
         for lt in leave_types:
             entitled = round((lt.days_per_year / 12) * months_worked, 2) if lt.is_pro_rated else float(lt.days_per_year)
@@ -1084,21 +1127,9 @@ async def get_prorate_preview(
     if not emp:
         raise HTTPException(status_code=404, detail="Employee not found")
 
-    # Determine months worked in the target year
     year_start = date_cls(target_year, 1, 1)
-    year_end = date_cls(target_year, 12, 31)
-
     join = emp.join_date or year_start
-    # Clamp join date to target year
-    effective_start = max(join, year_start)
-    effective_end = year_end
-
-    if effective_start > year_end:
-        months_worked = 0
-    else:
-        # Count completed months: from effective_start month to Dec
-        months_worked = (effective_end.year - effective_start.year) * 12 + (effective_end.month - effective_start.month) + 1
-        months_worked = min(months_worked, 12)
+    months_worked = _prorate_months(join, target_year)
 
     # Get all pro-rated leave types for this tenant
     lt_result = await db.execute(
@@ -1152,15 +1183,8 @@ async def apply_prorate(
         raise HTTPException(status_code=404, detail="Employee not found")
 
     year_start = date_cls(target_year, 1, 1)
-    year_end = date_cls(target_year, 12, 31)
     join = emp.join_date or year_start
-    effective_start = max(join, year_start)
-
-    if effective_start > year_end:
-        months_worked = 0
-    else:
-        months_worked = (year_end.year - effective_start.year) * 12 + (year_end.month - effective_start.month) + 1
-        months_worked = min(months_worked, 12)
+    months_worked = _prorate_months(join, target_year)
 
     lt_result = await db.execute(
         select(LeaveType).where(LeaveType.is_pro_rated == True, LeaveType.is_active == True,

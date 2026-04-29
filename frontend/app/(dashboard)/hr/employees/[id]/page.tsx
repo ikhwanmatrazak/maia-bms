@@ -89,7 +89,7 @@ function LeaveBalancesTab({ empId, emp, leaveBalances, refetchLeave }: { empId: 
             <div className="px-6 py-5 border-b border-gray-100">
               <h3 className="text-base font-bold text-gray-900">Pro-rated Leave Preview</h3>
               <p className="text-xs text-gray-500 mt-1">
-                {preview.employee_name} · Join: {preview.join_date} · <strong>{preview.months_worked} months</strong> in {year}
+                {preview.employee_name} · Join: {preview.join_date} · <strong>{preview.months_worked} completed months</strong> as of today
               </p>
             </div>
             <div className="px-6 py-4">
