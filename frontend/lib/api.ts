@@ -83,13 +83,25 @@ api.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post(`${API_URL}/auth/refresh`, {
-          refresh_token: refreshToken,
-        });
-        setTokens(data.access_token, data.refresh_token);
-        processQueue(null, data.access_token);
+        // Retry refresh up to 4 times to handle intermittent server failures
+        let data: unknown;
+        for (let attempt = 0; attempt <= 3; attempt++) {
+          try {
+            const res = await axios.post(`${API_URL}/auth/refresh`, {
+              refresh_token: refreshToken,
+            });
+            data = res.data;
+            break;
+          } catch (e) {
+            if (attempt === 3) throw e;
+            await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+          }
+        }
+        const d = data as { access_token: string; refresh_token: string };
+        setTokens(d.access_token, d.refresh_token);
+        processQueue(null, d.access_token);
         if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+          originalRequest.headers.Authorization = `Bearer ${d.access_token}`;
         }
         return api(originalRequest);
       } catch (refreshError) {

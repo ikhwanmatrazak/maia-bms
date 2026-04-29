@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List
 from datetime import datetime
 from app.models.user import UserRole
@@ -32,11 +32,12 @@ class UserResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_validator("permissions", mode="before")
     @classmethod
-    def model_validate(cls, obj, **kwargs):
-        if hasattr(obj, "permissions") and isinstance(obj.permissions, str):
+    def parse_permissions(cls, v):
+        if isinstance(v, str):
             try:
-                obj.permissions = json.loads(obj.permissions)
+                return json.loads(v)
             except Exception:
-                obj.permissions = None
-        return super().model_validate(obj, **kwargs)
+                return None
+        return v
