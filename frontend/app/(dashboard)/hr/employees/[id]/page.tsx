@@ -323,14 +323,26 @@ export default function EmployeeDetailPage() {
   const setOffer = (k: string, v: any) => setOfferForm((p) => ({ ...p, [k]: v }));
 
   const handleGenerateOffer = async () => {
-    if (!offerForm.position || !offerForm.start_date || !offerForm.basic_salary || !offerForm.expiry_date) return;
+    if (!form.join_date || !offerForm.expiry_date) return;
     setOfferGenerating(true);
     try {
       await hrApi.generateOfferLetter(Number(id), {
-        ...offerForm,
-        basic_salary: Number(offerForm.basic_salary),
-        probation_months: Number(offerForm.probation_months),
+        // Pull from employee form (no duplication)
+        position: form.designation || "",
+        department: emp.department_name || "",
+        employment_type: form.employment_type || "Full-Time",
+        basic_salary: Number(form.basic_salary) || 0,
+        probation_months: Number(form.probation_months) || 0,
+        start_date: form.join_date,
+        // Offer-letter-only fields
+        reporting_to: offerForm.reporting_to,
+        work_location: offerForm.work_location,
+        expiry_date: offerForm.expiry_date,
         allowances: offerForm.allowances.filter(a => a.name && a.amount).map(a => ({ name: a.name, amount: Number(a.amount) })),
+        benefits: offerForm.benefits,
+        signatory_name: offerForm.signatory_name,
+        signatory_title: offerForm.signatory_title,
+        notes: offerForm.notes,
         conditions: [
           "This offer is subject to satisfactory reference checks and medical examination.",
           "You are required to give adequate notice as per the Employment Act if you wish to resign.",
@@ -608,10 +620,13 @@ export default function EmployeeDetailPage() {
           {/* Offer Letter */}
           <div className="bg-white rounded-xl border border-gray-100">
             <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-700">Offer Letter</h2>
+              <div>
+                <h2 className="text-sm font-semibold text-gray-700">Offer Letter</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Uses designation, salary, employment type & join date from above</p>
+              </div>
               <button
                 onClick={handleGenerateOffer}
-                disabled={offerGenerating || !offerForm.position || !offerForm.start_date || !offerForm.basic_salary || !offerForm.expiry_date}
+                disabled={offerGenerating || !form.join_date || !offerForm.expiry_date}
                 className="px-4 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
               >
                 <FileText size={13} />
@@ -620,14 +635,6 @@ export default function EmployeeDetailPage() {
             </div>
             <div className="px-6 py-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={LABEL}>Position / Job Title <span className="text-red-400">*</span></label>
-                  <input className={INPUT} value={offerForm.position} onChange={e => setOffer("position", e.target.value)} placeholder="e.g. Software Engineer" />
-                </div>
-                <div>
-                  <label className={LABEL}>Department</label>
-                  <input className={INPUT} value={offerForm.department} onChange={e => setOffer("department", e.target.value)} />
-                </div>
                 <div>
                   <label className={LABEL}>Reporting To</label>
                   <ReportingToCombobox
@@ -641,31 +648,9 @@ export default function EmployeeDetailPage() {
                   <input className={INPUT} value={offerForm.work_location} onChange={e => setOffer("work_location", e.target.value)} placeholder="e.g. Kuala Lumpur" />
                 </div>
                 <div>
-                  <label className={LABEL}>Employment Type</label>
-                  <select className={SELECT} value={offerForm.employment_type} onChange={e => setOffer("employment_type", e.target.value)}>
-                    <option>Full-Time</option>
-                    <option>Part-Time</option>
-                    <option>Contract</option>
-                    <option>Internship</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={LABEL}>Probation Period (months)</label>
-                  <input type="number" min="0" max="12" className={INPUT} value={offerForm.probation_months} onChange={e => setOffer("probation_months", e.target.value)} />
-                </div>
-                <div>
-                  <label className={LABEL}>Commencement Date <span className="text-red-400">*</span></label>
-                  <input type="date" className={INPUT} value={offerForm.start_date} onChange={e => setOffer("start_date", e.target.value)} />
-                </div>
-                <div>
                   <label className={LABEL}>Offer Expiry Date <span className="text-red-400">*</span></label>
                   <input type="date" className={INPUT} value={offerForm.expiry_date} onChange={e => setOffer("expiry_date", e.target.value)} />
                 </div>
-              </div>
-              {/* Allowances */}
-              <div>
-                <label className={LABEL}>Basic Salary (MYR/month) <span className="text-red-400">*</span></label>
-                <input type="number" step="0.01" className={INPUT} value={offerForm.basic_salary} onChange={e => setOffer("basic_salary", e.target.value)} placeholder="0.00" />
               </div>
               <div>
                 <label className={LABEL}>Allowances</label>
@@ -686,7 +671,6 @@ export default function EmployeeDetailPage() {
                   </button>
                 </div>
               </div>
-              {/* Benefits */}
               <div>
                 <label className={LABEL}>Benefits</label>
                 <div className="flex flex-wrap gap-x-5 gap-y-2 mt-1">
@@ -699,7 +683,6 @@ export default function EmployeeDetailPage() {
                   ))}
                 </div>
               </div>
-              {/* Signatory */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={LABEL}>Signatory Name</label>
