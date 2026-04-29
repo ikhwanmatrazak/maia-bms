@@ -14,7 +14,7 @@ const SELECT = "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus
 
 function ReportingToCombobox({ value, onChange, employees }: {
   value: string;
-  onChange: (v: string) => void;
+  onChange: (name: string, position?: string) => void;
   employees: any[];
 }) {
   const [search, setSearch] = useState(value);
@@ -33,7 +33,8 @@ function ReportingToCombobox({ value, onChange, employees }: {
 
   const filtered = employees.filter((e) =>
     e.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-    e.position?.toLowerCase().includes(search.toLowerCase())
+    e.position?.toLowerCase().includes(search.toLowerCase()) ||
+    e.designation?.toLowerCase().includes(search.toLowerCase())
   ).slice(0, 10);
 
   return (
@@ -53,13 +54,14 @@ function ReportingToCombobox({ value, onChange, employees }: {
               type="button"
               className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm flex flex-col"
               onMouseDown={() => {
-                onChange(e.full_name);
+                const pos = e.designation || e.position || "";
+                onChange(e.full_name, pos);
                 setSearch(e.full_name);
                 setOpen(false);
               }}
             >
               <span className="font-medium text-gray-800">{e.full_name}</span>
-              {e.position && <span className="text-xs text-gray-400">{e.position}</span>}
+              {(e.designation || e.position) && <span className="text-xs text-gray-400">{e.designation || e.position}</span>}
             </button>
           ))}
         </div>
@@ -694,11 +696,18 @@ export default function EmployeeDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={LABEL}>Signatory Name</label>
-                  <input className={INPUT} value={offerForm.signatory_name} onChange={e => setOffer("signatory_name", e.target.value)} placeholder="Full name" />
+                  <ReportingToCombobox
+                    value={offerForm.signatory_name}
+                    onChange={(name, position) => {
+                      setOffer("signatory_name", name);
+                      if (position && !offerForm.signatory_title) setOffer("signatory_title", position);
+                    }}
+                    employees={allEmployees}
+                  />
                 </div>
                 <div>
                   <label className={LABEL}>Signatory Title</label>
-                  <input className={INPUT} value={offerForm.signatory_title} onChange={e => setOffer("signatory_title", e.target.value)} />
+                  <input className={INPUT} value={offerForm.signatory_title} onChange={e => setOffer("signatory_title", e.target.value)} placeholder="e.g. Human Resource Manager" />
                 </div>
               </div>
               <div>
