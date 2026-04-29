@@ -322,9 +322,6 @@ export default function EmployeeDetailPage() {
   });
   const setOffer = (k: string, v: any) => setOfferForm((p) => ({ ...p, [k]: v }));
 
-  const isContract = form.employment_type === "contract";
-  const effectiveExpiry = isContract ? form.contract_end_date : offerForm.expiry_date;
-
   const handleGenerateOffer = async () => {
     if (!form.join_date || !effectiveExpiry) return;
     setOfferGenerating(true);
@@ -388,6 +385,9 @@ export default function EmployeeDetailPage() {
       <div className="p-6"><DetailSkeleton /></div>
     </div>
   );
+
+  const isContract = form.employment_type === "contract";
+  const effectiveExpiry = isContract ? form.contract_end_date : offerForm.expiry_date;
 
   const TABS = [
     { key: "info", label: "Information" },
