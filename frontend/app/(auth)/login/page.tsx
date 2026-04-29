@@ -85,9 +85,9 @@ export default function LoginPage() {
         const status = e?.response?.status;
         const detail = e?.response?.data?.detail;
 
-        // Retry on 404 (proxy can't reach backend yet) or network error
-        if ((status === 404 || !status) && retriesLeft > 0) {
-          await new Promise((res) => setTimeout(res, 1200));
+        // Retry on 404/500 (intermittent server) or network error — up to 6 retries
+        if ((status === 404 || status === 500 || !status) && retriesLeft > 0) {
+          await new Promise((res) => setTimeout(res, 800));
           return attempt(retriesLeft - 1);
         }
 
@@ -102,7 +102,7 @@ export default function LoginPage() {
     };
 
     try {
-      await attempt(2);
+      await attempt(6);
     } finally {
       setLoading(false);
     }
