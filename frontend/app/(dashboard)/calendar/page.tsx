@@ -5,7 +5,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Input, Textarea, Chip, Tooltip } from "@heroui/react";
-import { ChevronLeft, ChevronRight, Plus, Calendar, MapPin, Link2, Users, Check, XCircle, Search, Briefcase, User2, LayoutList, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar, MapPin, Link2, Users, Check, XCircle, Search, Briefcase, User2, LayoutList, CalendarDays, Copy, CopyCheck } from "lucide-react";
 import { calendarApi, clientsApi, projectsApi } from "@/lib/api";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -44,6 +44,28 @@ function toLocal(iso: string) {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function buildInvitationText(event: CalEvent): string {
+  const start = new Date(event.start_at);
+  const end = event.end_at ? new Date(event.end_at) : null;
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const dateStr = `${dayNames[start.getDay()]} ${monthNames[start.getMonth()]} ${String(start.getDate()).padStart(2, "0")}, ${start.getFullYear()}`;
+  const fmtT = (d: Date) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase();
+  const offset = -start.getTimezoneOffset();
+  const sign = offset >= 0 ? "+" : "-";
+  const abs = Math.abs(offset);
+  const tz = `GMT${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+  const timeStr = end ? `${fmtT(start)}—${fmtT(end)} (${tz})` : `${fmtT(start)} (${tz})`;
+  const lines = [`You're invited to ${event.title}`, "", dateStr, "", timeStr];
+  if (event.meeting_link) {
+    lines.push("", event.meeting_link, "", "Tap on the link or paste it in a browser to join.");
+  }
+  if (event.location) {
+    lines.push("", `Location: ${event.location}`);
+  }
+  return lines.join("\n");
+}
+
 export default function CalendarPage() {
   const qc = useQueryClient();
   const today = new Date();
@@ -57,6 +79,7 @@ export default function CalendarPage() {
   const [saving, setSaving] = useState(false);
   const [attendeeSearch, setAttendeeSearch] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [copiedInvite, setCopiedInvite] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] as number[], related_type: "" as "" | "project" | "client", related_id: "" });
   const [editAttendeeSearch, setEditAttendeeSearch] = useState("");
@@ -530,6 +553,18 @@ export default function CalendarPage() {
                 <Button variant="light" onPress={onClose}>Close</Button>
                 <Button color="default" variant="flat" onPress={() => { onClose(); openEdit(); }}>
                   Edit Event
+                </Button>
+                <Button
+                  color={copiedInvite ? "success" : "default"}
+                  variant="flat"
+                  startContent={copiedInvite ? <CopyCheck size={14} /> : <Copy size={14} />}
+                  onPress={() => {
+                    navigator.clipboard.writeText(buildInvitationText(selected));
+                    setCopiedInvite(true);
+                    setTimeout(() => setCopiedInvite(false), 2000);
+                  }}
+                >
+                  {copiedInvite ? "Copied!" : "Copy Invite"}
                 </Button>
                 {selected.meeting_link && (
                   <Button color="primary" as="a" href={selected.meeting_link} target="_blank">

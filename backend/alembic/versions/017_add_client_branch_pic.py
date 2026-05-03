@@ -15,7 +15,7 @@ depends_on = None
 
 def upgrade():
     op.add_column("clients", sa.Column("branch", sa.String(255), nullable=True))
-    op.add_column("clients", sa.Column("pic_employee_id", sa.Integer(), sa.ForeignKey("employees.id", ondelete="SET NULL"), nullable=True))
+    op.add_column("clients", sa.Column("pic_employee_id", sa.Integer(), sa.ForeignKey("hr_employees.id", ondelete="SET NULL"), nullable=True))
 
 
 def downgrade():
