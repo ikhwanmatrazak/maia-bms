@@ -236,6 +236,71 @@ async def _send_invitations(db: AsyncSession, event_id: int, tenant_id, organize
 
 # ── endpoints ──────────────────────────────────────────────────────────────
 
+@router.get("/public/events")
+async def list_public_events(
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    where = "WHERE 1=1"
+    params: dict = {}
+    if year and month:
+        where += " AND YEAR(e.start_at)=:yr AND MONTH(e.start_at)=:mo"
+        params["yr"] = year
+        params["mo"] = month
+
+    rows = (await db.execute(text(f"""
+        SELECT e.id, e.title, e.description, e.start_at, e.end_at, e.location, e.meeting_link, e.color,
+               u.name AS organizer_name,
+               (SELECT GROUP_CONCAT(user_id) FROM calendar_event_attendees WHERE event_id=e.id) AS attendee_ids
+        FROM calendar_events e
+        JOIN users u ON u.id = e.organizer_id
+        {where}
+        ORDER BY e.start_at
+    """), params)).mappings().all()
+
+    result = []
+    for r in rows:
+        attendee_ids = [int(x) for x in r["attendee_ids"].split(",")] if r.get("attendee_ids") else []
+        result.append({
+            "id": r["id"],
+            "title": r["title"],
+            "description": r["description"],
+            "start_at": r["start_at"].isoformat() if r["start_at"] else None,
+            "end_at": r["end_at"].isoformat() if r["end_at"] else None,
+            "location": r["location"],
+            "meeting_link": r["meeting_link"],
+            "color": r["color"],
+            "organizer_name": r["organizer_name"],
+            "attendee_ids": attendee_ids,
+        })
+    return result
+
+
+@router.get("/public/events/{event_id}")
+async def get_public_event(event_id: int, db: AsyncSession = Depends(get_db)):
+    ev = (await db.execute(
+        text("SELECT e.*, u.name AS organizer_name FROM calendar_events e JOIN users u ON u.id = e.organizer_id WHERE e.id=:id"),
+        {"id": event_id}
+    )).mappings().first()
+    if not ev:
+        raise HTTPException(404, "Event not found")
+
+    attendees = (await db.execute(text("""
+        SELECT a.user_id, a.status, u.name AS full_name, u.email
+        FROM calendar_event_attendees a
+        JOIN users u ON u.id = a.user_id
+        WHERE a.event_id = :eid
+    """), {"eid": event_id})).mappings().all()
+
+    return {
+        **dict(ev),
+        "start_at": ev["start_at"].isoformat() if ev["start_at"] else None,
+        "end_at": ev["end_at"].isoformat() if ev["end_at"] else None,
+        "attendees": [dict(a) for a in attendees],
+    }
+
+
 @router.get("/events")
 async def list_events(
     year: Optional[int] = None,

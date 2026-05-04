@@ -583,6 +583,13 @@ export const projectsApi = {
 };
 
 
+export const publicCalendarApi = {
+  listEvents: (year?: number, month?: number) =>
+    axios.get(`${API_URL}/calendar/public/events`, { params: year && month ? { year, month } : {} }).then((r) => r.data),
+  getEvent: (id: number) =>
+    axios.get(`${API_URL}/calendar/public/events/${id}`).then((r) => r.data),
+};
+
 export const calendarApi = {
   listEvents: (year?: number, month?: number) =>
     api.get("/calendar/events", { params: year && month ? { year, month } : {} }).then((r) => r.data),
