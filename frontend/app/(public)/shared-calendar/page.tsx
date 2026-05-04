@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
@@ -13,8 +13,10 @@ import {
 import { publicCalendarApi, calendarApi, authApi } from "@/lib/api";
 import { setTokens, setUser, isAuthenticated, getUser, clearAuth } from "@/lib/auth";
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAYS_SHORT = ["S", "M", "T", "W", "T", "F", "S"];
+const DAYS_FULL  = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const EVENT_COLORS = [
   { label: "Blue",   value: "#006FEE" },
   { label: "Green",  value: "#17c964" },
@@ -51,7 +53,6 @@ function generateJitsiLink(title: string): string {
   const hex = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(16).padStart(2, "0")).join("");
   return `https://meet.jit.si/maia-${slug}-${hex}`;
 }
-
 function addOneHour(dt: string) {
   if (!dt) return "";
   const d = new Date(dt); d.setHours(d.getHours() + 1);
@@ -62,8 +63,7 @@ function buildInvitationText(event: CalEvent): string {
   const start = new Date(event.start_at);
   const end = event.end_at ? new Date(event.end_at) : null;
   const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const dateStr = `${dayNames[start.getDay()]} ${monthNames[start.getMonth()]} ${String(start.getDate()).padStart(2,"0")}, ${start.getFullYear()}`;
+  const dateStr = `${dayNames[start.getDay()]} ${MONTHS_SHORT[start.getMonth()]} ${String(start.getDate()).padStart(2,"0")}, ${start.getFullYear()}`;
   const fmtT = (d: Date) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase();
   const offset = -start.getTimezoneOffset();
   const sign = offset >= 0 ? "+" : "-";
@@ -81,29 +81,29 @@ export default function SharedCalendarPage() {
   const today = new Date();
   const pad2 = (n: number) => String(n).padStart(2, "0");
 
-  const [viewDate, setViewDate] = useState({ year: today.getFullYear(), month: today.getMonth() + 1 });
+  // Default to list view on mobile
   const [view, setView] = useState<"month" | "list">("month");
+  useEffect(() => {
+    if (window.innerWidth < 640) setView("list");
+  }, []);
+
+  const [viewDate, setViewDate] = useState({ year: today.getFullYear(), month: today.getMonth() + 1 });
   const [isLoggedIn, setIsLoggedIn] = useState(() => isAuthenticated());
   const [listDateFilter, setListDateFilter] = useState("");
 
-  // Detail modal
   const [selected, setSelected] = useState<CalEvent | null>(null);
   const [detail, setDetail] = useState<{ attendees: Attendee[] } | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  // Overflow modal
   const [overflowDay, setOverflowDay] = useState<{ day: number; events: CalEvent[] } | null>(null);
 
-  // Create / edit modals
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE" });
   const [saving, setSaving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE" });
 
-  // Quick login modal
   const [quickLoginOpen, setQuickLoginOpen] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -131,7 +131,7 @@ export default function SharedCalendarPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shared-calendar"] }),
   });
 
-  // Calendar grid — weeks array
+  // Calendar grid
   const firstDay = new Date(viewDate.year, viewDate.month - 1, 1).getDay();
   const daysInMonth = new Date(viewDate.year, viewDate.month, 0).getDate();
   const weeks: (number | null)[][] = [];
@@ -194,8 +194,7 @@ export default function SharedCalendarPage() {
 
   function openCreate() {
     const now = new Date();
-    const h = pad2(now.getHours()), mi = pad2(now.getMinutes());
-    const base = `${viewDate.year}-${pad2(viewDate.month)}-${pad2(now.getDate())}T${h}:${mi}`;
+    const base = `${viewDate.year}-${pad2(viewDate.month)}-${pad2(now.getDate())}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
     setForm({ title: "", start_at: base, end_at: addOneHour(base), description: "", location: "", meeting_link: "", color: "#006FEE" });
     setCreateOpen(true);
   }
@@ -220,7 +219,6 @@ export default function SharedCalendarPage() {
     finally { setSaving(false); }
   }
 
-  // List view
   const todayStr = `${today.getFullYear()}-${pad2(today.getMonth()+1)}-${pad2(today.getDate())}`;
   const listGroups = useMemo(() => {
     const expandedEntries: { dateKey: string; ev: CalEvent }[] = [];
@@ -247,25 +245,31 @@ export default function SharedCalendarPage() {
   }, [events, listDateFilter, todayStr]);
 
   return (
-    <div>
-      {/* ── Header — identical style to Topbar ── */}
+    <div className="min-h-screen bg-background">
+
+      {/* ── Header ── */}
       <header className="h-14 bg-white border-b border-divider flex items-center justify-between px-3 sm:px-6 sticky top-0 z-40">
         <h2 className="text-base font-semibold text-foreground">Shared Calendar</h2>
         <div className="flex items-center gap-1">
           {isLoggedIn ? (
             <>
-              <Button color="primary" size="sm" startContent={<Plus size={15} />} onPress={() => openCreate()}>
+              <Button color="primary" size="sm" startContent={<Plus size={15} />} onPress={() => openCreate()}
+                className="hidden sm:flex">
                 New Event
               </Button>
-              <div className="flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-xl hover:bg-gray-100 ml-1 cursor-default">
+              <Button color="primary" size="sm" isIconOnly onPress={() => openCreate()} className="sm:hidden">
+                <Plus size={16} />
+              </Button>
+              <div className="flex items-center gap-2 px-2 py-1.5 rounded-xl ml-1">
                 <div className="w-7 h-7 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center shrink-0">
                   {(currentUser?.name ?? "U").split(" ").map((w: string) => w[0]).join("").slice(0,2).toUpperCase()}
                 </div>
                 <span className="text-xs font-semibold text-gray-900 hidden sm:block">{currentUser?.name}</span>
               </div>
               <button onClick={() => { clearAuth(); setIsLoggedIn(false); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors">
-                <LogOut size={14} /> <span className="hidden sm:block">Logout</span>
+                className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                <LogOut size={14} />
+                <span className="hidden sm:block">Logout</span>
               </button>
             </>
           ) : (
@@ -277,26 +281,33 @@ export default function SharedCalendarPage() {
         </div>
       </header>
 
-      {/* ── Body — same padding/layout as dashboard calendar ── */}
-      <div className="p-4 md:p-6 max-w-7xl mx-auto">
+      <div className="p-3 sm:p-4 md:p-6 max-w-7xl mx-auto">
 
-        {/* Controls row */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <button onClick={prevMonth} className="p-1 rounded hover:bg-default-100"><ChevronLeft size={20} /></button>
-            <h2 className="text-lg font-semibold w-44 text-center">{MONTHS[viewDate.month - 1]} {viewDate.year}</h2>
-            <button onClick={nextMonth} className="p-1 rounded hover:bg-default-100"><ChevronRight size={20} /></button>
+        {/* ── Controls row ── */}
+        <div className="flex items-center justify-between mb-4 sm:mb-6 gap-2">
+          <div className="flex items-center gap-1 sm:gap-4">
+            <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-default-100 transition-colors">
+              <ChevronLeft size={18} />
+            </button>
+            <h2 className="text-sm sm:text-lg font-semibold w-28 sm:w-44 text-center">
+              {MONTHS_SHORT[viewDate.month - 1]} {viewDate.year}
+            </h2>
+            <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-default-100 transition-colors">
+              <ChevronRight size={18} />
+            </button>
             <button onClick={() => setViewDate({ year: today.getFullYear(), month: today.getMonth() + 1 })}
-              className="text-xs text-primary hover:underline">Today</button>
+              className="hidden sm:block text-xs text-primary hover:underline">Today</button>
           </div>
-          <div className="flex items-center gap-1 bg-default-100 p-1 rounded-lg">
+          <div className="flex items-center gap-0.5 bg-default-100 p-1 rounded-lg">
             <button onClick={() => setView("month")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "month" ? "bg-white shadow text-foreground" : "text-default-500 hover:text-foreground"}`}>
-              <CalendarDays size={15} /> Month
+              className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors ${view === "month" ? "bg-white shadow text-foreground" : "text-default-500 hover:text-foreground"}`}>
+              <CalendarDays size={14} />
+              <span className="hidden sm:inline">Month</span>
             </button>
             <button onClick={() => setView("list")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === "list" ? "bg-white shadow text-foreground" : "text-default-500 hover:text-foreground"}`}>
-              <LayoutList size={15} /> List
+              className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors ${view === "list" ? "bg-white shadow text-foreground" : "text-default-500 hover:text-foreground"}`}>
+              <LayoutList size={14} />
+              <span className="hidden sm:inline">List</span>
             </button>
           </div>
         </div>
@@ -304,47 +315,54 @@ export default function SharedCalendarPage() {
         {/* ── List View ── */}
         {view === "list" && (
           <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-xs">
-                <input type="date" value={listDateFilter}
-                  onChange={e => { const v = e.target.value; setListDateFilter(v); if (v) { const [y,m] = v.split("-").map(Number); setViewDate({ year: y, month: m }); } }}
-                  className="w-full px-3 py-2 text-sm border border-divider rounded-xl bg-content1 focus:outline-none focus:ring-2 focus:ring-primary/20" />
-              </div>
+            <div className="flex items-center gap-2">
+              <input type="date" value={listDateFilter}
+                onChange={e => { const v = e.target.value; setListDateFilter(v); if (v) { const [y,m] = v.split("-").map(Number); setViewDate({ year: y, month: m }); } }}
+                className="flex-1 sm:flex-none sm:w-48 px-3 py-2 text-sm border border-divider rounded-xl bg-content1 focus:outline-none focus:ring-2 focus:ring-primary/20" />
               {listDateFilter ? (
-                <button onClick={() => setListDateFilter("")} className="text-xs text-default-500 hover:text-danger px-3 py-2 border border-divider rounded-xl bg-content1">Clear filter</button>
+                <button onClick={() => setListDateFilter("")}
+                  className="text-xs text-default-500 hover:text-danger px-3 py-2 border border-divider rounded-xl bg-content1 whitespace-nowrap">
+                  Clear
+                </button>
               ) : (
-                <p className="text-xs text-default-400">Showing upcoming events only</p>
+                <p className="text-xs text-default-400 hidden sm:block">Upcoming only</p>
               )}
             </div>
+
             {listGroups.length === 0 && (
               <div className="text-center py-16 text-default-400">
                 <LayoutList size={40} className="mx-auto mb-3 opacity-30" />
-                <p>{listDateFilter ? "No events on this date" : "No upcoming events this month"}</p>
+                <p className="text-sm">{listDateFilter ? "No events on this date" : "No upcoming events this month"}</p>
               </div>
             )}
             {listGroups.map(([dateKey, dayEvs]) => {
               const isTodayRow = dateKey === todayStr;
               const [dy, dm, dd] = dateKey.split("-").map(Number);
               const dateLabel = new Date(dy, dm-1, dd).toLocaleDateString("en-MY", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+              const dateLabelShort = new Date(dy, dm-1, dd).toLocaleDateString("en-MY", { weekday: "short", day: "numeric", month: "short" });
               return (
                 <div key={dateKey}>
                   <div className="flex items-center gap-2 mb-2 px-1">
                     {isTodayRow && <span className="px-2 py-0.5 rounded-full bg-primary text-white text-[10px] font-bold uppercase tracking-wide">Today</span>}
-                    <div className={`text-xs font-semibold uppercase tracking-wide ${isTodayRow ? "text-primary" : "text-default-500"}`}>{dateLabel}</div>
+                    <div className={`text-xs font-semibold uppercase tracking-wide ${isTodayRow ? "text-primary" : "text-default-500"}`}>
+                      <span className="sm:hidden">{dateLabelShort}</span>
+                      <span className="hidden sm:block">{dateLabel}</span>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     {dayEvs.map(ev => (
                       <div key={ev.id} onClick={() => openDetail(ev)}
-                        className={`flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer transition-colors border ${isTodayRow ? "bg-primary/5 border-primary/20 hover:bg-primary/10" : "bg-content1 border-divider hover:bg-default-50"}`}>
+                        className={`flex items-start gap-3 rounded-xl px-3 sm:px-4 py-3 cursor-pointer transition-colors border active:scale-[0.99] ${isTodayRow ? "bg-primary/5 border-primary/20 hover:bg-primary/10" : "bg-content1 border-divider hover:bg-default-50"}`}>
                         <div className="w-1 self-stretch rounded-full shrink-0 mt-0.5" style={{ backgroundColor: ev.color }} />
                         <div className="flex-1 min-w-0">
                           <p className={`font-semibold text-sm truncate ${isTodayRow ? "text-primary" : ""}`}>{ev.title}</p>
                           <p className="text-xs text-default-400 mt-0.5">
-                            {fmtTime(ev.start_at)}{ev.end_at ? ` – ${fmtTime(ev.end_at)}` : ""}{ev.location ? ` · ${ev.location}` : ""}
+                            {fmtTime(ev.start_at)}{ev.end_at ? ` – ${fmtTime(ev.end_at)}` : ""}
+                            {ev.location ? ` · ${ev.location}` : ""}
                           </p>
                           {ev.description && <p className="text-xs text-default-500 mt-1 truncate">{ev.description}</p>}
                         </div>
-                        <div className="text-xs text-default-400 shrink-0">{ev.organizer_name}</div>
+                        <div className="text-xs text-default-400 shrink-0 hidden sm:block">{ev.organizer_name}</div>
                       </div>
                     ))}
                   </div>
@@ -357,23 +375,45 @@ export default function SharedCalendarPage() {
         {/* ── Month View ── */}
         {view === "month" && (
           <div className="bg-content1 border border-divider rounded-xl overflow-hidden">
+            {/* Day headers — short on mobile */}
             <div className="grid grid-cols-7 border-b border-divider">
-              {DAYS.map(d => <div key={d} className="py-2 text-center text-xs font-semibold text-default-500">{d}</div>)}
+              {DAYS_FULL.map((d, i) => (
+                <div key={d} className="py-2 text-center text-xs font-semibold text-default-500">
+                  <span className="hidden sm:block">{d}</span>
+                  <span className="sm:hidden">{DAYS_SHORT[i]}</span>
+                </div>
+              ))}
             </div>
             {weeks.map((week, wi) => (
-              <div key={wi} className="grid grid-cols-7 border-b border-divider last:border-0" style={{ minHeight: 100 }}>
+              <div key={wi} className="grid grid-cols-7 border-b border-divider last:border-0">
                 {week.map((day, di) => {
                   const dayEvents = day ? (eventsByDay[day] ?? []) : [];
                   return (
                     <div key={di}
-                      onClick={() => day && isLoggedIn && requireLogin(() => openCreate())}
-                      className={`border-r border-divider last:border-0 p-1.5 ${day ? (isLoggedIn ? "cursor-pointer hover:bg-default-50" : "") : "bg-default-50/30"} transition-colors`}>
+                      onClick={() => {
+                        if (!day) return;
+                        if (dayEvents.length > 0) { setOverflowDay({ day, events: dayEvents }); return; }
+                        if (isLoggedIn) requireLogin(() => openCreate());
+                      }}
+                      className={`border-r border-divider last:border-0 p-1 sm:p-1.5 transition-colors min-h-[56px] sm:min-h-[100px] ${!day ? "bg-default-50/30" : "cursor-pointer hover:bg-default-50 active:bg-default-100"}`}>
                       {day && (
                         <>
-                          <span className={`text-sm font-medium inline-flex items-center justify-center w-7 h-7 rounded-full ${isToday(day) ? "bg-primary text-white" : "text-default-700"}`}>
+                          <span className={`text-xs sm:text-sm font-medium inline-flex items-center justify-center w-5 h-5 sm:w-7 sm:h-7 rounded-full ${isToday(day) ? "bg-primary text-white font-bold" : "text-default-700"}`}>
                             {day}
                           </span>
-                          <div className="mt-0.5 space-y-0.5">
+
+                          {/* Mobile: colored dots */}
+                          <div className="flex flex-wrap gap-0.5 mt-1 sm:hidden">
+                            {dayEvents.slice(0, 4).map(ev => (
+                              <span key={ev.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: ev.color }} />
+                            ))}
+                            {dayEvents.length > 4 && (
+                              <span className="text-[9px] text-default-400 leading-none mt-0.5">+{dayEvents.length - 4}</span>
+                            )}
+                          </div>
+
+                          {/* Desktop: full event pills */}
+                          <div className="hidden sm:block mt-0.5 space-y-0.5">
                             {dayEvents.slice(0, 3).map(ev => (
                               <Tooltip key={ev.id} content={ev.title} placement="top">
                                 <div onClick={e => { e.stopPropagation(); openDetail(ev); }}
@@ -402,7 +442,7 @@ export default function SharedCalendarPage() {
       </div>
 
       {/* ── Day Overflow Modal ── */}
-      <Modal isOpen={!!overflowDay} onOpenChange={open => { if (!open) setOverflowDay(null); }} size="sm">
+      <Modal isOpen={!!overflowDay} onOpenChange={open => { if (!open) setOverflowDay(null); }} size="sm" placement="center">
         <ModalContent>
           {(onClose) => overflowDay && (
             <>
@@ -410,7 +450,7 @@ export default function SharedCalendarPage() {
               <ModalBody>
                 <div className="space-y-1 pb-2">
                   {overflowDay.events.map(ev => (
-                    <div key={ev.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-default-100 cursor-pointer"
+                    <div key={ev.id} className="flex items-center gap-2 p-2.5 rounded-xl hover:bg-default-100 cursor-pointer active:bg-default-200 transition-colors"
                       onClick={() => { onClose(); openDetail(ev); }}>
                       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: ev.color }} />
                       <div className="min-w-0">
@@ -427,14 +467,15 @@ export default function SharedCalendarPage() {
       </Modal>
 
       {/* ── Event Detail Modal ── */}
-      <Modal isOpen={detailOpen} onOpenChange={open => { setDetailOpen(open); if (!open) setDeleteError(null); }} size="lg">
+      <Modal isOpen={detailOpen} onOpenChange={open => { setDetailOpen(open); if (!open) setDeleteError(null); }}
+        size="lg" scrollBehavior="outside" placement="center">
         <ModalContent>
           {(onClose) => selected && (
             <>
               <ModalHeader>
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: selected.color }} />
-                  {selected.title}
+                <div className="flex items-center gap-2 pr-2">
+                  <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: selected.color }} />
+                  <span className="leading-snug">{selected.title}</span>
                 </div>
               </ModalHeader>
               <ModalBody>
@@ -447,15 +488,16 @@ export default function SharedCalendarPage() {
                     </div>
                   </div>
                   {selected.location && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin size={16} className="text-default-400 shrink-0" />
+                    <div className="flex items-start gap-2 text-sm">
+                      <MapPin size={16} className="text-default-400 mt-0.5 shrink-0" />
                       <span>{selected.location}</span>
                     </div>
                   )}
                   {selected.meeting_link && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Link2 size={16} className="text-default-400 shrink-0" />
-                      <a href={selected.meeting_link} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate">
+                    <div className="flex items-start gap-2 text-sm">
+                      <Link2 size={16} className="text-default-400 mt-0.5 shrink-0" />
+                      <a href={selected.meeting_link} target="_blank" rel="noreferrer"
+                        className="text-primary hover:underline break-all">
                         {selected.meeting_link}
                       </a>
                     </div>
@@ -471,8 +513,8 @@ export default function SharedCalendarPage() {
                       </div>
                       <div className="space-y-1">
                         {detail.attendees.map(a => (
-                          <div key={a.user_id} className="flex items-center justify-between text-sm">
-                            <span>{a.full_name || a.email}</span>
+                          <div key={a.user_id} className="flex items-center justify-between text-sm gap-2">
+                            <span className="truncate">{a.full_name || a.email}</span>
                             <Chip size="sm" variant="flat"
                               color={a.status === "accepted" ? "success" : a.status === "declined" ? "danger" : "default"}>
                               {a.status}
@@ -483,7 +525,7 @@ export default function SharedCalendarPage() {
                     </div>
                   )}
                   {isLoggedIn && (
-                    <div className="flex gap-2 pt-2">
+                    <div className="flex gap-2 pt-1">
                       <Button size="sm" color="success" variant="flat" startContent={<Check size={14} />}
                         onPress={() => rsvpMut.mutate({ id: selected.id, status: "accepted" })}>Accept</Button>
                       <Button size="sm" color="danger" variant="flat" startContent={<XCircle size={14} />}
@@ -505,23 +547,23 @@ export default function SharedCalendarPage() {
                     <button onClick={() => setDeleteError(null)} className="ml-2 font-bold">✕</button>
                   </div>
                 )}
-                <div className="flex justify-end gap-2">
+                <div className="flex flex-wrap justify-end gap-2">
                   {isLoggedIn && (
-                    <Button color="danger" variant="light" isLoading={deleteMut.isPending}
+                    <Button color="danger" variant="light" size="sm" isLoading={deleteMut.isPending}
                       onPress={() => { if (confirm("Delete this event?")) deleteMut.mutate(selected.id); }}>
                       Delete
                     </Button>
                   )}
-                  <Button variant="light" onPress={onClose}>Close</Button>
+                  <Button variant="light" size="sm" onPress={onClose}>Close</Button>
                   {isLoggedIn && (
-                    <Button color="default" variant="flat" startContent={<Pencil size={14} />}
+                    <Button color="default" variant="flat" size="sm" startContent={<Pencil size={13} />}
                       onPress={() => { onClose(); openEdit(); }}>
-                      Edit Event
+                      Edit
                     </Button>
                   )}
-                  <Button
+                  <Button size="sm"
                     color={copiedInvite ? "success" : "default"} variant="flat"
-                    startContent={copiedInvite ? <CopyCheck size={14} /> : <Copy size={14} />}
+                    startContent={copiedInvite ? <CopyCheck size={13} /> : <Copy size={13} />}
                     onPress={() => requireLogin(() => {
                       navigator.clipboard.writeText(buildInvitationText(selected));
                       setCopiedInvite(true);
@@ -530,7 +572,9 @@ export default function SharedCalendarPage() {
                     {copiedInvite ? "Copied!" : "Copy Invite"}
                   </Button>
                   {selected.meeting_link && (
-                    <Button color="primary" as="a" href={selected.meeting_link} target="_blank">Join Meeting</Button>
+                    <Button color="primary" size="sm" as="a" href={selected.meeting_link} target="_blank">
+                      Join Meeting
+                    </Button>
                   )}
                 </div>
               </ModalFooter>
@@ -540,7 +584,9 @@ export default function SharedCalendarPage() {
       </Modal>
 
       {/* ── Quick Login Modal ── */}
-      <Modal isOpen={quickLoginOpen} onOpenChange={open => { setQuickLoginOpen(open); if (!open) { setLoginError(null); setPendingAction(null); } }} size="sm">
+      <Modal isOpen={quickLoginOpen}
+        onOpenChange={open => { setQuickLoginOpen(open); if (!open) { setLoginError(null); setPendingAction(null); } }}
+        size="sm" placement="center">
         <ModalContent>
           {(onClose) => (
             <>
@@ -563,7 +609,7 @@ export default function SharedCalendarPage() {
       </Modal>
 
       {/* ── Create Event Modal ── */}
-      <Modal isOpen={createOpen} onOpenChange={setCreateOpen} size="lg">
+      <Modal isOpen={createOpen} onOpenChange={setCreateOpen} size="lg" scrollBehavior="outside" placement="center">
         <ModalContent>
           {(onClose) => (
             <>
@@ -571,8 +617,10 @@ export default function SharedCalendarPage() {
               <ModalBody>
                 <div className="space-y-3">
                   <Input label="Title" value={form.title} onValueChange={v => setForm(f => ({ ...f, title: v }))} isRequired />
-                  <Input label="Start" type="datetime-local" value={form.start_at} onValueChange={v => setForm(f => ({ ...f, start_at: v }))} isRequired />
-                  <Input label="End" type="datetime-local" value={form.end_at} onValueChange={v => setForm(f => ({ ...f, end_at: v }))} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Input label="Start" type="datetime-local" value={form.start_at} onValueChange={v => setForm(f => ({ ...f, start_at: v }))} isRequired />
+                    <Input label="End" type="datetime-local" value={form.end_at} onValueChange={v => setForm(f => ({ ...f, end_at: v }))} />
+                  </div>
                   <Input label="Location" value={form.location} onValueChange={v => setForm(f => ({ ...f, location: v }))} />
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -590,10 +638,10 @@ export default function SharedCalendarPage() {
                   <Textarea label="Description" value={form.description} onValueChange={v => setForm(f => ({ ...f, description: v }))} />
                   <div>
                     <p className="text-sm text-default-600 mb-2">Color</p>
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-3">
                       {EVENT_COLORS.map(c => (
                         <button key={c.value} title={c.label}
-                          className={`w-7 h-7 rounded-full border-2 transition-transform ${form.color === c.value ? "border-foreground scale-110" : "border-transparent"}`}
+                          className={`w-8 h-8 rounded-full border-2 transition-transform ${form.color === c.value ? "border-foreground scale-110" : "border-transparent"}`}
                           style={{ backgroundColor: c.value }}
                           onClick={() => setForm(f => ({ ...f, color: c.value }))} />
                       ))}
@@ -611,7 +659,7 @@ export default function SharedCalendarPage() {
       </Modal>
 
       {/* ── Edit Event Modal ── */}
-      <Modal isOpen={editOpen} onOpenChange={setEditOpen} size="lg">
+      <Modal isOpen={editOpen} onOpenChange={setEditOpen} size="lg" scrollBehavior="outside" placement="center">
         <ModalContent>
           {(onClose) => (
             <>
@@ -619,8 +667,10 @@ export default function SharedCalendarPage() {
               <ModalBody>
                 <div className="space-y-3">
                   <Input label="Title" value={editForm.title} onValueChange={v => setEditForm(f => ({ ...f, title: v }))} isRequired />
-                  <Input label="Start" type="datetime-local" value={editForm.start_at} onValueChange={v => setEditForm(f => ({ ...f, start_at: v }))} isRequired />
-                  <Input label="End" type="datetime-local" value={editForm.end_at} onValueChange={v => setEditForm(f => ({ ...f, end_at: v }))} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Input label="Start" type="datetime-local" value={editForm.start_at} onValueChange={v => setEditForm(f => ({ ...f, start_at: v }))} isRequired />
+                    <Input label="End" type="datetime-local" value={editForm.end_at} onValueChange={v => setEditForm(f => ({ ...f, end_at: v }))} />
+                  </div>
                   <Input label="Location" value={editForm.location} onValueChange={v => setEditForm(f => ({ ...f, location: v }))} />
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -638,10 +688,10 @@ export default function SharedCalendarPage() {
                   <Textarea label="Description" value={editForm.description} onValueChange={v => setEditForm(f => ({ ...f, description: v }))} />
                   <div>
                     <p className="text-sm text-default-600 mb-2">Color</p>
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-3">
                       {EVENT_COLORS.map(c => (
                         <button key={c.value} title={c.label}
-                          className={`w-7 h-7 rounded-full border-2 transition-transform ${editForm.color === c.value ? "border-foreground scale-110" : "border-transparent"}`}
+                          className={`w-8 h-8 rounded-full border-2 transition-transform ${editForm.color === c.value ? "border-foreground scale-110" : "border-transparent"}`}
                           style={{ backgroundColor: c.value }}
                           onClick={() => setEditForm(f => ({ ...f, color: c.value }))} />
                       ))}
