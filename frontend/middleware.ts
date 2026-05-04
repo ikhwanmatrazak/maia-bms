@@ -31,7 +31,8 @@ export function middleware(request: NextRequest) {
   }
 
   // Already authenticated → visiting login or root redirects to dashboard
-  if (hasSession && (isPublic || pathname === "/")) {
+  // (but NOT /shared-calendar — that page is always accessible regardless of auth state)
+  if (hasSession && (pathname === "/login" || pathname === "/")) {
     const dashUrl = request.nextUrl.clone();
     dashUrl.pathname = "/dashboard";
     return NextResponse.redirect(dashUrl);

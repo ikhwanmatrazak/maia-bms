@@ -618,7 +618,7 @@ export default function SharedCalendarPage() {
                 <div className="space-y-3">
                   <Input label="Title" value={form.title} onValueChange={v => setForm(f => ({ ...f, title: v }))} isRequired />
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Input label="Start" type="datetime-local" value={form.start_at} onValueChange={v => setForm(f => ({ ...f, start_at: v }))} isRequired />
+                    <Input label="Start" type="datetime-local" value={form.start_at} onValueChange={v => setForm(f => ({ ...f, start_at: v, end_at: f.end_at && f.end_at > v ? f.end_at : addOneHour(v) }))} isRequired />
                     <Input label="End" type="datetime-local" value={form.end_at} onValueChange={v => setForm(f => ({ ...f, end_at: v }))} />
                   </div>
                   <Input label="Location" value={form.location} onValueChange={v => setForm(f => ({ ...f, location: v }))} />
@@ -668,7 +668,7 @@ export default function SharedCalendarPage() {
                 <div className="space-y-3">
                   <Input label="Title" value={editForm.title} onValueChange={v => setEditForm(f => ({ ...f, title: v }))} isRequired />
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Input label="Start" type="datetime-local" value={editForm.start_at} onValueChange={v => setEditForm(f => ({ ...f, start_at: v }))} isRequired />
+                    <Input label="Start" type="datetime-local" value={editForm.start_at} onValueChange={v => setEditForm(f => ({ ...f, start_at: v, end_at: f.end_at && f.end_at > v ? f.end_at : addOneHour(v) }))} isRequired />
                     <Input label="End" type="datetime-local" value={editForm.end_at} onValueChange={v => setEditForm(f => ({ ...f, end_at: v }))} />
                   </div>
                   <Input label="Location" value={editForm.location} onValueChange={v => setEditForm(f => ({ ...f, location: v }))} />
