@@ -46,6 +46,12 @@ function toLocal(iso: string) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+function generateJitsiLink(title: string): string {
+  const slug = (title || "meeting").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24);
+  const hex = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(16).padStart(2, "0")).join("");
+  return `https://meet.jit.si/maia-${slug}-${hex}`;
+}
+
 function addOneHour(dt: string) {
   if (!dt) return "";
   const d = new Date(dt); d.setHours(d.getHours() + 1);
@@ -568,7 +574,19 @@ export default function SharedCalendarPage() {
                   <Input label="Start" type="datetime-local" value={form.start_at} onValueChange={v => setForm(f => ({ ...f, start_at: v }))} isRequired />
                   <Input label="End" type="datetime-local" value={form.end_at} onValueChange={v => setForm(f => ({ ...f, end_at: v }))} />
                   <Input label="Location" value={form.location} onValueChange={v => setForm(f => ({ ...f, location: v }))} />
-                  <Input label="Meeting Link" value={form.meeting_link} onValueChange={v => setForm(f => ({ ...f, meeting_link: v }))} />
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-sm text-default-500">Meeting URL</label>
+                      <button type="button"
+                        onClick={() => setForm(f => ({ ...f, meeting_link: generateJitsiLink(f.title) }))}
+                        className="text-xs text-primary hover:underline flex items-center gap-1">
+                        <Link2 size={11} /> Auto-generate Jitsi link
+                      </button>
+                    </div>
+                    <Input placeholder="https://meet.jit.si/..."
+                      startContent={<Link2 size={14} className="text-default-400 shrink-0" />}
+                      value={form.meeting_link} onValueChange={v => setForm(f => ({ ...f, meeting_link: v }))} />
+                  </div>
                   <Textarea label="Description" value={form.description} onValueChange={v => setForm(f => ({ ...f, description: v }))} />
                   <div>
                     <p className="text-sm text-default-600 mb-2">Color</p>
@@ -604,7 +622,19 @@ export default function SharedCalendarPage() {
                   <Input label="Start" type="datetime-local" value={editForm.start_at} onValueChange={v => setEditForm(f => ({ ...f, start_at: v }))} isRequired />
                   <Input label="End" type="datetime-local" value={editForm.end_at} onValueChange={v => setEditForm(f => ({ ...f, end_at: v }))} />
                   <Input label="Location" value={editForm.location} onValueChange={v => setEditForm(f => ({ ...f, location: v }))} />
-                  <Input label="Meeting Link" value={editForm.meeting_link} onValueChange={v => setEditForm(f => ({ ...f, meeting_link: v }))} />
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-sm text-default-500">Meeting URL</label>
+                      <button type="button"
+                        onClick={() => setEditForm(f => ({ ...f, meeting_link: generateJitsiLink(f.title) }))}
+                        className="text-xs text-primary hover:underline flex items-center gap-1">
+                        <Link2 size={11} /> Auto-generate Jitsi link
+                      </button>
+                    </div>
+                    <Input placeholder="https://meet.jit.si/..."
+                      startContent={<Link2 size={14} className="text-default-400 shrink-0" />}
+                      value={editForm.meeting_link} onValueChange={v => setEditForm(f => ({ ...f, meeting_link: v }))} />
+                  </div>
                   <Textarea label="Description" value={editForm.description} onValueChange={v => setEditForm(f => ({ ...f, description: v }))} />
                   <div>
                     <p className="text-sm text-default-600 mb-2">Color</p>
