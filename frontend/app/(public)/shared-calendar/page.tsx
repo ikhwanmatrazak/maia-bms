@@ -92,7 +92,6 @@ export default function SharedCalendarPage() {
   const [listDateFilter, setListDateFilter] = useState("");
 
   const [selected, setSelected] = useState<CalEvent | null>(null);
-  const [detail, setDetail] = useState<{ attendees: Attendee[] } | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -126,9 +125,15 @@ export default function SharedCalendarPage() {
     enabled: isLoggedIn,
   });
 
+  const { data: detail, isFetching: detailLoading } = useQuery<{ attendees: Attendee[] } & CalEvent>({
+    queryKey: ["shared-calendar-event", selected?.id],
+    queryFn: () => publicCalendarApi.getEvent(selected!.id),
+    enabled: !!selected && detailOpen,
+  });
+
   const deleteMut = useMutation({
     mutationFn: (id: number) => calendarApi.deleteEvent(id),
-    onSuccess: () => { setDetailOpen(false); qc.invalidateQueries({ queryKey: ["shared-calendar"] }); },
+    onSuccess: () => { setDetailOpen(false); qc.invalidateQueries({ queryKey: ["shared-calendar"] }); qc.removeQueries({ queryKey: ["shared-calendar-event"] }); },
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setDeleteError(msg || "Failed to delete event");
@@ -136,7 +141,10 @@ export default function SharedCalendarPage() {
   });
   const rsvpMut = useMutation({
     mutationFn: ({ id, status }: { id: number; status: "accepted" | "declined" }) => calendarApi.rsvp(id, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["shared-calendar"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shared-calendar"] });
+      qc.invalidateQueries({ queryKey: ["shared-calendar-event", selected?.id] });
+    },
   });
 
   // Calendar grid
@@ -177,9 +185,8 @@ export default function SharedCalendarPage() {
   function prevMonth() { setViewDate(v => v.month === 1 ? { year: v.year - 1, month: 12 } : { ...v, month: v.month - 1 }); }
   function nextMonth() { setViewDate(v => v.month === 12 ? { year: v.year + 1, month: 1 } : { ...v, month: v.month + 1 }); }
 
-  async function openDetail(ev: CalEvent) {
-    setSelected(ev); setDetail(null); setCopiedInvite(false); setDeleteError(null); setDetailOpen(true);
-    try { const d = await publicCalendarApi.getEvent(ev.id); setDetail(d); } catch { /* ignore */ }
+  function openDetail(ev: CalEvent) {
+    setSelected(ev); setCopiedInvite(false); setDeleteError(null); setDetailOpen(true);
   }
 
   function requireLogin(action: () => void) {
@@ -232,7 +239,7 @@ export default function SharedCalendarPage() {
   async function handleEdit() {
     if (!selected || !editForm.title || !editForm.start_at) return;
     setSaving(true);
-    try { await calendarApi.updateEvent(selected.id, { ...editForm, attendee_ids: editForm.attendee_ids.join(",") }); qc.invalidateQueries({ queryKey: ["shared-calendar"] }); setEditOpen(false); setDetailOpen(false); }
+    try { await calendarApi.updateEvent(selected.id, { ...editForm, attendee_ids: editForm.attendee_ids.join(",") }); qc.invalidateQueries({ queryKey: ["shared-calendar"] }); qc.invalidateQueries({ queryKey: ["shared-calendar-event", selected.id] }); setEditOpen(false); setDetailOpen(false); }
     finally { setSaving(false); }
   }
 
@@ -523,11 +530,15 @@ export default function SharedCalendarPage() {
                     <p className="text-sm text-default-600 bg-default-50 p-3 rounded-lg">{selected.description}</p>
                   )}
                   <div className="text-xs text-default-400">Organized by {selected.organizer_name}</div>
-                  {detail?.attendees && detail.attendees.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-1 mb-2 text-sm font-medium">
-                        <Users size={14} /> Attendees
+                  <div>
+                    <div className="flex items-center gap-1 mb-2 text-sm font-medium">
+                      <Users size={14} /> Attendees
+                    </div>
+                    {detailLoading ? (
+                      <div className="space-y-1.5">
+                        {[1,2].map(i => <div key={i} className="h-5 bg-default-100 rounded animate-pulse" />)}
                       </div>
+                    ) : detail?.attendees && detail.attendees.length > 0 ? (
                       <div className="space-y-1">
                         {detail.attendees.map(a => (
                           <div key={a.user_id} className="flex items-center justify-between text-sm gap-2">
@@ -539,8 +550,10 @@ export default function SharedCalendarPage() {
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <p className="text-xs text-default-400">No attendees</p>
+                    )}
+                  </div>
                   {isLoggedIn && (
                     <div className="flex gap-2 pt-1">
                       <Button size="sm" color="success" variant="flat" startContent={<Check size={14} />}
