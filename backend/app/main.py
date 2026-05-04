@@ -492,6 +492,7 @@ async def _ensure_calendar_tables():
             location VARCHAR(255) NULL,
             meeting_link VARCHAR(500) NULL,
             color VARCHAR(20) NOT NULL DEFAULT '#006FEE',
+            reminder_30min_sent TINYINT(1) NOT NULL DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX ix_calendar_events_tenant (tenant_id),
@@ -505,6 +506,7 @@ async def _ensure_calendar_tables():
             UNIQUE KEY uq_cal_attendee (event_id, user_id),
             FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE
         )""",
+        "ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS reminder_30min_sent TINYINT(1) NOT NULL DEFAULT 0",
     ]
     async with engine.begin() as conn:
         for stmt in stmts:
@@ -609,11 +611,13 @@ async def lifespan(app: FastAPI):
     os.makedirs(f"{upload_dir}/hr/leave_docs", exist_ok=True)
     os.makedirs(f"{upload_dir}/hr/claims", exist_ok=True)
     os.makedirs(f"{upload_dir}/project_updates", exist_ok=True)
-    # Start meeting reminder background task
+    # Start background reminder tasks
     reminder_task = asyncio.create_task(projects.reminder_loop())
+    calendar_reminder_task = asyncio.create_task(calendar.calendar_reminder_loop())
     logger.info("MAIA BMS started successfully")
     yield
     reminder_task.cancel()
+    calendar_reminder_task.cancel()
     logger.info("MAIA BMS shutting down")
 
 

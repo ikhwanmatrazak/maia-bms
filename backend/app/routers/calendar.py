@@ -1,5 +1,6 @@
+import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, Form, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -535,3 +536,131 @@ async def list_users_for_calendar(
         ORDER BY name
     """), {"tid": current_user.tenant_id})).mappings().all()
     return [dict(r) for r in rows]
+
+
+# ── 30-minute reminder background loop ────────────────────────────────────────
+
+async def _send_calendar_reminder(db: AsyncSession, event_id: int):
+    """Send a 30-minute reminder email to all attendees of a calendar event."""
+    try:
+        from app.services.email_service import send_email, decrypt_smtp_password
+
+        ev = (await db.execute(text("""
+            SELECT e.*, u.name AS organizer_name
+            FROM calendar_events e
+            JOIN users u ON u.id = e.organizer_id
+            WHERE e.id = :id
+        """), {"id": event_id})).mappings().first()
+        if not ev:
+            return
+
+        attendees = (await db.execute(text("""
+            SELECT u.email, u.name AS full_name
+            FROM calendar_event_attendees a
+            JOIN users u ON u.id = a.user_id
+            WHERE a.event_id = :eid
+        """), {"eid": event_id})).mappings().all()
+        if not attendees:
+            return
+
+        company = (await db.execute(
+            text("SELECT * FROM company_settings WHERE (tenant_id = :tid OR (tenant_id IS NULL AND :tid IS NULL)) LIMIT 1"),
+            {"tid": ev["tenant_id"]},
+        )).mappings().first()
+        if not company or not company.get("smtp_host"):
+            return
+
+        smtp_password = decrypt_smtp_password(company)
+        if not smtp_password:
+            return
+
+        start_dt = ev["start_at"]
+        end_dt = ev.get("end_at")
+        start_fmt = start_dt.strftime("%A, %d %B %Y at %I:%M %p") if start_dt else ""
+        end_fmt = end_dt.strftime("%I:%M %p") if end_dt else ""
+        time_range = f"{start_dt.strftime('%I:%M %p')} – {end_fmt}" if end_dt else start_dt.strftime("%I:%M %p")
+        day_num = start_dt.strftime("%d") if start_dt else ""
+        month_label = start_dt.strftime("%b").upper() if start_dt else ""
+
+        meeting_link_html = ""
+        if ev.get("meeting_link"):
+            meeting_link_html = f'<p><a href="{ev["meeting_link"]}" style="background:#006FEE;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:8px;">Join Meeting</a></p>'
+
+        for att in attendees:
+            html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:30px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+
+  <tr><td style="background:#f59e0b;padding:20px 30px;">
+    <h2 style="color:#fff;margin:0;font-size:20px;">⏰ Meeting in 30 Minutes</h2>
+  </td></tr>
+
+  <tr><td style="padding:24px 30px 0;">
+    <p style="margin:0;font-size:15px;color:#333;">Hi <strong>{att['full_name'] or att['email']}</strong>,</p>
+    <p style="margin:8px 0 0;font-size:14px;color:#555;">Your meeting is starting in <strong>30 minutes</strong>. Here are the details:</p>
+  </td></tr>
+
+  <tr><td style="padding:20px 30px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffbeb;border-radius:10px;border:1px solid #fde68a;overflow:hidden;">
+      <tr>
+        <td width="70" style="background:#f59e0b;text-align:center;padding:16px 12px;vertical-align:top;">
+          <div style="color:#fff;font-size:11px;font-weight:600;letter-spacing:1px;">{month_label}</div>
+          <div style="color:#fff;font-size:32px;font-weight:700;line-height:1;">{day_num}</div>
+          <div style="color:#fef3c7;font-size:10px;margin-top:4px;">{start_dt.strftime('%A') if start_dt else ''}</div>
+        </td>
+        <td style="padding:16px 20px;vertical-align:top;">
+          <h3 style="margin:0 0 6px;font-size:17px;color:#1a1a2e;">{ev['title']}</h3>
+          <p style="margin:0;font-size:13px;color:#d97706;font-weight:600;">🕐 {time_range}</p>
+          {f'<p style="margin:6px 0 0;font-size:13px;color:#555;">📍 {ev["location"]}</p>' if ev.get("location") else ''}
+          {f'<p style="margin:6px 0 0;font-size:13px;color:#666;">{ev["description"]}</p>' if ev.get("description") else ''}
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+
+  {f'<tr><td style="padding:0 30px 24px;">{meeting_link_html}</td></tr>' if meeting_link_html else ''}
+
+  <tr><td style="padding:16px 30px;border-top:1px solid #f0f0f0;">
+    <p style="margin:0;font-size:12px;color:#aaa;">Organized by <strong>{ev['organizer_name']}</strong>. You are receiving this reminder because you are an attendee.</p>
+  </td></tr>
+
+</table>
+</td></tr></table>
+</body></html>"""
+            try:
+                await send_email(company, smtp_password, att["email"],
+                                 f"⏰ Reminder: {ev['title']} starts in 30 minutes", html)
+            except Exception as e:
+                logger.error(f"Calendar 30min reminder failed for {att['email']}: {e}")
+
+        await db.execute(text("UPDATE calendar_events SET reminder_30min_sent=1 WHERE id=:id"), {"id": event_id})
+        await db.commit()
+        logger.info(f"Calendar reminder sent for event {event_id}: {ev['title']}")
+    except Exception as e:
+        logger.warning(f"_send_calendar_reminder error for event {event_id}: {e}")
+
+
+async def calendar_reminder_loop():
+    """Run every 5 minutes, send 30-min reminders for upcoming calendar events."""
+    from app.database import AsyncSessionLocal
+    while True:
+        try:
+            await asyncio.sleep(300)  # check every 5 minutes
+            async with AsyncSessionLocal() as db:
+                now = datetime.now(timezone.utc)
+                # Window: events starting between 25 and 35 minutes from now
+                rows = (await db.execute(text("""
+                    SELECT id FROM calendar_events
+                    WHERE reminder_30min_sent = 0
+                      AND start_at BETWEEN :lo AND :hi
+                """), {
+                    "lo": now + timedelta(minutes=25),
+                    "hi": now + timedelta(minutes=35),
+                })).fetchall()
+                for row in rows:
+                    await _send_calendar_reminder(db, row.id)
+        except Exception as e:
+            logger.warning(f"calendar_reminder_loop error: {e}")
