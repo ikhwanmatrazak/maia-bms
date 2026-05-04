@@ -85,6 +85,7 @@ export default function CalendarPage() {
   const [editAttendeeSearch, setEditAttendeeSearch] = useState("");
   const [view, setView] = useState<"month" | "list">("month");
   const [listDateFilter, setListDateFilter] = useState("");
+  const [overflowDay, setOverflowDay] = useState<{ day: number; events: CalEvent[] } | null>(null);
 
   const { data: events = [] } = useQuery<CalEvent[]>({
     queryKey: ["calendar", viewDate.year, viewDate.month],
@@ -454,7 +455,12 @@ export default function CalendarPage() {
                           </Tooltip>
                         ))}
                         {dayEvents.length > 3 && (
-                          <div className="text-xs text-default-400 pl-1">+{dayEvents.length - 3} more</div>
+                          <div
+                            className="text-xs text-primary pl-1 cursor-pointer hover:underline"
+                            onClick={e => { e.stopPropagation(); setOverflowDay({ day, events: dayEvents }); }}
+                          >
+                            +{dayEvents.length - 3} more
+                          </div>
                         )}
                       </div>
                     </>
@@ -465,6 +471,34 @@ export default function CalendarPage() {
           </div>
         ))}
       </div>}
+
+      {/* ── Day Overflow Modal ─────────────────────────────── */}
+      <Modal isOpen={!!overflowDay} onOpenChange={open => { if (!open) setOverflowDay(null); }} size="sm">
+        <ModalContent>
+          {(onClose) => overflowDay && (
+            <>
+              <ModalHeader>
+                {MONTHS[viewDate.month - 1]} {overflowDay.day}, {viewDate.year}
+              </ModalHeader>
+              <ModalBody>
+                <div className="space-y-1 pb-2">
+                  {overflowDay.events.map(ev => (
+                    <div key={ev.id}
+                      className="flex items-center gap-2 p-2 rounded-lg hover:bg-default-100 cursor-pointer"
+                      onClick={() => { onClose(); setSelected(ev); setDetailOpen(true); }}>
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: ev.color }} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{ev.title}</p>
+                        <p className="text-xs text-default-400">{fmtTime(ev.start_at)}{ev.end_at ? ` — ${fmtTime(ev.end_at)}` : ""}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ModalBody>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
 
       {/* ── Event Detail Modal ─────────────────────────────── */}
       <Modal isOpen={detailOpen} onOpenChange={open => { setDetailOpen(open); if (!open) setDeleteError(null); }} size="lg">
