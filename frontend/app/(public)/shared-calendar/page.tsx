@@ -8,7 +8,7 @@ import {
 import {
   ChevronLeft, ChevronRight, Plus, Calendar, MapPin, Link2, Users,
   Check, XCircle, Copy, CopyCheck, LogIn, LogOut, CalendarDays, LayoutList,
-  Pencil, Trash2,
+  Pencil, Trash2, Search,
 } from "lucide-react";
 import { publicCalendarApi, calendarApi, authApi } from "@/lib/api";
 import { setTokens, setUser, isAuthenticated, getUser, clearAuth } from "@/lib/auth";
@@ -99,10 +99,12 @@ export default function SharedCalendarPage() {
   const [overflowDay, setOverflowDay] = useState<{ day: number; events: CalEvent[] } | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE" });
+  const [form, setForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] as number[] });
+  const [attendeeSearch, setAttendeeSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE" });
+  const [editForm, setEditForm] = useState({ title: "", start_at: "", end_at: "", description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] as number[] });
+  const [editAttendeeSearch, setEditAttendeeSearch] = useState("");
 
   const [quickLoginOpen, setQuickLoginOpen] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
@@ -116,6 +118,12 @@ export default function SharedCalendarPage() {
   const { data: events = [] } = useQuery<CalEvent[]>({
     queryKey: ["shared-calendar", viewDate.year, viewDate.month],
     queryFn: () => publicCalendarApi.listEvents(viewDate.year, viewDate.month),
+  });
+
+  const { data: allUsers = [] } = useQuery<{ id: number; full_name: string; email: string }[]>({
+    queryKey: ["calendar-users"],
+    queryFn: () => calendarApi.listUsers(),
+    enabled: isLoggedIn,
   });
 
   const deleteMut = useMutation({
@@ -192,30 +200,39 @@ export default function SharedCalendarPage() {
     finally { setLoginLoading(false); }
   }
 
+  function toggleAttendee(id: number) {
+    setForm(f => ({ ...f, attendee_ids: f.attendee_ids.includes(id) ? f.attendee_ids.filter(x => x !== id) : [...f.attendee_ids, id] }));
+  }
+  function toggleEditAttendee(id: number) {
+    setEditForm(f => ({ ...f, attendee_ids: f.attendee_ids.includes(id) ? f.attendee_ids.filter(x => x !== id) : [...f.attendee_ids, id] }));
+  }
+
   function openCreate() {
     const now = new Date();
     const base = `${viewDate.year}-${pad2(viewDate.month)}-${pad2(now.getDate())}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
-    setForm({ title: "", start_at: base, end_at: addOneHour(base), description: "", location: "", meeting_link: "", color: "#006FEE" });
+    setForm({ title: "", start_at: base, end_at: addOneHour(base), description: "", location: "", meeting_link: "", color: "#006FEE", attendee_ids: [] });
+    setAttendeeSearch("");
     setCreateOpen(true);
   }
 
   async function handleCreate() {
     if (!form.title || !form.start_at) return;
     setSaving(true);
-    try { await calendarApi.createEvent({ ...form, attendee_ids: [] }); qc.invalidateQueries({ queryKey: ["shared-calendar"] }); setCreateOpen(false); }
+    try { await calendarApi.createEvent({ ...form, attendee_ids: form.attendee_ids.join(",") }); qc.invalidateQueries({ queryKey: ["shared-calendar"] }); setCreateOpen(false); }
     finally { setSaving(false); }
   }
 
   function openEdit() {
     if (!selected) return;
-    setEditForm({ title: selected.title, start_at: toLocal(selected.start_at), end_at: selected.end_at ? toLocal(selected.end_at) : "", description: selected.description ?? "", location: selected.location ?? "", meeting_link: selected.meeting_link ?? "", color: selected.color });
+    setEditForm({ title: selected.title, start_at: toLocal(selected.start_at), end_at: selected.end_at ? toLocal(selected.end_at) : "", description: selected.description ?? "", location: selected.location ?? "", meeting_link: selected.meeting_link ?? "", color: selected.color, attendee_ids: [...(selected.attendee_ids ?? [])] });
+    setEditAttendeeSearch("");
     setEditOpen(true);
   }
 
   async function handleEdit() {
     if (!selected || !editForm.title || !editForm.start_at) return;
     setSaving(true);
-    try { await calendarApi.updateEvent(selected.id, editForm); qc.invalidateQueries({ queryKey: ["shared-calendar"] }); setEditOpen(false); setDetailOpen(false); }
+    try { await calendarApi.updateEvent(selected.id, { ...editForm, attendee_ids: editForm.attendee_ids.join(",") }); qc.invalidateQueries({ queryKey: ["shared-calendar"] }); setEditOpen(false); setDetailOpen(false); }
     finally { setSaving(false); }
   }
 
@@ -609,102 +626,180 @@ export default function SharedCalendarPage() {
       </Modal>
 
       {/* ── Create Event Modal ── */}
-      <Modal isOpen={createOpen} onOpenChange={setCreateOpen} size="lg" scrollBehavior="outside" placement="center">
+      <Modal isOpen={createOpen} onOpenChange={open => { setCreateOpen(open); if (!open) setAttendeeSearch(""); }} size="lg" scrollBehavior="outside" placement="center">
         <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader>New Event</ModalHeader>
-              <ModalBody>
-                <div className="space-y-3">
-                  <Input label="Title" value={form.title} onValueChange={v => setForm(f => ({ ...f, title: v }))} isRequired />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Input label="Start" type="datetime-local" value={form.start_at} onValueChange={v => setForm(f => ({ ...f, start_at: v, end_at: f.end_at && f.end_at > v ? f.end_at : addOneHour(v) }))} isRequired />
-                    <Input label="End" type="datetime-local" value={form.end_at} onValueChange={v => setForm(f => ({ ...f, end_at: v }))} />
-                  </div>
-                  <Input label="Location" value={form.location} onValueChange={v => setForm(f => ({ ...f, location: v }))} />
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm text-default-500">Meeting URL</label>
-                      <button type="button"
-                        onClick={() => setForm(f => ({ ...f, meeting_link: generateJitsiLink(f.title) }))}
-                        className="text-xs text-primary hover:underline flex items-center gap-1">
-                        <Link2 size={11} /> Auto-generate Jitsi link
-                      </button>
+          {(onClose) => {
+            const filteredUsers = allUsers.filter(u =>
+              u.full_name?.toLowerCase().includes(attendeeSearch.toLowerCase()) ||
+              u.email?.toLowerCase().includes(attendeeSearch.toLowerCase())
+            );
+            return (
+              <>
+                <ModalHeader>New Event</ModalHeader>
+                <ModalBody>
+                  <div className="space-y-3">
+                    <Input label="Title" value={form.title} onValueChange={v => setForm(f => ({ ...f, title: v }))} isRequired />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Input label="Start" type="datetime-local" value={form.start_at} onValueChange={v => setForm(f => ({ ...f, start_at: v, end_at: f.end_at && f.end_at > v ? f.end_at : addOneHour(v) }))} isRequired />
+                      <Input label="End" type="datetime-local" value={form.end_at} onValueChange={v => setForm(f => ({ ...f, end_at: v }))} />
                     </div>
-                    <Input placeholder="https://meet.jit.si/..."
-                      startContent={<Link2 size={14} className="text-default-400 shrink-0" />}
-                      value={form.meeting_link} onValueChange={v => setForm(f => ({ ...f, meeting_link: v }))} />
-                  </div>
-                  <Textarea label="Description" value={form.description} onValueChange={v => setForm(f => ({ ...f, description: v }))} />
-                  <div>
-                    <p className="text-sm text-default-600 mb-2">Color</p>
-                    <div className="flex gap-3">
-                      {EVENT_COLORS.map(c => (
-                        <button key={c.value} title={c.label}
-                          className={`w-8 h-8 rounded-full border-2 transition-transform ${form.color === c.value ? "border-foreground scale-110" : "border-transparent"}`}
-                          style={{ backgroundColor: c.value }}
-                          onClick={() => setForm(f => ({ ...f, color: c.value }))} />
-                      ))}
+                    <Input label="Location" value={form.location} onValueChange={v => setForm(f => ({ ...f, location: v }))} />
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-sm text-default-500">Meeting URL</label>
+                        <button type="button"
+                          onClick={() => setForm(f => ({ ...f, meeting_link: generateJitsiLink(f.title) }))}
+                          className="text-xs text-primary hover:underline flex items-center gap-1">
+                          <Link2 size={11} /> Auto-generate Jitsi link
+                        </button>
+                      </div>
+                      <Input placeholder="https://meet.jit.si/..."
+                        startContent={<Link2 size={14} className="text-default-400 shrink-0" />}
+                        value={form.meeting_link} onValueChange={v => setForm(f => ({ ...f, meeting_link: v }))} />
+                    </div>
+                    <Textarea label="Description" value={form.description} onValueChange={v => setForm(f => ({ ...f, description: v }))} />
+                    <div>
+                      <p className="text-sm text-default-600 mb-2">Color</p>
+                      <div className="flex gap-3">
+                        {EVENT_COLORS.map(c => (
+                          <button key={c.value} title={c.label}
+                            className={`w-8 h-8 rounded-full border-2 transition-transform ${form.color === c.value ? "border-foreground scale-110" : "border-transparent"}`}
+                            style={{ backgroundColor: c.value }}
+                            onClick={() => setForm(f => ({ ...f, color: c.value }))} />
+                        ))}
+                      </div>
+                    </div>
+                    {/* Invite Team Members */}
+                    <div>
+                      <p className="text-xs font-semibold text-default-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                        <Users size={12} /> Invite Team Members
+                        {form.attendee_ids.length > 0 && (
+                          <Chip size="sm" color="primary" variant="flat" className="ml-1">{form.attendee_ids.length}</Chip>
+                        )}
+                      </p>
+                      <div className="relative mb-1.5">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-default-400" />
+                        <input type="text" placeholder="Search by name or email…"
+                          value={attendeeSearch} onChange={e => setAttendeeSearch(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2 text-sm border border-default-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white" />
+                      </div>
+                      <div className="overflow-y-auto space-y-0.5 border border-default-100 rounded-lg" style={{ maxHeight: 180 }}>
+                        {filteredUsers.length === 0 && (
+                          <p className="text-sm text-default-400 text-center py-4">{attendeeSearch ? "No match found" : "No team members found."}</p>
+                        )}
+                        {filteredUsers.map(u => (
+                          <div key={u.id} onClick={() => toggleAttendee(u.id)}
+                            className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors select-none ${form.attendee_ids.includes(u.id) ? "bg-primary/10 text-primary" : "hover:bg-default-100"}`}>
+                            <div>
+                              <p className="text-sm font-medium leading-tight">{u.full_name}</p>
+                              <p className="text-xs text-default-400">{u.email}</p>
+                            </div>
+                            {form.attendee_ids.includes(u.id) && <Check size={15} className="shrink-0" />}
+                          </div>
+                        ))}
+                      </div>
+                      {form.attendee_ids.length > 0 && (
+                        <p className="text-xs text-default-400 mt-1.5">Invitations will be sent to {form.attendee_ids.length} member{form.attendee_ids.length > 1 ? "s" : ""}</p>
+                      )}
                     </div>
                   </div>
-                </div>
-              </ModalBody>
-              <ModalFooter>
-                <Button variant="light" onPress={onClose}>Cancel</Button>
-                <Button color="primary" isLoading={saving} onPress={handleCreate}>Create</Button>
-              </ModalFooter>
-            </>
-          )}
+                </ModalBody>
+                <ModalFooter>
+                  <Button variant="light" onPress={onClose}>Cancel</Button>
+                  <Button color="primary" isLoading={saving} onPress={handleCreate}>Create</Button>
+                </ModalFooter>
+              </>
+            );
+          }}
         </ModalContent>
       </Modal>
 
       {/* ── Edit Event Modal ── */}
-      <Modal isOpen={editOpen} onOpenChange={setEditOpen} size="lg" scrollBehavior="outside" placement="center">
+      <Modal isOpen={editOpen} onOpenChange={open => { setEditOpen(open); if (!open) setEditAttendeeSearch(""); }} size="lg" scrollBehavior="outside" placement="center">
         <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader>Edit Event</ModalHeader>
-              <ModalBody>
-                <div className="space-y-3">
-                  <Input label="Title" value={editForm.title} onValueChange={v => setEditForm(f => ({ ...f, title: v }))} isRequired />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Input label="Start" type="datetime-local" value={editForm.start_at} onValueChange={v => setEditForm(f => ({ ...f, start_at: v, end_at: f.end_at && f.end_at > v ? f.end_at : addOneHour(v) }))} isRequired />
-                    <Input label="End" type="datetime-local" value={editForm.end_at} onValueChange={v => setEditForm(f => ({ ...f, end_at: v }))} />
-                  </div>
-                  <Input label="Location" value={editForm.location} onValueChange={v => setEditForm(f => ({ ...f, location: v }))} />
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm text-default-500">Meeting URL</label>
-                      <button type="button"
-                        onClick={() => setEditForm(f => ({ ...f, meeting_link: generateJitsiLink(f.title) }))}
-                        className="text-xs text-primary hover:underline flex items-center gap-1">
-                        <Link2 size={11} /> Auto-generate Jitsi link
-                      </button>
+          {(onClose) => {
+            const filteredUsers = allUsers.filter(u =>
+              u.full_name?.toLowerCase().includes(editAttendeeSearch.toLowerCase()) ||
+              u.email?.toLowerCase().includes(editAttendeeSearch.toLowerCase())
+            );
+            return (
+              <>
+                <ModalHeader>Edit Event</ModalHeader>
+                <ModalBody>
+                  <div className="space-y-3">
+                    <Input label="Title" value={editForm.title} onValueChange={v => setEditForm(f => ({ ...f, title: v }))} isRequired />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Input label="Start" type="datetime-local" value={editForm.start_at} onValueChange={v => setEditForm(f => ({ ...f, start_at: v, end_at: f.end_at && f.end_at > v ? f.end_at : addOneHour(v) }))} isRequired />
+                      <Input label="End" type="datetime-local" value={editForm.end_at} onValueChange={v => setEditForm(f => ({ ...f, end_at: v }))} />
                     </div>
-                    <Input placeholder="https://meet.jit.si/..."
-                      startContent={<Link2 size={14} className="text-default-400 shrink-0" />}
-                      value={editForm.meeting_link} onValueChange={v => setEditForm(f => ({ ...f, meeting_link: v }))} />
-                  </div>
-                  <Textarea label="Description" value={editForm.description} onValueChange={v => setEditForm(f => ({ ...f, description: v }))} />
-                  <div>
-                    <p className="text-sm text-default-600 mb-2">Color</p>
-                    <div className="flex gap-3">
-                      {EVENT_COLORS.map(c => (
-                        <button key={c.value} title={c.label}
-                          className={`w-8 h-8 rounded-full border-2 transition-transform ${editForm.color === c.value ? "border-foreground scale-110" : "border-transparent"}`}
-                          style={{ backgroundColor: c.value }}
-                          onClick={() => setEditForm(f => ({ ...f, color: c.value }))} />
-                      ))}
+                    <Input label="Location" value={editForm.location} onValueChange={v => setEditForm(f => ({ ...f, location: v }))} />
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-sm text-default-500">Meeting URL</label>
+                        <button type="button"
+                          onClick={() => setEditForm(f => ({ ...f, meeting_link: generateJitsiLink(f.title) }))}
+                          className="text-xs text-primary hover:underline flex items-center gap-1">
+                          <Link2 size={11} /> Auto-generate Jitsi link
+                        </button>
+                      </div>
+                      <Input placeholder="https://meet.jit.si/..."
+                        startContent={<Link2 size={14} className="text-default-400 shrink-0" />}
+                        value={editForm.meeting_link} onValueChange={v => setEditForm(f => ({ ...f, meeting_link: v }))} />
+                    </div>
+                    <Textarea label="Description" value={editForm.description} onValueChange={v => setEditForm(f => ({ ...f, description: v }))} />
+                    <div>
+                      <p className="text-sm text-default-600 mb-2">Color</p>
+                      <div className="flex gap-3">
+                        {EVENT_COLORS.map(c => (
+                          <button key={c.value} title={c.label}
+                            className={`w-8 h-8 rounded-full border-2 transition-transform ${editForm.color === c.value ? "border-foreground scale-110" : "border-transparent"}`}
+                            style={{ backgroundColor: c.value }}
+                            onClick={() => setEditForm(f => ({ ...f, color: c.value }))} />
+                        ))}
+                      </div>
+                    </div>
+                    {/* Team Members */}
+                    <div>
+                      <p className="text-xs font-semibold text-default-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                        <Users size={12} /> Team Members
+                        {editForm.attendee_ids.length > 0 && (
+                          <Chip size="sm" color="primary" variant="flat" className="ml-1">{editForm.attendee_ids.length}</Chip>
+                        )}
+                      </p>
+                      <div className="relative mb-1.5">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-default-400" />
+                        <input type="text" placeholder="Search by name or email…"
+                          value={editAttendeeSearch} onChange={e => setEditAttendeeSearch(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2 text-sm border border-default-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 bg-white" />
+                      </div>
+                      <div className="overflow-y-auto space-y-0.5 border border-default-100 rounded-lg" style={{ maxHeight: 180 }}>
+                        {filteredUsers.length === 0 && (
+                          <p className="text-sm text-default-400 text-center py-4">{editAttendeeSearch ? "No match found" : "No team members found."}</p>
+                        )}
+                        {filteredUsers.map(u => (
+                          <div key={u.id} onClick={() => toggleEditAttendee(u.id)}
+                            className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors select-none ${editForm.attendee_ids.includes(u.id) ? "bg-primary/10 text-primary" : "hover:bg-default-100"}`}>
+                            <div>
+                              <p className="text-sm font-medium leading-tight">{u.full_name}</p>
+                              <p className="text-xs text-default-400">{u.email}</p>
+                            </div>
+                            {editForm.attendee_ids.includes(u.id) && <Check size={15} className="shrink-0" />}
+                          </div>
+                        ))}
+                      </div>
+                      {editForm.attendee_ids.length > 0 && (
+                        <p className="text-xs text-default-400 mt-1.5">Invitations will be sent to {editForm.attendee_ids.length} member{editForm.attendee_ids.length > 1 ? "s" : ""}</p>
+                      )}
                     </div>
                   </div>
-                </div>
-              </ModalBody>
-              <ModalFooter>
-                <Button variant="light" onPress={onClose}>Cancel</Button>
-                <Button color="primary" isLoading={saving} onPress={handleEdit}>Save</Button>
-              </ModalFooter>
-            </>
-          )}
+                </ModalBody>
+                <ModalFooter>
+                  <Button variant="light" onPress={onClose}>Cancel</Button>
+                  <Button color="primary" isLoading={saving} onPress={handleEdit}>Save</Button>
+                </ModalFooter>
+              </>
+            );
+          }}
         </ModalContent>
       </Modal>
     </div>
