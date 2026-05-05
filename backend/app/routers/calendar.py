@@ -650,7 +650,8 @@ async def calendar_reminder_loop():
         try:
             await asyncio.sleep(300)  # check every 5 minutes
             async with AsyncSessionLocal() as db:
-                now = datetime.now(timezone.utc)
+                # start_at is stored as Malaysia local time (UTC+8), so offset UTC by +8h
+                now = datetime.now(timezone.utc) + timedelta(hours=8)
                 # Window: events starting between 25 and 35 minutes from now
                 rows = (await db.execute(text("""
                     SELECT id FROM calendar_events
