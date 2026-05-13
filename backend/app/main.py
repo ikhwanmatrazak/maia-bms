@@ -507,6 +507,17 @@ async def _ensure_calendar_tables():
             FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE
         )""",
         "ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS reminder_30min_sent TINYINT(1) NOT NULL DEFAULT 0",
+        # Designations table
+        """CREATE TABLE IF NOT EXISTS hr_designations (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tenant_id INT NULL,
+            name VARCHAR(150) NOT NULL,
+            job_responsibilities TEXT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX ix_hr_designations_tenant (tenant_id)
+        )""",
+        "ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS designation_id INT NULL",
     ]
     async with engine.begin() as conn:
         for stmt in stmts:

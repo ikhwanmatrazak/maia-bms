@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 16mm 18mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Poppins', Arial, sans-serif; font-size: 10.5px; color: #222; line-height: 1.75; }
+
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; padding-bottom: 12px; border-bottom: 2px solid {{ primary_color }}; }
+  .logo img { max-height: 60px; max-width: 170px; }
+  .company-info { text-align: right; font-size: 9.5px; color: #555; line-height: 1.6; }
+  .company-name-large { font-size: 14px; font-weight: 700; color: #1a1a2e; margin-bottom: 2px; }
+
+  .doc-title { text-align: center; margin-bottom: 18px; }
+  .doc-title h1 { font-size: 15px; font-weight: 700; color: {{ primary_color }}; text-transform: uppercase; letter-spacing: 1.5px; }
+  .doc-title h2 { font-size: 13px; font-weight: 700; color: #1a1a2e; margin-top: 4px; text-transform: uppercase; }
+
+  .section { margin-bottom: 14px; }
+  .section-title { font-size: 11px; font-weight: 700; color: #1a1a2e; margin-bottom: 5px; display: flex; align-items: baseline; gap: 8px; }
+  .section-num { display: inline-block; min-width: 22px; font-weight: 700; color: {{ primary_color }}; }
+
+  .sub-list { margin-left: 28px; margin-top: 3px; }
+  .sub-list li { margin-bottom: 3px; font-size: 10.5px; list-style-type: lower-alpha; }
+  .sub-sub-list { margin-left: 22px; margin-top: 2px; }
+  .sub-sub-list li { margin-bottom: 2px; font-size: 10px; list-style-type: lower-roman; }
+
+  .body-text { font-size: 10.5px; margin-left: 28px; margin-bottom: 4px; }
+
+  table.schedule { width: 100%; border-collapse: collapse; margin: 8px 0 4px 28px; width: calc(100% - 28px); }
+  table.schedule th { background: {{ primary_color }}; color: white; font-size: 10px; font-weight: 600; padding: 6px 10px; text-align: left; }
+  table.schedule td { padding: 5px 10px; font-size: 10px; border-bottom: 1px solid #eee; }
+  table.schedule tr:nth-child(even) td { background: #f8f9ff; }
+
+  .signature-section { margin-top: 36px; display: flex; justify-content: space-between; }
+  .sig-block { text-align: center; width: 45%; }
+  .sig-block .sig-line { border-top: 1.5px solid #333; margin-top: 44px; padding-top: 6px; font-size: 9.5px; color: #555; }
+  .sig-block .sig-name { font-weight: 700; font-size: 10.5px; color: #1a1a2e; }
+
+  .footer-note { margin-top: 20px; border-top: 1px solid #eee; padding-top: 8px; font-size: 8.5px; color: #aaa; text-align: center; }
+  .highlight { font-weight: 600; }
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="logo">
+    {% if logo_data %}<img src="{{ logo_data | safe }}" alt="Logo">
+    {% else %}<span style="font-size:16px;font-weight:700;color:{{ primary_color }};">{{ company.company_name if company else '' }}</span>{% endif %}
+  </div>
+  <div class="company-info">
+    {% if company %}
+    <div class="company-name-large">{{ company.company_name }}</div>
+    {% if company.address %}<div>{{ company.address }}</div>{% endif %}
+    {% if company.phone %}<div>Tel: {{ company.phone }}</div>{% endif %}
+    {% if company.email %}<div>{{ company.email }}</div>{% endif %}
+    {% if company.registration_no %}<div>Reg No: {{ company.registration_no }}</div>{% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- Title -->
+<div class="doc-title">
+  <h1>Employment Terms &amp; Conditions</h1>
+  <h2>{{ employee.full_name | upper }}</h2>
+</div>
+
+<!-- 1. Salary -->
+<div class="section">
+  <div class="section-title"><span class="section-num">1.</span> SALARY / ALLOWANCE</div>
+  <ul class="sub-list">
+    <li>Your salary / allowance as mutually agreed will be as stated in the cover letter.</li>
+    <li>The salary / allowance will be paid on the last day of each month.</li>
+    <li>The management does not allow advance payment of salary or as loan.</li>
+    <li>The salary will be transferred to your personal account that has been given to us by you.</li>
+  </ul>
+</div>
+
+<!-- 2. Probation -->
+<div class="section">
+  <div class="section-title"><span class="section-num">2.</span> PROBATION PERIOD</div>
+  <p class="body-text">Your probation period is based on stated on the offer letter.</p>
+</div>
+
+<!-- 3. Working Hours -->
+<div class="section">
+  <div class="section-title"><span class="section-num">3.</span> WORKING HOURS</div>
+  <p class="body-text">Your working hours will be as per the timetable determined by the office. The management has the discretion to change the work time and location maintaining the same hours of work. Any excess of hours will be paid accordingly as mutually agreed.</p>
+</div>
+
+<!-- 4. Attire -->
+<div class="section">
+  <div class="section-title"><span class="section-num">4.</span> ATTIRE AND GROOMING</div>
+  <ul class="sub-list">
+    <li>Maintained good hair care and well groomed not being over adorned.</li>
+    <li>Maintain clean personal hygiene.</li>
+    <li>Dress decent and smart with collared shirt, decent T-Shirt, decent pants and fully attired with shoes.</li>
+    <li>Round-neck T-shirts, slippers, sandals and sport suits are not allowed.</li>
+  </ul>
+</div>
+
+<!-- 5. Annual Leave -->
+<div class="section">
+  <div class="section-title"><span class="section-num">5.</span> ANNUAL LEAVE</div>
+  <ul class="sub-list">
+    <li>Leave application must be submitted before 10 working days.</li>
+    <li>Leave approval is on the discretion of the management.</li>
+    <li>Leave entitlement will be calculated on a pro-rated basis.</li>
+    <li>Unused leave can be carried forward to the subsequent year for a period of 2 years.</li>
+    <li>Evidence of pregnancy is to be informed with confirmation of pregnancy.</li>
+  </ul>
+</div>
+
+<!-- 6. Medical Leave -->
+<div class="section">
+  <div class="section-title"><span class="section-num">6.</span> MEDICAL LEAVE</div>
+  <ul class="sub-list">
+    <li>Use your wise discretion during illness and when on medical leave.</li>
+    <li>Please provide valid medical chit if on medical leave.</li>
+    <li>You are advised not to abuse medical leave to disturb our service.</li>
+  </ul>
+</div>
+
+<!-- 7. Public Holiday -->
+<div class="section">
+  <div class="section-title"><span class="section-num">7.</span> PUBLIC HOLIDAY</div>
+  <ul class="sub-list">
+    <li>Entitlement of public holidays as declared by State of Selangor and Government of Malaysia.</li>
+  </ul>
+</div>
+
+<!-- 8. Lawful Deduction -->
+<div class="section">
+  <div class="section-title"><span class="section-num">8.</span> LAWFUL DEDUCTION</div>
+  <p class="body-text">The following lawful deduction will be made from your salary wherever applicable:</p>
+  <ul class="sub-list">
+    <li>Employer provident fund (EPF)</li>
+    <li>Overpayment of salaries and other benefits.</li>
+    <li>Income tax if applicable</li>
+    <li>Other deductions as freely consented in writing or as stated in this contract.</li>
+  </ul>
+</div>
+
+<!-- 9. Conduct -->
+<div class="section">
+  <div class="section-title"><span class="section-num">9.</span> CONDUCT</div>
+  <p class="body-text">The employee at all times is subjected to rules and regulations and other administrative instructions as may from time to time be issued related to work conduct and conditions of the service in the Company.</p>
+</div>
+
+<!-- 10. Notice of Termination -->
+<div class="section">
+  <div class="section-title"><span class="section-num">10.</span> NOTICE OF TERMINATION</div>
+  <ul class="sub-list">
+    <li>Period of termination notice after the probation period applicable to both parties will be <span class="highlight">{{ notice_period_days }} ({{ notice_period_days | int | string | upper }} ) days</span> during the period of employment, failing which the defaulter party has to pay in lieu of the days not fulfilled. This does not apply on dismissal due to indiscipline, misconduct or breach of contract.</li>
+    <li>Termination or resignation other than written form will not be accepted.</li>
+    <li>Any dues payable to the company will be deducted from the last salary.</li>
+  </ul>
+</div>
+
+<!-- 11. Termination Without Notice -->
+<div class="section">
+  <div class="section-title"><span class="section-num">11.</span> TERMINATION WITHOUT NOTICE BY EMPLOYER</div>
+  <p class="body-text">The Employment agreement maybe terminated by the Company without due notice if the employee:</p>
+  <ul class="sub-list">
+    <li>Willfully disobeys the lawful and reasonable order on demand or request by the Management.</li>
+    <li>Is guilty of fraud or dishonesty.</li>
+    <li>Contravenes any article of this contract or willfully breaches any conditions of the contract.</li>
+    <li>Convicted to any serious crime by the court of Malaysia or any other countries.</li>
+    <li>The Management is dissatisfied with the performance of the employee and as such has been notified by verbal or written warning.</li>
+    <li>Involves in any action or words directly or indirectly which is detrimental to the income, reputation and status of the Company or its Directors and staff.</li>
+  </ul>
+</div>
+
+<!-- 12. Waiver -->
+<div class="section">
+  <div class="section-title"><span class="section-num">12.</span> WAIVER OF BREACH</div>
+  <p class="body-text">The waiver by the Company of a Breach of any provision of this Agreement by the employee shall not operate or be construed as a waiver of any subsequent breach by the employee. No waiver shall be valid unless it is in writing and signed by the Directors. The Management shall after due inquiring, take disciplinary action against the said employee for breach of regulations, negligence of duty, unsatisfactory performance, rudeness or any action which may diversely affect the Company's image and reputation.</p>
+</div>
+
+<!-- 13. Medical & Physical Status -->
+<div class="section">
+  <div class="section-title"><span class="section-num">13.</span> MEDICAL AND PHYSICAL STATUS</div>
+  <p class="body-text">The offer of this Employment is subject to the declaration made by you through the application form or your physical and mental state of fitness. Should it be found after employment of non-disclosure, inter-alia, material facts regarding any illness, medical or physical disability, it shall be deemed to be sufficient cause for the Company to terminate your service and you shall not be liable to any claims for benefit there after.</p>
+</div>
+
+<!-- 14. Restrictions -->
+<div class="section">
+  <div class="section-title"><span class="section-num">14.</span> RESTRICTIONS OF CERTAIN ACTIONS</div>
+  <ul class="sub-list">
+    <li>Employee should be loyal to the Company and avoid discussing the Company's matter in public. Employee should ensure that all confidential papers are safely locked.</li>
+    <li>Not to communicate in any manner to the press and other persons, the trade secrets, financial position or other affairs concerning the company, its management or employees.</li>
+    <li>You are NOT to operate your own or employed by other company or through agents serve as a professional consultant or related services near our business premises within a radius of 8 km, failing which legal proceeding will be instituted against you.</li>
+  </ul>
+</div>
+
+<!-- 15. Professional Liability -->
+<div class="section">
+  <div class="section-title"><span class="section-num">15.</span> PROFESSIONAL LIABILITY</div>
+  <ul class="sub-list">
+    <li>All attempts should be made to adhere strictly to the medical code of ethics towards the public, colleagues, subordinates and business associate.</li>
+    <li>Personal indemnity insurance and medical protection must be made available at your own cost and its compulsory as part of our employment contract.</li>
+    <li>The company does not bear any liability to individual breach of ethics and any litigations arising out of your actions during or after working hours.</li>
+  </ul>
+</div>
+
+<!-- 16. Job Responsibility -->
+<div class="section">
+  <div class="section-title"><span class="section-num">16.</span> JOB RESPONSIBILITY</div>
+  {% if job_responsibilities %}
+  <ul class="sub-list">
+    {% for item in job_responsibilities %}
+    <li>{{ item }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="body-text" style="color:#888;font-style:italic;">No job responsibilities defined for this designation.</p>
+  {% endif %}
+</div>
+
+<!-- 17. Medical Reimbursement -->
+<div class="section">
+  <div class="section-title"><span class="section-num">17.</span> MEDICAL REIMBURSEMENT</div>
+  <ul class="sub-list">
+    <li>Clinic visit for outpatient treatment will be reimbursed as the following scheme:
+      <ul class="sub-sub-list">
+        <li>Accumulated limit of <span class="highlight">RM{{ "%.2f"|format(outpatient_employee_limit) }}</span> for the employee per year</li>
+        <li>Accumulated limit of <span class="highlight">RM{{ "%.2f"|format(outpatient_dependent_limit) }}</span> for the employee's dependent (family members) per year</li>
+        <li>Amount limit per receipt is <span class="highlight">RM{{ "%.2f"|format(outpatient_per_receipt) }}</span></li>
+        <li>Employee must produce the original payment receipt to the company</li>
+        <li>Prenatal and postnatal checkup or any treatment which is not considered as sickness are not covered</li>
+        <li>Employee must declare and register the dependent details to the company</li>
+        <li>Dependent is a family member ONLY: Spouse; Son or daughter under 21 years old and is dependent on the employee for support; Son or daughter above 21 years old with mental or physical illness and is dependent on the employee for support</li>
+        <li>Step child or adopted child are not covered</li>
+      </ul>
+    </li>
+    <li>Hospitalization charges at any hospital will be reimbursed as the following scheme:
+      <ul class="sub-sub-list">
+        <li>Hospitalization medical coverage started only after 12 months of employment period and staff must already pass the probation period</li>
+        <li>Accumulated limit of <span class="highlight">RM{{ "%.2f"|format(hospitalization_employee_limit) }}</span> for the employee per year</li>
+        <li>Accumulated limit of <span class="highlight">RM{{ "%.2f"|format(hospitalization_dependent_limit) }}</span> for the employee's dependent (family members) per year</li>
+        <li>Amount limit per receipt is <span class="highlight">RM{{ "%.2f"|format(hospitalization_per_receipt) }}</span></li>
+        <li>Employee must produce the original payment receipt to the company</li>
+        <li>Prenatal and postnatal checkup or any treatment which is not considered as sickness are not covered</li>
+        <li>Step child or adopted child are not covered</li>
+      </ul>
+    </li>
+    <li>Dental treatment:
+      <ul class="sub-sub-list">
+        <li>Dental treatment coverage started only after 12 months of employment period and staff must already pass the probation period</li>
+        <li>Amount will be reimbursed for ONE receipt only per year of maximum amount <span class="highlight">RM{{ "%.2f"|format(dental_limit) }}</span></li>
+      </ul>
+    </li>
+    <li>Newborn baby:
+      <ul class="sub-sub-list">
+        <li>Newborn baby coverage started only after 12 months of employment period and staff must already pass the probation period</li>
+        <li>Staff will be given <span class="highlight">RM{{ "%.2f"|format(newborn_allowance) }}</span> for a maximum of {{ newborn_max }} childbirth</li>
+      </ul>
+    </li>
+    <li>Any medical reimbursement will be processed in 14 days</li>
+  </ul>
+</div>
+
+<!-- 18. Parking & Claims -->
+<div class="section">
+  <div class="section-title"><span class="section-num">18.</span> PARKING, TOLL, MILEAGE AND OTHER CLAIM</div>
+  <ul class="sub-list">
+    <li>Parking allowance is fixed at RM100.00 monthly for all staff stationed at the Cyberjaya office.</li>
+    <li>Parking allowance will be paid along with staff's monthly salary.</li>
+    <li>Parking fee for other locations during working visits will be paid per receipt amount.</li>
+    <li>Parking fee that is more than RM30 per day is required management approval.</li>
+    <li>Toll is claim per receipt amount. Only toll fee that is incurred for working visits will be approved.</li>
+    <li>Mileage claim for working visit: First 100 KM at RM0.70 per KM; Next remaining KM at RM0.50 per KM.</li>
+    <li>Parking, toll and mileage cost for daily commute from staff's home and Cyberjaya office are not eligible for claim.</li>
+    <li>Any claim reimbursement will be processed in 14 days.</li>
+  </ul>
+</div>
+
+<!-- 19. Working Arrangement -->
+<div class="section">
+  <div class="section-title"><span class="section-num">19.</span> WORKING ARRANGEMENT</div>
+  <ul class="sub-list">
+    <li>Any absent from office shall be treated as Annual Leave and shall be deducted from your leave entitlement based on pro-rated working months upon confirmation.</li>
+    <li>Any need for emergency leave will have to be consulted with the office or immediate manager.</li>
+    <li>You must adhere to any arrangement to work outside the working hours by the management and shall be compensated with reasonable time-off period after that.</li>
+  </ul>
+</div>
+
+<!-- Appendix 1 -->
+<div class="section">
+  <div class="section-title" style="font-size:12px;text-decoration:underline;">Appendix 1 — Working Hours</div>
+  <table class="schedule">
+    <thead>
+      <tr><th>Day</th><th>Time</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Monday</td><td>8:30 am – 5:00 pm</td></tr>
+      <tr><td>Tuesday</td><td>8:30 am – 5:00 pm</td></tr>
+      <tr><td>Wednesday</td><td>8:30 am – 5:00 pm</td></tr>
+      <tr><td>Thursday</td><td>8:30 am – 5:00 pm</td></tr>
+      <tr><td>Friday</td><td>8:30 am – 5:00 pm</td></tr>
+      <tr><td>Saturday</td><td>AD-HOC BASIS</td></tr>
+      <tr><td>Sunday</td><td>AD-HOC BASIS</td></tr>
+    </tbody>
+  </table>
+  <p class="body-text" style="margin-top:6px;font-size:10px;">Lunch Hour is between 1pm to 2pm or 2pm to 3pm. Total working hours per week is 37.5 hours.</p>
+</div>
+
+<!-- Signatures -->
+<div class="signature-section">
+  <div class="sig-block">
+    <div class="sig-line">
+      <div class="sig-name">{{ company.company_name if company else 'Company' }}</div>
+      <div>Authorised Signatory</div>
+    </div>
+  </div>
+  <div class="sig-block">
+    <div class="sig-line">
+      <div class="sig-name">{{ employee.full_name }}</div>
+      <div>Employee Acknowledgement</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer-note">Terms of Employment — {{ employee.full_name }}</div>
+
+</body>
+</html>

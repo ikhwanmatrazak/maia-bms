@@ -420,6 +420,13 @@ export const hrApi = {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 100);
   },
+  generateEmploymentTerms: async (id: number, data: object) => {
+    const resp = await api.post(`/hr/employees/${id}/employment-terms`, data, { responseType: "blob" });
+    const url = URL.createObjectURL(new Blob([resp.data], { type: "application/pdf" }));
+    const a = document.createElement("a"); a.href = url; a.download = `Employment_Terms_${id}.pdf`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  },
   uploadPhoto: (id: number, file: File) => {
     const form = new FormData();
     form.append("photo", file);
@@ -588,6 +595,13 @@ export const publicCalendarApi = {
     axios.get(`${API_URL}/calendar/public/events`, { params: year && month ? { year, month } : {} }).then((r) => r.data),
   getEvent: (id: number) =>
     axios.get(`${API_URL}/calendar/public/events/${id}`).then((r) => r.data),
+};
+
+export const designationsApi = {
+  list: () => api.get("/hr/designations").then((r) => r.data),
+  create: (data: { name: string; job_responsibilities?: string }) => api.post("/hr/designations", data).then((r) => r.data),
+  update: (id: number, data: { name?: string; job_responsibilities?: string }) => api.put(`/hr/designations/${id}`, data).then((r) => r.data),
+  remove: (id: number) => api.delete(`/hr/designations/${id}`),
 };
 
 export const calendarApi = {

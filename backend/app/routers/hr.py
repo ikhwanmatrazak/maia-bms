@@ -784,6 +784,78 @@ async def delete_employee_document(
     await db.commit()
 
 
+# ─── Designations ────────────────────────────────────────────────────────────
+
+class DesignationCreate(BaseModel):
+    name: str
+    job_responsibilities: Optional[str] = None
+
+class DesignationUpdate(BaseModel):
+    name: Optional[str] = None
+    job_responsibilities: Optional[str] = None
+
+@router.get("/designations")
+async def list_designations(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tid = get_effective_tenant_id(current_user)
+    rows = (await db.execute(
+        text("SELECT * FROM hr_designations WHERE tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL) ORDER BY name"),
+        {"tid": tid}
+    )).mappings().all()
+    return [dict(r) for r in rows]
+
+@router.post("/designations", status_code=201)
+async def create_designation(
+    body: DesignationCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin_or_manager(current_user)
+    tid = get_effective_tenant_id(current_user)
+    result = await db.execute(
+        text("INSERT INTO hr_designations (tenant_id, name, job_responsibilities) VALUES (:tid, :name, :jr)"),
+        {"tid": tid, "name": body.name, "jr": body.job_responsibilities},
+    )
+    await db.commit()
+    new_id = result.lastrowid
+    row = (await db.execute(text("SELECT * FROM hr_designations WHERE id=:id"), {"id": new_id})).mappings().first()
+    return dict(row)
+
+@router.put("/designations/{des_id}")
+async def update_designation(
+    des_id: int,
+    body: DesignationUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin_or_manager(current_user)
+    sets, params = [], {"id": des_id}
+    if body.name is not None:
+        sets.append("name=:name"); params["name"] = body.name
+    if body.job_responsibilities is not None:
+        sets.append("job_responsibilities=:jr"); params["jr"] = body.job_responsibilities
+    if sets:
+        await db.execute(text(f"UPDATE hr_designations SET {', '.join(sets)} WHERE id=:id"), params)
+        await db.commit()
+    row = (await db.execute(text("SELECT * FROM hr_designations WHERE id=:id"), {"id": des_id})).mappings().first()
+    if not row:
+        raise HTTPException(404, "Designation not found")
+    return dict(row)
+
+@router.delete("/designations/{des_id}", status_code=204)
+async def delete_designation(
+    des_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin_or_manager(current_user)
+    await db.execute(text("UPDATE hr_employees SET designation_id=NULL WHERE designation_id=:id"), {"id": des_id})
+    await db.execute(text("DELETE FROM hr_designations WHERE id=:id"), {"id": des_id})
+    await db.commit()
+
+
 # ─── Offer Letter ────────────────────────────────────────────────────────────
 
 class AllowanceItem(BaseModel):
@@ -884,6 +956,95 @@ async def generate_offer_letter(
     pdf_bytes = await loop.run_in_executor(None, lambda: HTML(string=html_content).write_pdf())
 
     filename = f"Offer_Letter_{emp.employee_no}_{emp.full_name.replace(' ', '_')}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ─── Employment Terms ─────────────────────────────────────────────────────────
+
+class EmploymentTermsRequest(BaseModel):
+    notice_period_days: int = 60
+    outpatient_employee_limit: float = 1500
+    outpatient_dependent_limit: float = 1000
+    outpatient_per_receipt: float = 300
+    hospitalization_employee_limit: float = 3000
+    hospitalization_dependent_limit: float = 2000
+    hospitalization_per_receipt: float = 1000
+    dental_limit: float = 200
+    newborn_allowance: float = 1000
+    newborn_max: int = 3
+
+@router.post("/employees/{emp_id}/employment-terms")
+async def generate_employment_terms(
+    emp_id: int,
+    body: EmploymentTermsRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from fastapi.responses import Response
+    from sqlalchemy import text
+    from jinja2 import Environment, FileSystemLoader
+    from weasyprint import HTML
+    from pathlib import Path
+
+    require_admin_or_manager(current_user)
+
+    result = await db.execute(select(Employee).where(Employee.id == emp_id))
+    emp = result.scalar_one_or_none()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    # Fetch designation + job responsibilities
+    job_responsibilities: list[str] = []
+    if emp.designation_id:
+        des_row = (await db.execute(
+            text("SELECT * FROM hr_designations WHERE id=:id"), {"id": emp.designation_id}
+        )).mappings().first()
+        if des_row and des_row.get("job_responsibilities"):
+            job_responsibilities = [
+                line.strip() for line in des_row["job_responsibilities"].splitlines() if line.strip()
+            ]
+
+    tid = get_effective_tenant_id(current_user)
+    cs = await db.execute(
+        text("SELECT * FROM company_settings WHERE (tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL)) LIMIT 1"),
+        {"tid": tid}
+    )
+    company = cs.mappings().first()
+    logo_data = company.get("logo_url") if company else None
+    primary_color = (company.get("primary_color") if company else None) or "#1a1a2e"
+
+    context = {
+        "company": company,
+        "logo_data": logo_data,
+        "primary_color": primary_color,
+        "employee": emp,
+        "job_responsibilities": job_responsibilities,
+        "notice_period_days": body.notice_period_days,
+        "outpatient_employee_limit": body.outpatient_employee_limit,
+        "outpatient_dependent_limit": body.outpatient_dependent_limit,
+        "outpatient_per_receipt": body.outpatient_per_receipt,
+        "hospitalization_employee_limit": body.hospitalization_employee_limit,
+        "hospitalization_dependent_limit": body.hospitalization_dependent_limit,
+        "hospitalization_per_receipt": body.hospitalization_per_receipt,
+        "dental_limit": body.dental_limit,
+        "newborn_allowance": body.newborn_allowance,
+        "newborn_max": body.newborn_max,
+    }
+
+    templates_dir = Path(__file__).parent.parent / "templates" / "pdf"
+    jinja_env = Environment(loader=FileSystemLoader(str(templates_dir)))
+    template = jinja_env.get_template("employment_terms.html")
+    html_content = template.render(**context)
+
+    import asyncio
+    loop = asyncio.get_event_loop()
+    pdf_bytes = await loop.run_in_executor(None, lambda: HTML(string=html_content).write_pdf())
+
+    filename = f"Employment_Terms_{emp.employee_no}_{emp.full_name.replace(' ', '_')}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

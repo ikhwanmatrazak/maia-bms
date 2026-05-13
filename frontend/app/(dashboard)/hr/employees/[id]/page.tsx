@@ -5,7 +5,7 @@ import { DetailSkeleton } from "@/components/ui/PageSkeleton";
 import { useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { hrApi } from "@/lib/api";
+import { hrApi, designationsApi } from "@/lib/api";
 import { ChevronLeft, Upload, Trash2, Plus, ExternalLink, FileText } from "lucide-react";
 
 const LABEL = "block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1";
@@ -66,6 +66,74 @@ function ReportingToCombobox({ value, onChange, employees }: {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function DesignationCombobox({ value, jobResp, onChange, onJobRespChange, designations }: {
+  value: string; jobResp: string;
+  onChange: (name: string, id: number | null, jr: string) => void;
+  onJobRespChange: (jr: string) => void;
+  designations: { id: number; name: string; job_responsibilities?: string }[];
+}) {
+  const [search, setSearch] = useState(value);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setSearch(value); }, [value]);
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const filtered = designations.filter(d => d.name.toLowerCase().includes(search.toLowerCase())).slice(0, 8);
+  const showCreate = search.trim() && !designations.some(d => d.name.toLowerCase() === search.trim().toLowerCase());
+
+  return (
+    <div className="space-y-2">
+      <div className="relative" ref={ref}>
+        <input
+          className={INPUT} value={search} placeholder="Type or select designation…"
+          onChange={e => { setSearch(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+        />
+        {open && (filtered.length > 0 || showCreate) && (
+          <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            {filtered.map(d => (
+              <button key={d.id} type="button" className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
+                onMouseDown={() => { onChange(d.name, d.id, d.job_responsibilities || ""); setSearch(d.name); setOpen(false); }}>
+                {d.name}
+              </button>
+            ))}
+            {showCreate && (
+              <button type="button" className="w-full text-left px-3 py-2 hover:bg-green-50 text-sm text-green-700 font-medium border-t border-gray-100"
+                onMouseDown={async () => {
+                  try {
+                    const created = await designationsApi.create({ name: search.trim(), job_responsibilities: jobResp });
+                    onChange(created.name, created.id, created.job_responsibilities || "");
+                    setSearch(created.name); setOpen(false);
+                  } catch { alert("Failed to create designation"); }
+                }}>
+                + Create &quot;{search.trim()}&quot;
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      <div>
+        <label className={LABEL + " mt-1"}>Job Responsibilities <span className="font-normal normal-case text-gray-400">(one per line → bullet in PDF)</span></label>
+        <textarea rows={5} className={INPUT + " resize-y"} value={jobResp} placeholder={"Leading design and development of applications\nEnsuring high performance and quality\nResolving bugs and bottlenecks"}
+          onChange={e => onJobRespChange(e.target.value)}
+          onBlur={async () => {
+            const des = designations.find(d => d.name === value);
+            if (des) {
+              try { await designationsApi.update(des.id, { job_responsibilities: jobResp }); } catch { /* silent */ }
+            }
+          }}
+        />
+        <p className="text-xs text-gray-400 mt-1">Changes auto-save when you click away. All employees with this designation share these responsibilities.</p>
+      </div>
     </div>
   );
 }
@@ -225,6 +293,11 @@ export default function EmployeeDetailPage() {
     queryFn: () => hrApi.listEmployees(),
   });
 
+  const { data: designations = [], refetch: refetchDesignations } = useQuery<{ id: number; name: string; job_responsibilities?: string }[]>({
+    queryKey: ["hr-designations"],
+    queryFn: designationsApi.list,
+  });
+
   const { data: documents = [], refetch: refetchDocs } = useQuery({
     queryKey: ["hr-employee-docs", id],
     queryFn: () => hrApi.listDocuments(Number(id)),
@@ -252,6 +325,7 @@ export default function EmployeeDetailPage() {
       full_name: emp.full_name || "",
       department_id: emp.department_id || "",
       designation: emp.designation || "",
+      designation_id: emp.designation_id || null,
       employment_type: emp.employment_type || "full_time",
       employment_status: emp.employment_status || "active",
       join_date: emp.join_date || "",
@@ -280,6 +354,11 @@ export default function EmployeeDetailPage() {
       spouse_working: emp.spouse_working || false,
       user_id: emp.user_id ?? "",
     });
+    // Pre-fill job responsibilities from designation
+    if (emp.designation_id) {
+      const des = (designations as any[]).find((d: any) => d.id === emp.designation_id);
+      if (des) setDesignationJobResp(des.job_responsibilities || "");
+    }
   }, [emp?.id]);
 
   const updateMutation = useMutation({
@@ -316,6 +395,16 @@ export default function EmployeeDetailPage() {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [offerGenerating, setOfferGenerating] = useState(false);
+  const [termsGenerating, setTermsGenerating] = useState(false);
+  const [termsForm, setTermsForm] = useState({
+    notice_period_days: 60,
+    outpatient_employee_limit: 1500, outpatient_dependent_limit: 1000, outpatient_per_receipt: 300,
+    hospitalization_employee_limit: 3000, hospitalization_dependent_limit: 2000, hospitalization_per_receipt: 1000,
+    dental_limit: 200, newborn_allowance: 1000, newborn_max: 3,
+  });
+  const setTerms = (k: string, v: any) => setTermsForm(p => ({ ...p, [k]: v }));
+  const [designationJobResp, setDesignationJobResp] = useState("");
+
   const [offerForm, setOfferForm] = useState({
     position: "", department: "", reporting_to: "", work_location: "",
     employment_type: "Full-Time", start_date: "", probation_months: 3,
@@ -356,6 +445,15 @@ export default function EmployeeDetailPage() {
       setOfferGenerating(false);
     }
   };
+  const handleGenerateTerms = async () => {
+    setTermsGenerating(true);
+    try {
+      await hrApi.generateEmploymentTerms(Number(id), termsForm);
+    } finally {
+      setTermsGenerating(false);
+    }
+  };
+
   const deleteMutation = useMutation({
     mutationFn: () => hrApi.deleteEmployee(Number(id)),
     onSuccess: () => {
@@ -492,7 +590,16 @@ export default function EmployeeDetailPage() {
                     {departments.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
                 </div>
-                <div><label className={LABEL}>Designation</label><input className={INPUT} value={form.designation} onChange={e => set("designation", e.target.value)} /></div>
+                <div className="col-span-2">
+                  <label className={LABEL}>Designation</label>
+                  <DesignationCombobox
+                    value={form.designation || ""}
+                    jobResp={designationJobResp}
+                    designations={designations}
+                    onChange={(name, desId, jr) => { set("designation", name); set("designation_id", desId); setDesignationJobResp(jr); refetchDesignations(); }}
+                    onJobRespChange={setDesignationJobResp}
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -714,6 +821,59 @@ export default function EmployeeDetailPage() {
               <div>
                 <label className={LABEL}>Additional Notes</label>
                 <textarea rows={2} className={INPUT} value={offerForm.notes} onChange={e => setOffer("notes", e.target.value)} placeholder="Any additional remarks..." />
+              </div>
+            </div>
+          </div>
+
+          {/* Employment Terms */}
+          <div className="bg-white rounded-xl border border-gray-100">
+            <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-700">Employment Terms</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Generate the standard employment terms & conditions PDF for this employee</p>
+              </div>
+              <button
+                onClick={handleGenerateTerms}
+                disabled={termsGenerating}
+                className="px-4 py-1.5 text-sm font-medium bg-gray-800 text-white rounded-lg hover:bg-gray-900 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <FileText size={13} />
+                {termsGenerating ? "Generating..." : "Generate Employment Terms"}
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-5">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Notice Period</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className={LABEL}>Notice Period (days)</label>
+                    <input type="number" className={INPUT} value={termsForm.notice_period_days} onChange={e => setTerms("notice_period_days", Number(e.target.value))} />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Outpatient Medical</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div><label className={LABEL}>Employee Limit (RM/yr)</label><input type="number" className={INPUT} value={termsForm.outpatient_employee_limit} onChange={e => setTerms("outpatient_employee_limit", Number(e.target.value))} /></div>
+                  <div><label className={LABEL}>Dependent Limit (RM/yr)</label><input type="number" className={INPUT} value={termsForm.outpatient_dependent_limit} onChange={e => setTerms("outpatient_dependent_limit", Number(e.target.value))} /></div>
+                  <div><label className={LABEL}>Per Receipt Max (RM)</label><input type="number" className={INPUT} value={termsForm.outpatient_per_receipt} onChange={e => setTerms("outpatient_per_receipt", Number(e.target.value))} /></div>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Hospitalization</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div><label className={LABEL}>Employee Limit (RM/yr)</label><input type="number" className={INPUT} value={termsForm.hospitalization_employee_limit} onChange={e => setTerms("hospitalization_employee_limit", Number(e.target.value))} /></div>
+                  <div><label className={LABEL}>Dependent Limit (RM/yr)</label><input type="number" className={INPUT} value={termsForm.hospitalization_dependent_limit} onChange={e => setTerms("hospitalization_dependent_limit", Number(e.target.value))} /></div>
+                  <div><label className={LABEL}>Per Receipt Max (RM)</label><input type="number" className={INPUT} value={termsForm.hospitalization_per_receipt} onChange={e => setTerms("hospitalization_per_receipt", Number(e.target.value))} /></div>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Dental &amp; Newborn</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div><label className={LABEL}>Dental Limit (RM/yr)</label><input type="number" className={INPUT} value={termsForm.dental_limit} onChange={e => setTerms("dental_limit", Number(e.target.value))} /></div>
+                  <div><label className={LABEL}>Newborn Allowance (RM)</label><input type="number" className={INPUT} value={termsForm.newborn_allowance} onChange={e => setTerms("newborn_allowance", Number(e.target.value))} /></div>
+                  <div><label className={LABEL}>Max Births Covered</label><input type="number" className={INPUT} value={termsForm.newborn_max} onChange={e => setTerms("newborn_max", Number(e.target.value))} /></div>
+                </div>
               </div>
             </div>
           </div>
