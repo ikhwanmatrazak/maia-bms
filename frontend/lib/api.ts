@@ -420,6 +420,8 @@ export const hrApi = {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 100);
   },
+  getEmploymentTermsDefaults: () => api.get("/hr/employment-terms-defaults").then((r) => r.data),
+  saveEmploymentTermsDefaults: (data: object) => api.put("/hr/employment-terms-defaults", data).then((r) => r.data),
   generateEmploymentTerms: async (id: number, data: object) => {
     const resp = await api.post(`/hr/employees/${id}/employment-terms`, data, { responseType: "blob" });
     const url = URL.createObjectURL(new Blob([resp.data], { type: "application/pdf" }));

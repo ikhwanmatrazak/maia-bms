@@ -353,6 +353,11 @@ export default function EmployeeDetailPage() {
     queryFn: designationsApi.list,
   });
 
+  const { data: termsDefaults } = useQuery<Record<string, number>>({
+    queryKey: ["hr-employment-terms-defaults"],
+    queryFn: hrApi.getEmploymentTermsDefaults,
+  });
+
   const { data: documents = [], refetch: refetchDocs } = useQuery({
     queryKey: ["hr-employee-docs", id],
     queryFn: () => hrApi.listDocuments(Number(id)),
@@ -414,10 +419,20 @@ export default function EmployeeDetailPage() {
       const des = (designations as any[]).find((d: any) => d.id === emp.designation_id);
       if (des) setDesignationJobResp(des.job_responsibilities || "");
     }
-  }, [emp?.id]);
+    // Load employment terms: company defaults overlaid with employee-specific values
+    const defaults = termsDefaults || {
+      notice_period_days: 60,
+      outpatient_employee_limit: 1500, outpatient_dependent_limit: 1000, outpatient_per_receipt: 300,
+      hospitalization_employee_limit: 3000, hospitalization_dependent_limit: 2000, hospitalization_per_receipt: 1000,
+      dental_limit: 200, newborn_allowance: 1000, newborn_max: 3,
+    };
+    setTermsForm({ ...defaults, ...(emp.employment_terms || {}) });
+  }, [emp?.id, termsDefaults]);
 
   const updateMutation = useMutation({
     mutationFn: (data: object) => hrApi.updateEmployee(Number(id), data),
+    retry: 2,
+    retryDelay: 1500,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hr-employee", id] });
       qc.invalidateQueries({ queryKey: ["hr-employees"] });
@@ -535,6 +550,7 @@ export default function EmployeeDetailPage() {
      "bank_name", "bank_account_no", "epf_no", "socso_no", "income_tax_no", "designation"].forEach((k) => {
       if (data[k] === "") data[k] = null;
     });
+    data.employment_terms = termsForm;
     updateMutation.mutate(data);
   };
 

@@ -2,6 +2,7 @@
 Human Resource Management Router
 Covers: Departments, Employees, Leave, Attendance, Payroll, Claims, Performance
 """
+import json
 import os
 import re
 import uuid
@@ -189,6 +190,8 @@ class EmployeeCreate(BaseModel):
     children_count: Optional[int] = 0
     spouse_working: Optional[bool] = False
     user_id: Optional[int] = None
+    designation_id: Optional[int] = None
+    employment_terms: Optional[dict] = None
 
 class EmployeeUpdate(EmployeeCreate):
     pass
@@ -229,6 +232,8 @@ class EmployeeResponse(BaseModel):
     spouse_working: Optional[bool] = None
     photo_url: Optional[str] = None
     user_id: Optional[int] = None
+    designation_id: Optional[int] = None
+    employment_terms: Optional[dict] = None
     created_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
 
@@ -565,6 +570,8 @@ def _emp_to_response(emp: Employee) -> EmployeeResponse:
         spouse_working=emp.spouse_working,
         photo_url=emp.photo_url,
         user_id=emp.user_id,
+        designation_id=emp.designation_id if hasattr(emp, 'designation_id') else None,
+        employment_terms=json.loads(emp.employment_terms) if getattr(emp, 'employment_terms', None) else None,
         created_at=emp.created_at,
     )
 
@@ -702,8 +709,15 @@ async def update_employee(
     emp = result.scalar_one_or_none()
     if not emp:
         raise HTTPException(status_code=404, detail="Employee not found")
-    for k, v in body.model_dump(exclude_none=False).items():
-        setattr(emp, k, v)
+    data = body.model_dump(exclude_none=False)
+    employment_terms_val = data.pop("employment_terms", None)
+    for k, v in data.items():
+        if hasattr(emp, k):
+            setattr(emp, k, v)
+    if employment_terms_val is not None:
+        emp.employment_terms = json.dumps(employment_terms_val)
+    elif "employment_terms" in data:
+        emp.employment_terms = None
     await db.commit()
     await db.refresh(emp)
     result2 = await db.execute(
@@ -974,6 +988,45 @@ async def generate_offer_letter(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ─── Employment Terms Defaults ────────────────────────────────────────────────
+
+_DEFAULT_TERMS = {
+    "notice_period_days": 60,
+    "outpatient_employee_limit": 1500, "outpatient_dependent_limit": 1000, "outpatient_per_receipt": 300,
+    "hospitalization_employee_limit": 3000, "hospitalization_dependent_limit": 2000, "hospitalization_per_receipt": 1000,
+    "dental_limit": 200, "newborn_allowance": 1000, "newborn_max": 3,
+}
+
+@router.get("/employment-terms-defaults")
+async def get_employment_terms_defaults(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    row = await db.execute(
+        text("SELECT employment_terms_defaults FROM company_settings WHERE (tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL)) LIMIT 1"),
+        {"tid": current_user.tenant_id},
+    )
+    r = row.fetchone()
+    if r and r[0]:
+        return {**_DEFAULT_TERMS, **json.loads(r[0])}
+    return _DEFAULT_TERMS
+
+
+@router.put("/employment-terms-defaults")
+async def update_employment_terms_defaults(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin_or_manager(current_user)
+    await db.execute(
+        text("UPDATE company_settings SET employment_terms_defaults=:val WHERE (tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL))"),
+        {"val": json.dumps(body), "tid": current_user.tenant_id},
+    )
+    await db.commit()
+    return {**_DEFAULT_TERMS, **body}
 
 
 # ─── Employment Terms ─────────────────────────────────────────────────────────

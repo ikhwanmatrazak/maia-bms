@@ -75,6 +75,7 @@ class Employee(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     department_id = Column(Integer, ForeignKey("hr_departments.id", ondelete="SET NULL"), nullable=True)
+    designation_id = Column(Integer, nullable=True)
 
     # Personal info
     employee_no = Column(String(50), nullable=False)
@@ -115,6 +116,7 @@ class Employee(Base):
     children_count = Column(Integer, nullable=True, default=0)
     spouse_working = Column(Boolean, nullable=True, default=False)
 
+    employment_terms = Column(Text, nullable=True)
     photo_url = Column(String(500), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

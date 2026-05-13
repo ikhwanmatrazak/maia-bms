@@ -56,6 +56,8 @@ class CompanySettings(Base):
     primary_color = Column(String(7), default="#1a1a2e")
     accent_color = Column(String(7), default="#16213e")
 
+    employment_terms_defaults = Column(Text, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

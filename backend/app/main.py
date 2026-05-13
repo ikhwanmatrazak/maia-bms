@@ -518,6 +518,8 @@ async def _ensure_calendar_tables():
             INDEX ix_hr_designations_tenant (tenant_id)
         )""",
         "ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS designation_id INT NULL",
+        "ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS employment_terms TEXT NULL",
+        "ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS employment_terms_defaults TEXT NULL",
     ]
     async with engine.begin() as conn:
         for stmt in stmts:
