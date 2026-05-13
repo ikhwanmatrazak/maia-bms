@@ -3,6 +3,7 @@ Human Resource Management Router
 Covers: Departments, Employees, Leave, Attendance, Payroll, Claims, Performance
 """
 import os
+import re
 import uuid
 from calendar import monthrange as _monthrange
 from datetime import date, datetime
@@ -683,6 +684,18 @@ async def update_employee(
     current_user: User = Depends(get_current_user),
 ):
     require_admin_or_manager(current_user)
+    if body.epf_no:
+        clean = re.sub(r"[\s\-]", "", body.epf_no)
+        if not re.fullmatch(r"\d{7,14}", clean):
+            raise HTTPException(status_code=422, detail="EPF No. must be 7–14 digits")
+    if body.socso_no:
+        clean = re.sub(r"[\s\-]", "", body.socso_no)
+        if not re.fullmatch(r"\d{10}", clean):
+            raise HTTPException(status_code=422, detail="SOCSO No. must be exactly 10 digits")
+    if body.income_tax_no:
+        clean = re.sub(r"[\s\-]", "", body.income_tax_no)
+        if not re.fullmatch(r"[A-Za-z]{1,2}\d{7,12}", clean):
+            raise HTTPException(status_code=422, detail="Income Tax No. must be 1–2 letters followed by 7–12 digits (e.g. SG12345678)")
     result = await db.execute(
         select(Employee).options(selectinload(Employee.department_rel)).where(Employee.id == emp_id)
     )

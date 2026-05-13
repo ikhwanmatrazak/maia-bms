@@ -12,6 +12,61 @@ const LABEL = "block text-xs font-semibold text-gray-500 uppercase tracking-wide
 const INPUT = "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20";
 const SELECT = "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none bg-white";
 
+// ── HR number format validators ──────────────────────────────────────────────
+// Income Tax No: 1–2 uppercase letters + optional space/dash + 7–12 digits
+// e.g. SG12345678, OG 12345678, D1234567890, TA1234567890
+const INCOME_TAX_RE = /^[A-Za-z]{1,2}[\s-]?\d{7,12}$/;
+// SOCSO No: exactly 10 numeric digits
+const SOCSO_RE = /^\d{10}$/;
+// EPF/KWSP No: 7–14 numeric digits
+const EPF_RE = /^\d{7,14}$/;
+
+function validateIncomeTax(v: string): string | null {
+  if (!v) return null;
+  const clean = v.trim();
+  if (!INCOME_TAX_RE.test(clean)) return "Format: 1–2 letters + 7–12 digits (e.g. SG12345678, D1234567890)";
+  return null;
+}
+function validateSocso(v: string): string | null {
+  if (!v) return null;
+  if (!SOCSO_RE.test(v.trim())) return "SOCSO No. must be exactly 10 digits";
+  return null;
+}
+function validateEpf(v: string): string | null {
+  if (!v) return null;
+  if (!EPF_RE.test(v.trim())) return "EPF/KWSP No. must be 7–14 digits";
+  return null;
+}
+
+function ValidatedInput({ label, value, onChange, validate, placeholder }: {
+  label: string; value: string; placeholder?: string;
+  onChange: (v: string) => void;
+  validate: (v: string) => string | null;
+}) {
+  const error = validate(value);
+  const isValid = value.trim() !== "" && !error;
+  return (
+    <div>
+      <label className={LABEL}>{label}</label>
+      <div className="relative">
+        <input
+          className={`${INPUT} pr-8 ${error ? "border-red-400 focus:ring-red-400/20" : isValid ? "border-green-400 focus:ring-green-400/20" : ""}`}
+          value={value} placeholder={placeholder}
+          onChange={e => onChange(e.target.value)}
+        />
+        {isValid && (
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-green-500 text-sm font-bold">✓</span>
+        )}
+        {error && (
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-red-400 text-sm">✕</span>
+        )}
+      </div>
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+      {isValid && <p className="text-xs text-green-600 mt-1">Valid format</p>}
+    </div>
+  );
+}
+
 function ReportingToCombobox({ value, onChange, employees }: {
   value: string;
   onChange: (name: string, position?: string) => void;
@@ -464,6 +519,9 @@ export default function EmployeeDetailPage() {
 
   const handleSave = () => {
     if (!form) return;
+    if (form.epf_no && validateEpf(form.epf_no)) { alert(`EPF No.: ${validateEpf(form.epf_no)}`); return; }
+    if (form.socso_no && validateSocso(form.socso_no)) { alert(`SOCSO No.: ${validateSocso(form.socso_no)}`); return; }
+    if (form.income_tax_no && validateIncomeTax(form.income_tax_no)) { alert(`Income Tax No.: ${validateIncomeTax(form.income_tax_no)}`); return; }
     const data: any = { ...form };
     // Convert numeric fields — send null instead of empty string
     data.department_id = data.department_id ? Number(data.department_id) : null;
@@ -718,11 +776,11 @@ export default function EmployeeDetailPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className={LABEL}>Bank Account No.</label><input className={INPUT} value={form.bank_account_no} onChange={e => set("bank_account_no", e.target.value)} /></div>
-                <div><label className={LABEL}>EPF No.</label><input className={INPUT} value={form.epf_no} onChange={e => set("epf_no", e.target.value)} /></div>
+                <ValidatedInput label="EPF No." value={form.epf_no} onChange={v => set("epf_no", v)} validate={validateEpf} placeholder="e.g. 1234567" />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className={LABEL}>SOCSO No.</label><input className={INPUT} value={form.socso_no} onChange={e => set("socso_no", e.target.value)} /></div>
-                <div><label className={LABEL}>Income Tax No.</label><input className={INPUT} value={form.income_tax_no} onChange={e => set("income_tax_no", e.target.value)} /></div>
+                <ValidatedInput label="SOCSO No." value={form.socso_no} onChange={v => set("socso_no", v)} validate={validateSocso} placeholder="10 digits" />
+                <ValidatedInput label="Income Tax No." value={form.income_tax_no} onChange={v => set("income_tax_no", v)} validate={validateIncomeTax} placeholder="e.g. SG12345678" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className={LABEL}>No. of Children</label><input type="number" min="0" className={INPUT} value={form.children_count} onChange={e => set("children_count", e.target.value)} /></div>
