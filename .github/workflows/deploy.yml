@@ -1,0 +1,18 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Dokploy deploy
+        run: |
+          curl -s -X POST \
+            "https://dokploy.lightningcloud.my/api/trpc/compose.deploy" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"json":{"composeId":"1KrNIcqNhx7Ztvn9mEKxl"}}'
