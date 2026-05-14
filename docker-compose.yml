@@ -31,6 +31,12 @@ services:
       - backend
     networks:
       - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bmsfront.rule=Host(`ali-axis.lightningcloud.my`)"
+      - "traefik.http.routers.bmsfront.entrypoints=websecure"
+      - "traefik.http.routers.bmsfront.tls.certresolver=letsencrypt"
+      - "traefik.http.services.bmsfront.loadbalancer.server.port=3000"
 
 volumes:
   uploads_data:
