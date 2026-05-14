@@ -420,19 +420,17 @@ export default function EmployeeDetailPage() {
       if (des) setDesignationJobResp(des.job_responsibilities || "");
     }
     // Load employment terms: company defaults overlaid with employee-specific values
-    const defaults = termsDefaults || {
-      notice_period_days: 60,
-      outpatient_employee_limit: 1500, outpatient_dependent_limit: 1000, outpatient_per_receipt: 300,
-      hospitalization_employee_limit: 3000, hospitalization_dependent_limit: 2000, hospitalization_per_receipt: 1000,
-      dental_limit: 200, newborn_allowance: 1000, newborn_max: 3,
-    };
-    setTermsForm({ ...defaults, ...(emp.employment_terms || {}) });
+    const empTerms = (emp.employment_terms || {}) as Record<string, number>;
+    const compTerms = (termsDefaults || {}) as Record<string, number>;
+    setTermsForm(prev => ({
+      ...prev,
+      ...compTerms,
+      ...empTerms,
+    }));
   }, [emp?.id, termsDefaults]);
 
   const updateMutation = useMutation({
     mutationFn: (data: object) => hrApi.updateEmployee(Number(id), data),
-    retry: 2,
-    retryDelay: 1500,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hr-employee", id] });
       qc.invalidateQueries({ queryKey: ["hr-employees"] });
