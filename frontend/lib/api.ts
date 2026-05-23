@@ -617,3 +617,26 @@ export const calendarApi = {
     api.post(`/calendar/events/${id}/rsvp`, toForm({ status }), formConfig).then((r) => r.data),
   listUsers: () => api.get("/calendar/users").then((r) => r.data),
 };
+
+export const nameCardApi = {
+  getMySlug: () => api.get<{ card_slug: string }>("/me/card").then((r) => r.data),
+  regenerateSlug: () => api.post<{ card_slug: string }>("/me/card/regenerate").then((r) => r.data),
+  getPublicCard: (slug: string) =>
+    axios.get<CardData>(`${API_URL}/public/card/${slug}`).then((r) => r.data),
+};
+
+export interface CardData {
+  card_slug: string;
+  name: string;
+  designation?: string;
+  department?: string;
+  phone?: string;
+  email?: string;
+  photo_url?: string;
+  company_name?: string;
+  company_logo_url?: string;
+  company_address?: string;
+  company_phone?: string;
+  company_email?: string;
+  company_website?: string;
+}

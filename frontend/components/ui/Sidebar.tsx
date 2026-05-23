@@ -139,6 +139,7 @@ const navGroups = [
     ),
     items: [
       { href: "/my-profile", label: "My Profile", roles: ["admin", "manager"] },
+      { href: "/my-card", label: "My Card", roles: ["admin", "manager"] },
       { href: "/my-claims", label: "My Claims", roles: ["admin", "manager"] },
       { href: "/reminders", label: "Reminders", roles: ["admin", "manager"], permission: "reminders" },
       { href: "/settings", label: "Settings", roles: ["admin"] },
@@ -157,6 +158,7 @@ const navGroups = [
     items: [
       { href: "/staff-dashboard", label: "Dashboard", roles: ["staff"] },
       { href: "/my-profile", label: "My Profile", roles: ["staff"] },
+      { href: "/my-card", label: "My Card", roles: ["staff"] },
       { href: "/my-claims", label: "My Claims", roles: ["staff"] },
     ],
   },
