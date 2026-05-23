@@ -58,17 +58,44 @@ export default function DigitalCardPage() {
   const params = useParams();
   const slug = params.slug as string;
   const [card, setCard] = useState<CardData | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [cardUrl, setCardUrl] = useState("");
 
+  const fetchCard = useCallback(async (s: string) => {
+    setLoading(true);
+    setNotFound(false);
+    try {
+      const data = await nameCardApi.getPublicCard(s);
+      setCard(data);
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        setNotFound(true);
+      } else {
+        // Network / server error — auto-retry once after 1.5 s
+        setTimeout(async () => {
+          try {
+            const data = await nameCardApi.getPublicCard(s);
+            setCard(data);
+          } catch (err2: any) {
+            if (err2?.response?.status === 404) setNotFound(true);
+            // else leave loading=false so retry button appears
+          } finally {
+            setLoading(false);
+          }
+        }, 1500);
+        return;
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     setCardUrl(window.location.href);
-    nameCardApi.getPublicCard(slug)
-      .then(setCard)
-      .catch(() => setCard(null))
-      .finally(() => setLoading(false));
-  }, [slug]);
+    if (slug) fetchCard(slug);
+  }, [slug, fetchCard]);
 
   const copyLink = useCallback(async () => {
     await navigator.clipboard.writeText(cardUrl);
@@ -109,11 +136,26 @@ export default function DigitalCardPage() {
     );
   }
 
-  if (!card) {
+  if (notFound) {
     return (
       <div className="min-h-screen bg-[#0f0f1a] flex flex-col items-center justify-center text-white gap-3">
         <p className="text-2xl font-semibold">Card not found</p>
         <p className="text-white/40 text-sm">This digital card link may be invalid or has been removed.</p>
+      </div>
+    );
+  }
+
+  if (!loading && !card) {
+    return (
+      <div className="min-h-screen bg-[#0f0f1a] flex flex-col items-center justify-center text-white gap-4">
+        <p className="text-lg font-semibold">Something went wrong</p>
+        <p className="text-white/40 text-sm">Could not load the card. Please try again.</p>
+        <button
+          onClick={() => slug && fetchCard(slug)}
+          className="px-5 py-2.5 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors"
+        >
+          Retry
+        </button>
       </div>
     );
   }
