@@ -13,7 +13,15 @@
       "Bash(python -c \":*)",
       "Bash(python -c \"from app.routers.vendors import router; print\\(''vendors router OK''\\)\")",
       "Bash(ipconfig)",
-      "Read(//c/Users/Surface/ Pro/ 8/Documents/maia-bms/backend/app/models/**)"
+      "Read(//c/Users/Surface/ Pro/ 8/Documents/maia-bms/backend/app/models/**)",
+      "Bash(sshpass -p 'ikhwanmr@123' ssh -o StrictHostKeyChecking=no ikhwanmr@20.204.18.22 \"docker ps --format 'table {{.Names}}\\\\t{{.Image}}\\\\t{{.Status}}'\")",
+      "Bash(ssh -o StrictHostKeyChecking=no -o BatchMode=no -o ConnectTimeout=10 ikhwanmr@20.204.18.22 \"echo connected\")",
+      "Bash(pip3 install *)",
+      "Bash(sshpass -V)",
+      "Bash(python3 -c \"import paramiko; print\\('paramiko ready'\\)\")",
+      "Bash(python3 -m pip install paramiko)",
+      "Bash(python3)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts|jsx|js\\)$\")"
     ]
   }
 }
