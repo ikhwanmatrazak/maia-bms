@@ -181,9 +181,6 @@ export default function DigitalCardPage() {
             {card.designation && (
               <p className="text-teal-400 text-sm font-medium mt-1">{card.designation}</p>
             )}
-            {card.department && (
-              <p className="text-white/40 text-xs mt-0.5">{card.department}</p>
-            )}
           </div>
         </div>
 

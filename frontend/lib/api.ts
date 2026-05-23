@@ -618,18 +618,22 @@ export const calendarApi = {
   listUsers: () => api.get("/calendar/users").then((r) => r.data),
 };
 
-export const nameCardApi = {
-  getMySlug: () => api.get<{ card_slug: string }>("/me/card").then((r) => r.data),
-  regenerateSlug: () => api.post<{ card_slug: string }>("/me/card/regenerate").then((r) => r.data),
-  getPublicCard: (slug: string) =>
-    axios.get<CardData>(`${API_URL}/public/card/${slug}`).then((r) => r.data),
-};
+export interface CardSummary {
+  id: number;
+  slug: string;
+  title?: string;
+  is_default: boolean;
+  name?: string;
+  designation?: string;
+  phone?: string;
+  email?: string;
+  photo_url?: string;
+}
 
 export interface CardData {
   card_slug: string;
   name: string;
   designation?: string;
-  department?: string;
   phone?: string;
   email?: string;
   photo_url?: string;
@@ -640,3 +644,32 @@ export interface CardData {
   company_email?: string;
   company_website?: string;
 }
+
+export interface CardCreate {
+  title?: string;
+  name?: string;
+  designation?: string;
+  phone?: string;
+  email?: string;
+  photo_url?: string;
+}
+
+export const nameCardApi = {
+  listMyCards: () => api.get<CardSummary[]>("/me/cards").then((r) => r.data),
+  createCard: (data: CardCreate) => api.post<CardSummary>("/me/cards", data).then((r) => r.data),
+  updateCard: (id: number, data: CardCreate) => api.put<CardSummary>(`/me/cards/${id}`, data).then((r) => r.data),
+  deleteCard: (id: number) => api.delete(`/me/cards/${id}`).then((r) => r.data),
+  regenerateCardSlug: (id: number) => api.post<CardSummary>(`/me/cards/${id}/regenerate`).then((r) => r.data),
+  uploadPhoto: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api.post<{ photo_url: string }>("/me/cards/upload-photo", fd, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }).then((r) => r.data);
+  },
+  getPublicCard: (slug: string) =>
+    axios.get<CardData>(`${API_URL}/public/card/${slug}`).then((r) => r.data),
+  // Compat
+  getMySlug: () => api.get<{ card_slug: string }>("/me/card").then((r) => r.data),
+  regenerateSlug: () => api.post<{ card_slug: string }>("/me/card/regenerate").then((r) => r.data),
+};

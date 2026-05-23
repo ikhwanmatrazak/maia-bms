@@ -545,12 +545,27 @@ async def _ensure_default_stages(tenant_id):
 
 
 async def _ensure_name_card_column():
-    """Add card_slug column to users table — safe to run repeatedly."""
+    """Add card_slug to users and create name_cards table — safe to run repeatedly."""
     from app.database import engine
     from sqlalchemy import text
     stmts = [
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS card_slug VARCHAR(20) NULL UNIQUE",
         "CREATE INDEX IF NOT EXISTS ix_users_card_slug ON users (card_slug)",
+        """CREATE TABLE IF NOT EXISTS name_cards (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            slug VARCHAR(20) NOT NULL UNIQUE,
+            title VARCHAR(100) DEFAULT NULL,
+            is_default TINYINT(1) NOT NULL DEFAULT 0,
+            name VARCHAR(255) DEFAULT NULL,
+            designation VARCHAR(255) DEFAULT NULL,
+            phone VARCHAR(50) DEFAULT NULL,
+            email VARCHAR(255) DEFAULT NULL,
+            photo_url TEXT DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_nc_user_id (user_id)
+        )""",
     ]
     async with engine.begin() as conn:
         for stmt in stmts:
@@ -558,7 +573,17 @@ async def _ensure_name_card_column():
                 await conn.execute(text(stmt))
             except Exception as e:
                 logger.warning(f"_ensure_name_card_column: {e}")
-    logger.info("card_slug column ensured")
+        # Migrate existing slugs from users table into name_cards
+        try:
+            await conn.execute(text("""
+                INSERT IGNORE INTO name_cards (user_id, slug, is_default)
+                SELECT id, card_slug, 1 FROM users
+                WHERE card_slug IS NOT NULL
+                AND card_slug NOT IN (SELECT slug FROM name_cards)
+            """))
+        except Exception as e:
+            logger.warning(f"_migrate_name_cards: {e}")
+    logger.info("name_cards table ensured")
 
 
 async def _ensure_bug_reports_table():
@@ -642,6 +667,7 @@ async def lifespan(app: FastAPI):
     os.makedirs(f"{upload_dir}/hr/leave_docs", exist_ok=True)
     os.makedirs(f"{upload_dir}/hr/claims", exist_ok=True)
     os.makedirs(f"{upload_dir}/project_updates", exist_ok=True)
+    os.makedirs(f"{upload_dir}/card_photos", exist_ok=True)
     # Start background reminder tasks
     reminder_task = asyncio.create_task(projects.reminder_loop())
     calendar_reminder_task = asyncio.create_task(calendar.calendar_reminder_loop())
