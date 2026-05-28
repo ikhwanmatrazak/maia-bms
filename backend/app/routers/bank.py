@@ -105,6 +105,7 @@ class ParsedRow(BaseModel):
     party_name: Optional[str] = None
     amount: float
     type: str  # credit | debit
+    note: Optional[str] = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -175,6 +176,12 @@ def _parse_date(raw: str) -> Optional[date]:
             return datetime.strptime(raw, fmt).date()
         except ValueError:
             continue
+    # DDMMYYYY — CIMB Portfolio/CASA format (e.g. 26052026)
+    if re.fullmatch(r"\d{8}", raw):
+        try:
+            return datetime.strptime(raw, "%d%m%Y").date()
+        except ValueError:
+            pass
     return None
 
 
@@ -201,6 +208,35 @@ def _detect_column(headers: List[str], candidates: List[str]) -> Optional[int]:
     return None
 
 
+def _normalise_header(h: str) -> str:
+    """Flatten multi-line pdfplumber cell values to single-line."""
+    return re.sub(r"\s+", " ", str(h or "")).strip()
+
+
+def _detect_type_col(headers: List[str]) -> Optional[int]:
+    """Find a column whose header indicates credit/debit TYPE (not an amount)."""
+    for idx, h in enumerate(headers):
+        hn = _normalise_header(h).lower()
+        if any(k in hn for k in ["amount type", "cr/dr", "dr/cr", "transaction type", "type"]):
+            return idx
+    return None
+
+
+def _resolve_type(type_cell: str, debit_val: Optional[float], credit_val: Optional[float]) -> Optional[str]:
+    """Determine 'credit' or 'debit' from a C/D type cell or separate debit/credit values."""
+    if type_cell:
+        t = type_cell.strip().upper()
+        if t in ("C", "CR", "CREDIT"):
+            return "credit"
+        if t in ("D", "DR", "DEBIT"):
+            return "debit"
+    if credit_val and credit_val > 0:
+        return "credit"
+    if debit_val and debit_val > 0:
+        return "debit"
+    return None
+
+
 def _detect_delimiter(content: str) -> str:
     """Pick the delimiter that produces the most columns in the first data row."""
     first_line = content.split("\n")[0]
@@ -224,62 +260,82 @@ def _parse_csv_content(content: str) -> List[ParsedRow]:
 
     # Find header row (first row with recognisable column names)
     header_idx = 0
-    headers = []
-    for i, row in enumerate(rows[:10]):
+    headers: List[str] = []
+    for i, row in enumerate(rows[:15]):
         joined = " ".join(row).lower()
-        if any(k in joined for k in ["date", "debit", "credit", "amount", "narration", "description"]):
+        if any(k in joined for k in ["date", "debit", "credit", "amount", "narration", "description", "transaction"]):
             header_idx = i
-            headers = [h.strip() for h in row]
+            headers = [_normalise_header(h) for h in row]
             break
 
     if not headers:
         return []
 
-    # Candidates use whole-word matching — short abbrevs ("cr","dr") are safe via _detect_column
-    date_col   = _detect_column(headers, ["date"])
-    desc_col   = _detect_column(headers, ["description", "narration", "particular", "detail", "remark", "reference", "transaction"])
+    date_col   = _detect_column(headers, ["date", "transaction date", "value date"])
+    desc_col   = _detect_column(headers, ["description", "narration", "particular", "detail", "remark",
+                                          "transaction code description", "code description"])
     debit_col  = _detect_column(headers, ["debit", "withdrawal", "dr"])
     credit_col = _detect_column(headers, ["credit", "deposit", "cr"])
-    amount_col = _detect_column(headers, ["amount"]) if (debit_col is None or credit_col is None) else None
+    amount_col = _detect_column(headers, ["transaction amount", "amount"]) if (debit_col is None or credit_col is None) else None
+    type_col   = _detect_type_col(headers)
+    party_col  = _detect_column(headers, ["sender name", "sender", "party", "beneficiary", "payee", "remitter"])
+    doc_col    = _detect_column(headers, ["document reference", "doc ref", "document ref"])
+    cust_ref_col = _detect_column(headers, ["customer reference", "cust ref", "customer ref"])
 
     if date_col is None:
         return []
+
+    def _cell(row: List[str], idx: Optional[int]) -> str:
+        return row[idx].strip() if idx is not None and idx < len(row) else ""
 
     results: List[ParsedRow] = []
     for row in rows[header_idx + 1:]:
         if not row or all(c.strip() == "" for c in row):
             continue
         try:
-            raw_date = row[date_col].strip() if date_col < len(row) else ""
+            raw_date = _cell(row, date_col)
             parsed_date = _parse_date(raw_date)
             if not parsed_date:
                 continue
 
-            description = row[desc_col].strip() if desc_col is not None and desc_col < len(row) else ""
+            description = _cell(row, desc_col)
+            party_name  = _cell(row, party_col) or None
+            doc_ref     = _cell(row, doc_col)
+            cust_ref    = _cell(row, cust_ref_col)
+            note_parts  = [p for p in [doc_ref, cust_ref] if p]
+            note        = " | ".join(note_parts) or None
 
-            if amount_col is not None and amount_col < len(row):
-                amt = _parse_amount(row[amount_col])
+            if type_col is not None and amount_col is not None:
+                # CIMB-style: single amount column + C/D type column
+                type_cell = _cell(row, type_col)
+                amt = _parse_amount(_cell(row, amount_col))
+                if amt is None or amt == 0:
+                    continue
+                txn_type = _resolve_type(type_cell, None, None)
+                if txn_type is None:
+                    continue
+                amount = abs(amt)
+            elif amount_col is not None:
+                amt = _parse_amount(_cell(row, amount_col))
                 if amt is None:
                     continue
                 txn_type = "credit" if amt >= 0 else "debit"
                 amount = abs(amt)
             else:
-                debit = _parse_amount(row[debit_col]) if debit_col is not None and debit_col < len(row) else None
-                credit = _parse_amount(row[credit_col]) if credit_col is not None and credit_col < len(row) else None
-                if debit and debit > 0:
-                    txn_type = "debit"
-                    amount = debit
-                elif credit and credit > 0:
-                    txn_type = "credit"
-                    amount = credit
-                else:
+                debit  = _parse_amount(_cell(row, debit_col))  if debit_col  is not None else None
+                credit = _parse_amount(_cell(row, credit_col)) if credit_col is not None else None
+                txn_type = _resolve_type("", debit, credit)
+                if txn_type is None:
                     continue
+                amount = abs(debit) if txn_type == "debit" else abs(credit)  # type: ignore[arg-type]
 
             results.append(ParsedRow(
                 txn_date=str(parsed_date),
                 description=description,
+                party_name=party_name,
                 amount=round(amount, 2),
                 type=txn_type,
+                note=note,
             ))
         except (IndexError, Exception):
             continue
@@ -292,92 +348,114 @@ def _parse_pdf_content(file_bytes: bytes) -> List[ParsedRow]:
     try:
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             for page in pdf.pages:
-                # Try table extraction first (works well for CIMB digital PDFs)
                 tables = page.extract_tables()
+                page_had_table = False
+
                 for table in tables:
                     if not table:
                         continue
-                    # Find header row
+
+                    # Find header row (search first 8 rows to handle multi-row headers)
                     header_row_idx = None
-                    headers = []
-                    for i, row in enumerate(table[:5]):
+                    headers: List[str] = []
+                    for i, row in enumerate(table[:8]):
                         if row is None:
                             continue
-                        cells = [str(c or "").lower() for c in row]
-                        joined = " ".join(cells)
-                        if any(k in joined for k in ["date", "debit", "credit", "amount", "narration", "description"]):
+                        cells = [_normalise_header(c) for c in row]
+                        joined = " ".join(cells).lower()
+                        if any(k in joined for k in ["date", "debit", "credit", "amount", "narration",
+                                                      "description", "transaction"]):
                             header_row_idx = i
-                            headers = [str(c or "").strip() for c in row]
+                            headers = cells
                             break
 
                     if header_row_idx is None or not headers:
                         continue
 
-                    date_col   = _detect_column(headers, ["date"])
-                    desc_col   = _detect_column(headers, ["description", "narration", "particular", "detail", "transaction", "reference"])
-                    debit_col  = _detect_column(headers, ["debit", "withdrawal", "dr"])
-                    credit_col = _detect_column(headers, ["credit", "deposit", "cr"])
-                    amount_col = _detect_column(headers, ["amount"]) if (debit_col is None or credit_col is None) else None
+                    date_col     = _detect_column(headers, ["transaction date", "date", "value date"])
+                    desc_col     = _detect_column(headers, ["transaction code description", "code description",
+                                                            "description", "narration", "particular", "detail"])
+                    debit_col    = _detect_column(headers, ["debit", "withdrawal", "dr"])
+                    credit_col   = _detect_column(headers, ["credit", "deposit", "cr"])
+                    amount_col   = _detect_column(headers, ["transaction amount", "amount"]) \
+                                   if (debit_col is None or credit_col is None) else None
+                    type_col     = _detect_type_col(headers)
+                    party_col    = _detect_column(headers, ["sender name", "sender", "beneficiary", "payee", "remitter"])
+                    doc_col      = _detect_column(headers, ["document reference", "doc reference", "doc ref"])
+                    cust_ref_col = _detect_column(headers, ["customer reference", "cust reference", "cust ref"])
 
                     if date_col is None:
                         continue
 
+                    def _cell(row: List, idx: Optional[int]) -> str:
+                        return _normalise_header(row[idx]) if idx is not None and idx < len(row) else ""
+
                     for row in table[header_row_idx + 1:]:
-                        if not row:
+                        if not row or all((c is None or str(c).strip() == "") for c in row):
                             continue
                         try:
-                            raw_date = str(row[date_col] or "").strip() if date_col < len(row) else ""
+                            raw_date = _cell(row, date_col)
                             parsed_date = _parse_date(raw_date)
                             if not parsed_date:
                                 continue
 
-                            description = str(row[desc_col] or "").strip() if desc_col is not None and desc_col < len(row) else ""
+                            description  = _cell(row, desc_col)
+                            party_name   = _cell(row, party_col) or None
+                            doc_ref      = _cell(row, doc_col)
+                            cust_ref     = _cell(row, cust_ref_col)
+                            note_parts   = [p for p in [doc_ref, cust_ref] if p]
+                            note         = " | ".join(note_parts) or None
 
-                            if amount_col is not None and amount_col < len(row):
-                                amt = _parse_amount(str(row[amount_col] or ""))
+                            if type_col is not None and amount_col is not None:
+                                # CIMB Portfolio/CASA: single amount + C/D type column
+                                type_cell = _cell(row, type_col)
+                                amt = _parse_amount(_cell(row, amount_col))
+                                if amt is None or amt == 0:
+                                    continue
+                                txn_type = _resolve_type(type_cell, None, None)
+                                if txn_type is None:
+                                    continue
+                                amount = abs(amt)
+                            elif amount_col is not None:
+                                amt = _parse_amount(_cell(row, amount_col))
                                 if amt is None:
                                     continue
                                 txn_type = "credit" if amt >= 0 else "debit"
                                 amount = abs(amt)
                             else:
-                                debit = _parse_amount(str(row[debit_col] or "")) if debit_col is not None and debit_col < len(row) else None
-                                credit = _parse_amount(str(row[credit_col] or "")) if credit_col is not None and credit_col < len(row) else None
-                                if debit and debit > 0:
-                                    txn_type = "debit"
-                                    amount = debit
-                                elif credit and credit > 0:
-                                    txn_type = "credit"
-                                    amount = credit
-                                else:
+                                debit  = _parse_amount(_cell(row, debit_col))  if debit_col  is not None else None
+                                credit = _parse_amount(_cell(row, credit_col)) if credit_col is not None else None
+                                txn_type = _resolve_type("", debit, credit)
+                                if txn_type is None:
                                     continue
+                                amount = abs(debit) if txn_type == "debit" else abs(credit)  # type: ignore[arg-type]
 
+                            page_had_table = True
                             results.append(ParsedRow(
                                 txn_date=str(parsed_date),
                                 description=description,
+                                party_name=party_name,
                                 amount=round(amount, 2),
                                 type=txn_type,
+                                note=note,
                             ))
                         except Exception:
                             continue
 
-                # If no tables found on this page, try text extraction with regex
-                if not results:
+                # Fallback: text-based regex for simple statements without tables
+                if not page_had_table:
                     text_content = page.extract_text() or ""
-                    # Generic pattern: date followed by description and amounts
-                    # Matches: DD/MM/YYYY or DD-MM-YYYY
                     pattern = re.compile(
                         r"(\d{2}[\/\-]\d{2}[\/\-]\d{4})\s+([\w\s\-\/\*]+?)\s+([\d,]+\.\d{2})(?:\s+([\d,]+\.\d{2}))?",
                         re.MULTILINE,
                     )
                     for m in pattern.finditer(text_content):
-                        raw_date = m.group(1)
-                        parsed_date = _parse_date(raw_date)
+                        parsed_date = _parse_date(m.group(1))
                         if not parsed_date:
                             continue
                         description = m.group(2).strip()
                         amt1 = _parse_amount(m.group(3))
                         amt2 = _parse_amount(m.group(4)) if m.group(4) else None
-                        # Heuristic: if two amounts, first is debit, second is credit (CIMB style)
                         if amt2 is not None:
                             if amt1 and amt1 > 0:
                                 results.append(ParsedRow(txn_date=str(parsed_date), description=description, amount=round(amt1, 2), type="debit"))
@@ -632,12 +710,12 @@ async def confirm_statement(
         await db.execute(
             text("""
                 INSERT INTO bank_transactions
-                (account_id, statement_id, txn_date, description, party_name, amount, type)
-                VALUES (:aid, :sid, :d, :desc, :party, :amt, :type)
+                (account_id, statement_id, txn_date, description, party_name, amount, type, note)
+                VALUES (:aid, :sid, :d, :desc, :party, :amt, :type, :note)
             """),
             {"aid": account_id, "sid": stmt_id, "d": row.txn_date,
              "desc": row.description, "party": row.party_name,
-             "amt": row.amount, "type": row.type},
+             "amt": row.amount, "type": row.type, "note": row.note},
         )
     await db.commit()
 

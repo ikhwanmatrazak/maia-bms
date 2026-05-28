@@ -721,6 +721,7 @@ export interface ParsedRow {
   party_name: string | null;
   amount: number;
   type: "credit" | "debit";
+  note: string | null;
 }
 
 export interface MonthlySummary {

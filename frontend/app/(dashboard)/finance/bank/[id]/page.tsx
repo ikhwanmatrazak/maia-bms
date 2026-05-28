@@ -219,8 +219,10 @@ function UploadModal({ accountId, onClose }: { accountId: number; onClose: () =>
                   <tr>
                     <th className="text-left p-2 font-medium text-default-500">Date</th>
                     <th className="text-left p-2 font-medium text-default-500">Description</th>
-                    <th className="text-right p-2 font-medium text-default-500">Amount</th>
-                    <th className="text-left p-2 font-medium text-default-500">Type</th>
+                    <th className="text-left p-2 font-medium text-default-500">Party</th>
+                    <th className="text-left p-2 font-medium text-default-500">Ref / Note</th>
+                    <th className="text-right p-2 font-medium text-success-600">Money In</th>
+                    <th className="text-right p-2 font-medium text-danger-500">Money Out</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -228,13 +230,13 @@ function UploadModal({ accountId, onClose }: { accountId: number; onClose: () =>
                     <tr key={i} className="border-t border-default-100">
                       <td className="p-2 text-default-600 whitespace-nowrap">{row.txn_date}</td>
                       <td className="p-2 text-default-700 whitespace-normal break-words">{row.description}</td>
-                      <td className={`p-2 text-right font-medium ${row.type === "credit" ? "text-success-600" : "text-danger-500"}`}>
-                        {row.type === "credit" ? "+" : "-"}{row.amount.toFixed(2)}
+                      <td className="p-2 text-default-500 whitespace-normal break-words">{row.party_name ?? "—"}</td>
+                      <td className="p-2 text-default-400 whitespace-normal break-words text-xs">{row.note ?? "—"}</td>
+                      <td className="p-2 text-right font-medium text-success-600 whitespace-nowrap">
+                        {row.type === "credit" ? `+${row.amount.toFixed(2)}` : "—"}
                       </td>
-                      <td className="p-2">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${row.type === "credit" ? "bg-success-50 text-success-700" : "bg-danger-50 text-danger-600"}`}>
-                          {row.type}
-                        </span>
+                      <td className="p-2 text-right font-medium text-danger-500 whitespace-nowrap">
+                        {row.type === "debit" ? `-${row.amount.toFixed(2)}` : "—"}
                       </td>
                     </tr>
                   ))}
