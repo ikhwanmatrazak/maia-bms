@@ -1047,7 +1047,7 @@ async def list_unpaid_invoices(
         params["tid"] = tid
     r = await db.execute(
         text(f"""
-            SELECT i.id, i.invoice_number, i.total, i.balance_due, i.status, c.name AS client_name
+            SELECT i.id, i.invoice_number, i.total, i.balance_due, i.status, c.company_name AS client_name
             FROM invoices i
             LEFT JOIN clients c ON c.id = i.client_id
             WHERE {where}
