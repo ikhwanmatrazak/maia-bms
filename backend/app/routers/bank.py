@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.middleware.auth import get_current_user
+from app.middleware.rbac import get_effective_tenant_id
 from app.models.user import User
 
 router = APIRouter(prefix="/bank", tags=["bank"])
@@ -1038,21 +1039,26 @@ async def list_unpaid_invoices(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    tid = _tenant_id(current_user)
+    tid = get_effective_tenant_id(current_user)
+    where = "i.status != 'cancelled' AND (i.is_deleted = 0 OR i.is_deleted IS NULL)"
+    params: dict = {}
+    if tid is not None:
+        where += " AND i.tenant_id = :tid"
+        params["tid"] = tid
     r = await db.execute(
-        text("""
+        text(f"""
             SELECT i.id, i.invoice_number, i.total, i.balance_due, i.status, c.name AS client_name
             FROM invoices i
             LEFT JOIN clients c ON c.id = i.client_id
-            WHERE i.tenant_id = :tid AND i.status != 'cancelled'
+            WHERE {where}
             ORDER BY i.issue_date DESC
             LIMIT 500
         """),
-        {"tid": tid},
+        params,
     )
     return [
         {"id": row[0], "invoice_number": row[1], "total": float(row[2]),
-         "balance_due": float(row[3]), "client_name": row[5], "status": row[4]}
+         "balance_due": float(row[3]), "client_name": row[5] or "—", "status": row[4]}
         for row in r.fetchall()
     ]
 
@@ -1062,18 +1068,24 @@ async def list_unpaid_bills(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    tid = _tenant_id(current_user)
+    tid = get_effective_tenant_id(current_user)
+    where = "is_deleted = 0"
+    params: dict = {}
+    if tid is not None:
+        where += " AND tenant_id = :tid"
+        params["tid"] = tid
     r = await db.execute(
-        text("""
-            SELECT id, bill_number, amount, vendor_name
+        text(f"""
+            SELECT id, bill_number, amount, vendor_name, status
             FROM bills
-            WHERE tenant_id = :tid AND status = 'pending' AND is_deleted = 0
+            WHERE {where}
             ORDER BY issue_date DESC
             LIMIT 200
         """),
-        {"tid": tid},
+        params,
     )
     return [
-        {"id": row[0], "bill_number": row[1], "amount": float(row[2]), "vendor_name": row[3]}
+        {"id": row[0], "bill_number": row[1], "amount": float(row[2]),
+         "vendor_name": row[3] or "—", "status": row[4]}
         for row in r.fetchall()
     ]
