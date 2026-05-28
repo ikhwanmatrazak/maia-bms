@@ -754,6 +754,7 @@ export interface UnpaidInvoice {
   total: number;
   balance_due: number;
   client_name: string;
+  status?: string;
 }
 
 export interface UnpaidBill {

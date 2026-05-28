@@ -482,16 +482,11 @@ function EditDrawer({
             <select value={invId ?? ""} onChange={(e) => setInvId(e.target.value ? Number(e.target.value) : null)}
               className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
               <option value="">— No invoice —</option>
-              {txn.invoice_id && txn.invoice_number && (
-                <option value={txn.invoice_id}>{txn.invoice_number} (currently linked)</option>
-              )}
-              {unpaidInvoices
-                .filter((inv) => inv.id !== txn.invoice_id)
-                .map((inv) => (
-                  <option key={inv.id} value={inv.id}>
-                    {inv.invoice_number} — {inv.client_name} ({fmt(inv.balance_due)})
-                  </option>
-                ))}
+              {unpaidInvoices.map((inv) => (
+                <option key={inv.id} value={inv.id}>
+                  {inv.invoice_number} — {inv.client_name} [{inv.status ?? ""}] ({fmt(inv.total)})
+                </option>
+              ))}
             </select>
           </div>
         )}

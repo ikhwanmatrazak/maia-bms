@@ -1041,18 +1041,18 @@ async def list_unpaid_invoices(
     tid = _tenant_id(current_user)
     r = await db.execute(
         text("""
-            SELECT i.id, i.invoice_number, i.total, i.balance_due, c.name AS client_name
+            SELECT i.id, i.invoice_number, i.total, i.balance_due, i.status, c.name AS client_name
             FROM invoices i
             LEFT JOIN clients c ON c.id = i.client_id
-            WHERE i.tenant_id = :tid AND i.status NOT IN ('paid','cancelled','draft')
+            WHERE i.tenant_id = :tid AND i.status != 'cancelled'
             ORDER BY i.issue_date DESC
-            LIMIT 200
+            LIMIT 500
         """),
         {"tid": tid},
     )
     return [
         {"id": row[0], "invoice_number": row[1], "total": float(row[2]),
-         "balance_due": float(row[3]), "client_name": row[4]}
+         "balance_due": float(row[3]), "client_name": row[5], "status": row[4]}
         for row in r.fetchall()
     ]
 
