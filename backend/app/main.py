@@ -13,7 +13,7 @@ from app.config import get_settings
 from app.database import init_db
 from app.routers import auth, users, clients, quotations, invoices, receipts, payments, expenses, reminders, reports, settings, documents
 from app.routers import purchase_orders, delivery_orders, super_admin, products, analytics, vendors, prospects, credit_notes, tracking
-from app.routers import gateway, bills, hr, user_claims, projects, calendar, bug_reports, name_card
+from app.routers import gateway, bills, hr, user_claims, projects, calendar, bug_reports, name_card, bank
 
 logging.basicConfig(
     level=logging.INFO,
@@ -586,6 +586,75 @@ async def _ensure_name_card_column():
     logger.info("name_cards table ensured")
 
 
+async def _ensure_bank_tables():
+    from app.database import engine
+    from sqlalchemy import text
+    stmts = [
+        """CREATE TABLE IF NOT EXISTS bank_accounts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tenant_id INT NULL,
+            name VARCHAR(255) NOT NULL,
+            bank_name VARCHAR(255) NULL,
+            account_number VARCHAR(100) NULL,
+            opening_balance DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+            currency VARCHAR(10) NOT NULL DEFAULT 'MYR',
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            updated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+            INDEX ix_bank_accounts_tenant_id (tenant_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS transaction_categories (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tenant_id INT NULL,
+            name VARCHAR(100) NOT NULL,
+            type ENUM('income','expense') NOT NULL DEFAULT 'expense',
+            color VARCHAR(20) NOT NULL DEFAULT '#6366f1',
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            INDEX ix_txn_categories_tenant_id (tenant_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS bank_statements (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            account_id INT NOT NULL,
+            filename VARCHAR(500) NOT NULL,
+            file_url VARCHAR(500) NOT NULL,
+            period_start DATE NULL,
+            period_end DATE NULL,
+            status ENUM('processing','done','failed') NOT NULL DEFAULT 'processing',
+            row_count INT NOT NULL DEFAULT 0,
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            INDEX ix_bank_statements_account_id (account_id),
+            FOREIGN KEY (account_id) REFERENCES bank_accounts(id) ON DELETE CASCADE
+        )""",
+        """CREATE TABLE IF NOT EXISTS bank_transactions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            account_id INT NOT NULL,
+            statement_id INT NULL,
+            txn_date DATE NOT NULL,
+            description TEXT NOT NULL,
+            party_name VARCHAR(255) NULL,
+            amount DECIMAL(15,2) NOT NULL,
+            type ENUM('credit','debit') NOT NULL,
+            category_id INT NULL,
+            invoice_id INT NULL,
+            bill_id INT NULL,
+            note TEXT NULL,
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            updated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+            INDEX ix_bank_transactions_account_id (account_id),
+            INDEX ix_bank_transactions_date (txn_date),
+            FOREIGN KEY (account_id) REFERENCES bank_accounts(id) ON DELETE CASCADE,
+            FOREIGN KEY (statement_id) REFERENCES bank_statements(id) ON DELETE SET NULL,
+            FOREIGN KEY (category_id) REFERENCES transaction_categories(id) ON DELETE SET NULL
+        )""",
+    ]
+    async with engine.begin() as conn:
+        for stmt in stmts:
+            try:
+                await conn.execute(text(stmt))
+            except Exception as e:
+                logger.warning(f"_ensure_bank_tables stmt skipped: {e}")
+    logger.info("bank tables ensured")
+
+
 async def _ensure_bug_reports_table():
     from app.database import engine
     from sqlalchemy import text
@@ -656,6 +725,7 @@ async def lifespan(app: FastAPI):
     await _ensure_calendar_tables()
     await _ensure_bug_reports_table()
     await _ensure_name_card_column()
+    await _ensure_bank_tables()
     await init_db()
     upload_dir = app_settings.upload_dir
     os.makedirs(f"{upload_dir}/payment_proofs", exist_ok=True)
@@ -668,6 +738,7 @@ async def lifespan(app: FastAPI):
     os.makedirs(f"{upload_dir}/hr/claims", exist_ok=True)
     os.makedirs(f"{upload_dir}/project_updates", exist_ok=True)
     os.makedirs(f"{upload_dir}/card_photos", exist_ok=True)
+    os.makedirs(f"{upload_dir}/bank_statements", exist_ok=True)
     # Start background reminder tasks
     reminder_task = asyncio.create_task(projects.reminder_loop())
     calendar_reminder_task = asyncio.create_task(calendar.calendar_reminder_loop())
@@ -737,6 +808,7 @@ app.include_router(projects.router, prefix=prefix)
 app.include_router(calendar.router, prefix=prefix)
 app.include_router(bug_reports.router, prefix=prefix)
 app.include_router(name_card.router, prefix=prefix)
+app.include_router(bank.router, prefix=prefix)
 
 
 @app.get("/health")

@@ -673,3 +673,153 @@ export const nameCardApi = {
   getMySlug: () => api.get<{ card_slug: string }>("/me/card").then((r) => r.data),
   regenerateSlug: () => api.post<{ card_slug: string }>("/me/card/regenerate").then((r) => r.data),
 };
+
+// ── Bank / Cash-flow types ────────────────────────────────────────────────────
+
+export interface BankAccount {
+  id: number;
+  name: string;
+  bank_name: string | null;
+  account_number: string | null;
+  opening_balance: number;
+  currency: string;
+  current_balance: number;
+  total_credit: number;
+  total_debit: number;
+}
+
+export interface TxnCategory {
+  id: number;
+  name: string;
+  type: "income" | "expense";
+  color: string;
+}
+
+export interface BankTransaction {
+  id: number;
+  account_id: number;
+  statement_id: number | null;
+  txn_date: string;
+  description: string;
+  party_name: string | null;
+  amount: number;
+  type: "credit" | "debit";
+  category_id: number | null;
+  category_name: string | null;
+  category_color: string | null;
+  invoice_id: number | null;
+  invoice_number: string | null;
+  bill_id: number | null;
+  bill_number: string | null;
+  note: string | null;
+}
+
+export interface ParsedRow {
+  txn_date: string;
+  description: string;
+  party_name: string | null;
+  amount: number;
+  type: "credit" | "debit";
+}
+
+export interface MonthlySummary {
+  month: string;
+  credit: number;
+  debit: number;
+  net: number;
+}
+
+export interface CategorySummary {
+  name: string;
+  color: string;
+  type: string;
+  total: number;
+}
+
+export interface AccountSummary {
+  currency: string;
+  opening_balance: number;
+  current_balance: number;
+  total_credit: number;
+  total_debit: number;
+  net: number;
+  monthly: MonthlySummary[];
+  categories: CategorySummary[];
+}
+
+export interface UnpaidInvoice {
+  id: number;
+  invoice_number: string;
+  total: number;
+  balance_due: number;
+  client_name: string;
+}
+
+export interface UnpaidBill {
+  id: number;
+  bill_number: string;
+  amount: number;
+  vendor_name: string;
+}
+
+// ── Bank API ─────────────────────────────────────────────────────────────────
+
+export const bankApi = {
+  // Accounts
+  listAccounts: () => api.get<BankAccount[]>("/bank/accounts").then((r) => r.data),
+  createAccount: (d: Omit<BankAccount, "id" | "current_balance" | "total_credit" | "total_debit">) =>
+    api.post<BankAccount>("/bank/accounts", d).then((r) => r.data),
+  updateAccount: (id: number, d: Omit<BankAccount, "id" | "current_balance" | "total_credit" | "total_debit">) =>
+    api.put<BankAccount>(`/bank/accounts/${id}`, d).then((r) => r.data),
+  deleteAccount: (id: number) => api.delete(`/bank/accounts/${id}`).then((r) => r.data),
+
+  // Categories
+  listCategories: () => api.get<TxnCategory[]>("/bank/categories").then((r) => r.data),
+  createCategory: (d: Omit<TxnCategory, "id">) =>
+    api.post<TxnCategory>("/bank/categories", d).then((r) => r.data),
+  updateCategory: (id: number, d: Omit<TxnCategory, "id">) =>
+    api.put<TxnCategory>(`/bank/categories/${id}`, d).then((r) => r.data),
+  deleteCategory: (id: number) => api.delete(`/bank/categories/${id}`).then((r) => r.data),
+
+  // Statements
+  previewStatement: (accountId: number, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api.post<{ rows: ParsedRow[]; count: number }>(
+      `/bank/accounts/${accountId}/upload/preview`, fd,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    ).then((r) => r.data);
+  },
+  confirmStatement: (accountId: number, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api.post<{ ok: boolean; statement_id: number; imported: number }>(
+      `/bank/accounts/${accountId}/upload/confirm`, fd,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    ).then((r) => r.data);
+  },
+
+  // Transactions
+  listTransactions: (accountId: number, params?: {
+    date_from?: string; date_to?: string; type?: string;
+    category_id?: number; search?: string;
+  }) => api.get<BankTransaction[]>(`/bank/accounts/${accountId}/transactions`, { params }).then((r) => r.data),
+  createTransaction: (accountId: number, d: {
+    txn_date: string; description: string; party_name?: string;
+    amount: number; type: string; category_id?: number; note?: string;
+  }) => api.post<BankTransaction>(`/bank/accounts/${accountId}/transactions`, d).then((r) => r.data),
+  updateTransaction: (id: number, d: Partial<{
+    txn_date: string; description: string; party_name: string; amount: number;
+    type: string; category_id: number | null; invoice_id: number | null;
+    bill_id: number | null; note: string;
+  }>) => api.put<BankTransaction>(`/bank/transactions/${id}`, d).then((r) => r.data),
+  deleteTransaction: (id: number) => api.delete(`/bank/transactions/${id}`).then((r) => r.data),
+
+  // Summary
+  getSummary: (accountId: number, params?: { date_from?: string; date_to?: string }) =>
+    api.get<AccountSummary>(`/bank/accounts/${accountId}/summary`, { params }).then((r) => r.data),
+
+  // Reconciliation helpers
+  listUnpaidInvoices: () => api.get<UnpaidInvoice[]>("/bank/invoices/unpaid").then((r) => r.data),
+  listUnpaidBills: () => api.get<UnpaidBill[]>("/bank/bills/unpaid").then((r) => r.data),
+};

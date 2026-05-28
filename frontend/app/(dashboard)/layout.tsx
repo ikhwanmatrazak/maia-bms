@@ -23,6 +23,7 @@ const ROUTE_ROLES: { prefix: string; roles: string[] }[] = [
   { prefix: "/payments",     roles: ["admin", "manager"] },
   { prefix: "/credit-notes", roles: ["admin", "manager"] },
   { prefix: "/expenses",     roles: ["admin", "manager"] },
+  { prefix: "/finance",      roles: ["admin"] },
   { prefix: "/reports",      roles: ["admin", "manager"] },
   { prefix: "/settings",     roles: ["admin"] },
   { prefix: "/admin",        roles: [] }, // super_admin only — empty = no regular role allowed

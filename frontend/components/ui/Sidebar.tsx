@@ -78,6 +78,7 @@ const navGroups = [
       { href: "/credit-notes", label: "Credit Notes", permission: "credit-notes" },
       { href: "/expenses", label: "Expenses", permission: "expenses" },
       { href: "/bills", label: "Bills (Payable)", permission: "bills" },
+      { href: "/finance/bank", label: "Bank / Cash Flow", roles: ["admin"], permission: "finance-bank" },
       { href: "/reports", label: "Reports", permission: "reports" },
     ],
   },
