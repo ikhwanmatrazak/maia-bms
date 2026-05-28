@@ -141,13 +141,28 @@ async def _account_balances(db: AsyncSession, account_id: int, opening: float):
     return total_credit, total_debit, current_balance
 
 
+_MAX_AMOUNT = Decimal("9999999999999.99")  # DECIMAL(15,2) upper bound
+
+
 def _parse_amount(raw: str) -> Optional[float]:
     if not raw:
         return None
-    cleaned = re.sub(r"[^\d.]", "", str(raw).strip())
+    raw = str(raw).strip()
+    negative = raw.startswith("-") or (raw.startswith("(") and raw.endswith(")"))
+    cleaned = re.sub(r"[^\d.]", "", raw)
+    if not cleaned:
+        return None
+    # Multiple dots means ambiguous format — keep only last decimal group
+    parts = cleaned.split(".")
+    if len(parts) > 2:
+        cleaned = "".join(parts[:-1]) + "." + parts[-1]
     try:
-        return float(cleaned)
-    except ValueError:
+        val = float(cleaned)
+        # Reject amounts that overflow DECIMAL(15,2)
+        if val > float(_MAX_AMOUNT):
+            return None
+        return -val if negative else val
+    except (ValueError, OverflowError):
         return None
 
 
@@ -162,14 +177,45 @@ def _parse_date(raw: str) -> Optional[date]:
 
 
 def _detect_column(headers: List[str], candidates: List[str]) -> Optional[int]:
+    """Match column headers using whole-word logic to avoid false positives.
+
+    e.g. "cr" must not match "description" (des-cr-iption).
+    """
     for idx, h in enumerate(headers):
-        if any(c in h.lower() for c in candidates):
-            return idx
+        # Split header into individual words, stripping punctuation
+        h_words = set(re.split(r"[^a-z0-9]+", h.lower()))
+        h_words.discard("")
+        for c in candidates:
+            c_lower = c.lower()
+            # Exact word match
+            if c_lower in h_words:
+                return idx
+            # Prefix match: "deposit" matches "deposits", "withdrawal" matches "withdrawals"
+            if any(w.startswith(c_lower) for w in h_words):
+                return idx
+            # Long-substring fallback (≥5 chars) — safe since short abbrevs handled above
+            if len(c_lower) >= 5 and c_lower in h.lower():
+                return idx
+    return None
+
+
+def _detect_delimiter(content: str) -> str:
+    """Pick the delimiter that produces the most columns in the first data row."""
+    first_line = content.split("\n")[0]
+    best = ","
+    best_count = 0
+    for delim in [",", ";", "\t", "|"]:
+        row = next(csv.reader([first_line], delimiter=delim), [])
+        if len(row) > best_count:
+            best_count = len(row)
+            best = delim
+    return best
     return None
 
 
 def _parse_csv_content(content: str) -> List[ParsedRow]:
-    reader = csv.reader(io.StringIO(content))
+    delimiter = _detect_delimiter(content)
+    reader = csv.reader(io.StringIO(content), delimiter=delimiter)
     rows = list(reader)
     if not rows:
         return []
@@ -187,10 +233,11 @@ def _parse_csv_content(content: str) -> List[ParsedRow]:
     if not headers:
         return []
 
-    date_col = _detect_column(headers, ["date"])
-    desc_col = _detect_column(headers, ["description", "narration", "particular", "detail", "remark", "reference", "transaction"])
-    debit_col = _detect_column(headers, ["debit", "withdrawal", "dr", "out"])
-    credit_col = _detect_column(headers, ["credit", "deposit", "cr", "in"])
+    # Candidates use whole-word matching — short abbrevs ("cr","dr") are safe via _detect_column
+    date_col   = _detect_column(headers, ["date"])
+    desc_col   = _detect_column(headers, ["description", "narration", "particular", "detail", "remark", "reference", "transaction"])
+    debit_col  = _detect_column(headers, ["debit", "withdrawal", "dr"])
+    credit_col = _detect_column(headers, ["credit", "deposit", "cr"])
     amount_col = _detect_column(headers, ["amount"]) if (debit_col is None or credit_col is None) else None
 
     if date_col is None:
@@ -264,9 +311,9 @@ def _parse_pdf_content(file_bytes: bytes) -> List[ParsedRow]:
                     if header_row_idx is None or not headers:
                         continue
 
-                    date_col = _detect_column(headers, ["date"])
-                    desc_col = _detect_column(headers, ["description", "narration", "particular", "detail", "transaction", "reference"])
-                    debit_col = _detect_column(headers, ["debit", "withdrawal", "dr"])
+                    date_col   = _detect_column(headers, ["date"])
+                    desc_col   = _detect_column(headers, ["description", "narration", "particular", "detail", "transaction", "reference"])
+                    debit_col  = _detect_column(headers, ["debit", "withdrawal", "dr"])
                     credit_col = _detect_column(headers, ["credit", "deposit", "cr"])
                     amount_col = _detect_column(headers, ["amount"]) if (debit_col is None or credit_col is None) else None
 
