@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { bankApi, BankAccount } from "@/lib/api";
+import { Topbar } from "@/components/ui/Topbar";
 
 const EMPTY: Omit<BankAccount, "id" | "current_balance" | "total_credit" | "total_debit"> = {
   name: "", bank_name: "", account_number: "", opening_balance: 0, currency: "MYR",
@@ -71,7 +72,9 @@ export default function BankAccountsPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div>
+      <Topbar title="Bank / Cash Flow" />
+      <div className="p-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -256,6 +259,7 @@ export default function BankAccountsPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   bankApi, BankTransaction, TxnCategory, ParsedRow,
   UnpaidInvoice, UnpaidBill,
 } from "@/lib/api";
+import { Topbar } from "@/components/ui/Topbar";
 
 function fmt(n: number, cur = "MYR") {
   return `${cur} ${n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -553,7 +554,9 @@ export default function BankDetailPage() {
   const cur = account?.currency ?? "MYR";
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div>
+      <Topbar title="Bank / Cash Flow" />
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
@@ -799,6 +802,7 @@ export default function BankDetailPage() {
         />
       )}
       {showCats && <CategoryModal onClose={() => { setShowCats(false); qc.invalidateQueries({ queryKey: ["bank-cats"] }); }} />}
+      </div>
     </div>
   );
 }
