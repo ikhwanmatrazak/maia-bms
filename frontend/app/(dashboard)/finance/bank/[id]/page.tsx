@@ -395,7 +395,7 @@ function TxnModal({
   );
 }
 
-// ── Edit drawer (category + reconciliation) ───────────────────────────────────
+// ── Edit drawer (category + reconciliation + receipt) ────────────────────────
 
 function EditDrawer({
   txn, categories, unpaidInvoices, unpaidBills, onClose,
@@ -407,10 +407,13 @@ function EditDrawer({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [catId, setCatId] = useState<number | null>(txn.category_id);
   const [invId, setInvId] = useState<number | null>(txn.invoice_id);
   const [billId, setBillId] = useState<number | null>(txn.bill_id);
   const [note, setNote] = useState(txn.note ?? "");
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(txn.receipt_url);
+  const [uploading, setUploading] = useState(false);
 
   const mut = useMutation({
     mutationFn: () => bankApi.updateTransaction(txn.id, {
@@ -422,6 +425,20 @@ function EditDrawer({
       onClose();
     },
   });
+
+  const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await bankApi.uploadReceipt(txn.id, file);
+      setReceiptUrl(res.receipt_url);
+      qc.invalidateQueries({ queryKey: ["bank-txns", txn.account_id] });
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   const relevantCats = categories.filter((c) => c.type === (txn.type === "credit" ? "income" : "expense"));
 
@@ -436,7 +453,7 @@ function EditDrawer({
 
         {/* Transaction summary */}
         <div className="bg-default-50 rounded-xl p-3 text-sm space-y-1">
-          <p className="font-medium text-foreground truncate">{txn.description}</p>
+          <p className="font-medium text-foreground">{txn.description}</p>
           {txn.party_name && <p className="text-default-500 text-xs">{txn.party_name}</p>}
           <p className={`font-bold ${txn.type === "credit" ? "text-success-600" : "text-danger-500"}`}>
             {txn.type === "credit" ? "+" : "-"}{fmt(txn.amount)}
@@ -479,27 +496,61 @@ function EditDrawer({
           </div>
         )}
 
-        {/* Link to bill (for debits) */}
+        {/* Link to bill + receipt upload (for debits) */}
         {txn.type === "debit" && (
-          <div>
-            <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">
-              Link to Bill <span className="text-danger-500 font-normal">(marks as Paid)</span>
-            </label>
-            <select value={billId ?? ""} onChange={(e) => setBillId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
-              <option value="">— No bill —</option>
-              {txn.bill_id && txn.bill_number && (
-                <option value={txn.bill_id}>{txn.bill_number} (currently linked)</option>
+          <>
+            <div>
+              <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">
+                Link to Bill <span className="text-danger-500 font-normal">(marks as Paid)</span>
+              </label>
+              <select value={billId ?? ""} onChange={(e) => setBillId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
+                <option value="">— No bill —</option>
+                {txn.bill_id && txn.bill_number && (
+                  <option value={txn.bill_id}>{txn.bill_number} (currently linked)</option>
+                )}
+                {unpaidBills
+                  .filter((b) => b.id !== txn.bill_id)
+                  .map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.bill_number ?? `Bill #${b.id}`} — {b.vendor_name} ({fmt(b.amount)})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">Receipt / Invoice</label>
+              <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleReceiptUpload} />
+              {receiptUrl ? (
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`${API_URL}${receiptUrl}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 text-sm text-primary font-medium hover:underline truncate"
+                  >
+                    📎 View Receipt
+                  </a>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploading}
+                    className="text-xs text-default-400 hover:text-default-600 px-2 py-1 border border-default-200 rounded-lg"
+                  >
+                    Replace
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                  className="w-full py-2 border-2 border-dashed border-default-200 rounded-lg text-sm text-default-400 hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+                >
+                  {uploading ? "Uploading…" : "↑ Upload Receipt / Invoice"}
+                </button>
               )}
-              {unpaidBills
-                .filter((b) => b.id !== txn.bill_id)
-                .map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.bill_number ?? `Bill #${b.id}`} — {b.vendor_name} ({fmt(b.amount)})
-                  </option>
-                ))}
-            </select>
-          </div>
+            </div>
+          </>
         )}
 
         {/* Note */}
@@ -629,7 +680,6 @@ export default function BankDetailPage() {
   const [showAddTxn, setShowAddTxn] = useState(false);
   const [editingTxn, setEditingTxn] = useState<BankTransaction | null>(null);
   const [drawerTxn, setDrawerTxn] = useState<BankTransaction | null>(null);
-  const [linkInvoiceTxn, setLinkInvoiceTxn] = useState<BankTransaction | null>(null);
   const [showCats, setShowCats] = useState(false);
 
   // Filters
@@ -818,7 +868,6 @@ export default function BankDetailPage() {
                   <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Description</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Party</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Category</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Linked</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-success-600">Money In</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-danger-500">Money Out</th>
                   <th className="px-4 py-3"></th>
@@ -842,35 +891,6 @@ export default function BankDetailPage() {
                         </span>
                       ) : (
                         <span className="text-xs text-default-300">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-xs">
-                      {txn.type === "credit" && (
-                        txn.invoice_number ? (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-primary font-medium">INV {txn.invoice_number}</span>
-                            <button
-                              onClick={() => setLinkInvoiceTxn(txn)}
-                              className="text-default-300 hover:text-primary text-xs"
-                              title="Change linked invoice"
-                            >✎</button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setLinkInvoiceTxn(txn)}
-                            className="text-primary hover:bg-primary/10 px-2 py-0.5 rounded-lg text-xs font-medium border border-primary/30 transition-colors"
-                          >
-                            Link Invoice
-                          </button>
-                        )
-                      )}
-                      {txn.type === "debit" && (
-                        <div className="space-y-1">
-                          {txn.bill_number && (
-                            <div className="text-warning-600 font-medium">BILL {txn.bill_number}</div>
-                          )}
-                          <ReceiptUploadCell txn={txn} />
-                        </div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold whitespace-nowrap text-success-600">
@@ -946,13 +966,6 @@ export default function BankDetailPage() {
         />
       )}
       {showCats && <CategoryModal onClose={() => { setShowCats(false); qc.invalidateQueries({ queryKey: ["bank-cats"] }); }} />}
-      {linkInvoiceTxn && (
-        <QuickLinkInvoiceModal
-          txn={linkInvoiceTxn}
-          unpaidInvoices={unpaidInvoices}
-          onClose={() => setLinkInvoiceTxn(null)}
-        />
-      )}
       </div>
     </div>
   );
