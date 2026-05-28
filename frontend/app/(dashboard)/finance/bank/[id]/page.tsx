@@ -692,7 +692,8 @@ export default function BankDetailPage() {
                   <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Party</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Category</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Linked</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-default-500">Amount</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-success-600">Money In</th>
+                  <th className="text-right px-4 py-3 text-xs font-medium text-danger-500">Money Out</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
@@ -725,17 +726,16 @@ export default function BankDetailPage() {
                       )}
                       {!txn.invoice_number && !txn.bill_number && <span className="text-default-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold whitespace-nowrap">
-                      <span className={txn.type === "credit" ? "text-success-600" : "text-danger-500"}>
-                        {txn.type === "credit" ? "+" : "-"}{fmt(txn.amount, cur)}
-                      </span>
+                    <td className="px-4 py-3 text-right font-semibold whitespace-nowrap text-success-600">
+                      {txn.type === "credit" ? fmt(txn.amount, cur) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold whitespace-nowrap text-danger-500">
+                      {txn.type === "debit" ? fmt(txn.amount, cur) : "—"}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">
                         <button onClick={() => setDrawerTxn(txn)}
                           className="px-2 py-1 rounded-lg text-xs text-default-500 hover:bg-default-100 transition-colors">Edit</button>
-                        <button onClick={() => { if (confirm("Delete this transaction?")) deleteMut.mutate(txn.id); }}
-                          className="px-2 py-1 rounded-lg text-xs text-danger-400 hover:bg-danger-50 transition-colors">Del</button>
                       </div>
                     </td>
                   </tr>
