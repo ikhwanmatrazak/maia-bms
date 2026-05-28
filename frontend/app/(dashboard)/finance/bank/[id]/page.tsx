@@ -9,8 +9,131 @@ import {
 } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 function fmt(n: number, cur = "MYR") {
   return `${cur} ${n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// ── Quick invoice link modal (for credit transactions) ────────────────────────
+
+function QuickLinkInvoiceModal({
+  txn,
+  unpaidInvoices,
+  onClose,
+}: {
+  txn: BankTransaction;
+  unpaidInvoices: UnpaidInvoice[];
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [invId, setInvId] = useState<number | null>(txn.invoice_id);
+
+  const mut = useMutation({
+    mutationFn: () => bankApi.updateTransaction(txn.id, { invoice_id: invId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bank-txns", txn.account_id] });
+      qc.invalidateQueries({ queryKey: ["bank-summary", txn.account_id] });
+      onClose();
+    },
+  });
+
+  const allOptions = [
+    ...(txn.invoice_id && txn.invoice_number
+      ? [{ id: txn.invoice_id, invoice_number: txn.invoice_number, client_name: "(currently linked)", balance_due: 0 }]
+      : []),
+    ...unpaidInvoices.filter((inv) => inv.id !== txn.invoice_id),
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-foreground">Link to Invoice</h2>
+          <button onClick={onClose} className="text-default-400 hover:text-default-600 text-xl">&times;</button>
+        </div>
+        <div className="bg-default-50 rounded-xl p-3 text-sm">
+          <p className="font-medium text-foreground">{txn.description}</p>
+          <p className="text-success-600 font-bold">+{fmt(txn.amount)}</p>
+          <p className="text-xs text-default-400">{txn.txn_date}</p>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">
+            Select Invoice <span className="text-success-600 font-normal">(marks as Paid)</span>
+          </label>
+          <select
+            value={invId ?? ""}
+            onChange={(e) => setInvId(e.target.value ? Number(e.target.value) : null)}
+            className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 outline-none focus:border-primary"
+          >
+            <option value="">— No invoice —</option>
+            {allOptions.map((inv) => (
+              <option key={inv.id} value={inv.id}>
+                {inv.invoice_number} — {inv.client_name}{inv.balance_due > 0 ? ` (${fmt(inv.balance_due)})` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-default-200 text-sm font-medium">Cancel</button>
+          <button
+            onClick={() => mut.mutate()}
+            disabled={mut.isPending}
+            className="flex-1 py-2 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+          >
+            {mut.isPending ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Receipt upload button (for debit transactions) ────────────────────────────
+
+function ReceiptUploadCell({ txn }: { txn: BankTransaction }) {
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      await bankApi.uploadReceipt(txn.id, file);
+      qc.invalidateQueries({ queryKey: ["bank-txns", txn.account_id] });
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  if (txn.receipt_url) {
+    return (
+      <a
+        href={`${API_URL}${txn.receipt_url}`}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1 text-xs text-primary font-medium hover:underline"
+      >
+        📎 Receipt
+      </a>
+    );
+  }
+
+  return (
+    <>
+      <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFile} />
+      <button
+        onClick={() => fileRef.current?.click()}
+        disabled={uploading}
+        className="text-xs text-default-400 hover:text-primary hover:bg-default-50 px-2 py-0.5 rounded-lg transition-colors disabled:opacity-50"
+      >
+        {uploading ? "Uploading…" : "↑ Receipt"}
+      </button>
+    </>
+  );
 }
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -506,6 +629,7 @@ export default function BankDetailPage() {
   const [showAddTxn, setShowAddTxn] = useState(false);
   const [editingTxn, setEditingTxn] = useState<BankTransaction | null>(null);
   const [drawerTxn, setDrawerTxn] = useState<BankTransaction | null>(null);
+  const [linkInvoiceTxn, setLinkInvoiceTxn] = useState<BankTransaction | null>(null);
   const [showCats, setShowCats] = useState(false);
 
   // Filters
@@ -721,13 +845,33 @@ export default function BankDetailPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-xs">
-                      {txn.invoice_number && (
-                        <span className="text-primary font-medium">INV {txn.invoice_number}</span>
+                      {txn.type === "credit" && (
+                        txn.invoice_number ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-primary font-medium">INV {txn.invoice_number}</span>
+                            <button
+                              onClick={() => setLinkInvoiceTxn(txn)}
+                              className="text-default-300 hover:text-primary text-xs"
+                              title="Change linked invoice"
+                            >✎</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setLinkInvoiceTxn(txn)}
+                            className="text-primary hover:bg-primary/10 px-2 py-0.5 rounded-lg text-xs font-medium border border-primary/30 transition-colors"
+                          >
+                            Link Invoice
+                          </button>
+                        )
                       )}
-                      {txn.bill_number && (
-                        <span className="text-warning-600 font-medium">BILL {txn.bill_number ?? `#${txn.bill_id}`}</span>
+                      {txn.type === "debit" && (
+                        <div className="space-y-1">
+                          {txn.bill_number && (
+                            <div className="text-warning-600 font-medium">BILL {txn.bill_number}</div>
+                          )}
+                          <ReceiptUploadCell txn={txn} />
+                        </div>
                       )}
-                      {!txn.invoice_number && !txn.bill_number && <span className="text-default-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold whitespace-nowrap text-success-600">
                       {txn.type === "credit" ? fmt(txn.amount, cur) : "—"}
@@ -802,6 +946,13 @@ export default function BankDetailPage() {
         />
       )}
       {showCats && <CategoryModal onClose={() => { setShowCats(false); qc.invalidateQueries({ queryKey: ["bank-cats"] }); }} />}
+      {linkInvoiceTxn && (
+        <QuickLinkInvoiceModal
+          txn={linkInvoiceTxn}
+          unpaidInvoices={unpaidInvoices}
+          onClose={() => setLinkInvoiceTxn(null)}
+        />
+      )}
       </div>
     </div>
   );

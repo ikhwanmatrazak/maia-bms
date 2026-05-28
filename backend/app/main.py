@@ -645,6 +645,7 @@ async def _ensure_bank_tables():
             FOREIGN KEY (statement_id) REFERENCES bank_statements(id) ON DELETE SET NULL,
             FOREIGN KEY (category_id) REFERENCES transaction_categories(id) ON DELETE SET NULL
         )""",
+        "ALTER TABLE bank_transactions ADD COLUMN IF NOT EXISTS receipt_url VARCHAR(500) NULL",
     ]
     async with engine.begin() as conn:
         for stmt in stmts:
@@ -739,6 +740,7 @@ async def lifespan(app: FastAPI):
     os.makedirs(f"{upload_dir}/project_updates", exist_ok=True)
     os.makedirs(f"{upload_dir}/card_photos", exist_ok=True)
     os.makedirs(f"{upload_dir}/bank_statements", exist_ok=True)
+    os.makedirs(f"{upload_dir}/bank_receipts", exist_ok=True)
     # Start background reminder tasks
     reminder_task = asyncio.create_task(projects.reminder_loop())
     calendar_reminder_task = asyncio.create_task(calendar.calendar_reminder_loop())

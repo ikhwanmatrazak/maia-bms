@@ -95,6 +95,7 @@ class TransactionOut(BaseModel):
     bill_id: Optional[int]
     bill_number: Optional[str]
     note: Optional[str]
+    receipt_url: Optional[str] = None
 
 
 class ParsedRow(BaseModel):
@@ -683,7 +684,7 @@ async def list_transactions(
                tc.name AS cat_name, tc.color AS cat_color,
                bt.invoice_id, i.invoice_number,
                bt.bill_id, b.bill_number,
-               bt.note
+               bt.note, bt.receipt_url
         FROM bank_transactions bt
         LEFT JOIN transaction_categories tc ON tc.id = bt.category_id
         LEFT JOIN invoices i ON i.id = bt.invoice_id
@@ -701,7 +702,7 @@ async def list_transactions(
             category_name=row[9], category_color=row[10],
             invoice_id=row[11], invoice_number=row[12],
             bill_id=row[13], bill_number=row[14],
-            note=row[15],
+            note=row[15], receipt_url=row[16],
         )
         for row in rows
     ]
@@ -846,7 +847,7 @@ async def update_transaction(
                    tc.name, tc.color,
                    bt.invoice_id, i.invoice_number,
                    bt.bill_id, b.bill_number,
-                   bt.note
+                   bt.note, bt.receipt_url
             FROM bank_transactions bt
             LEFT JOIN transaction_categories tc ON tc.id = bt.category_id
             LEFT JOIN invoices i ON i.id = bt.invoice_id
@@ -863,7 +864,7 @@ async def update_transaction(
         category_name=row2[9], category_color=row2[10],
         invoice_id=row2[11], invoice_number=row2[12],
         bill_id=row2[13], bill_number=row2[14],
-        note=row2[15],
+        note=row2[15], receipt_url=row2[16],
     )
 
 
@@ -887,6 +888,49 @@ async def delete_transaction(
     await db.execute(text("DELETE FROM bank_transactions WHERE id = :id"), {"id": txn_id})
     await db.commit()
     return {"ok": True}
+
+
+# ── Receipt upload ────────────────────────────────────────────────────────────
+
+@router.post("/transactions/{txn_id}/receipt")
+async def upload_receipt(
+    txn_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload a receipt/invoice document for a debit transaction."""
+    tid = _tenant_id(current_user)
+    r = await db.execute(
+        text("""
+            SELECT bt.id FROM bank_transactions bt
+            JOIN bank_accounts ba ON ba.id = bt.account_id
+            WHERE bt.id = :id AND ba.tenant_id = :tid
+        """),
+        {"id": txn_id, "tid": tid},
+    )
+    if not r.fetchone():
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    content = await file.read()
+    filename = file.filename or "receipt"
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
+    if ext not in {"pdf", "jpg", "jpeg", "png", "gif", "webp"}:
+        raise HTTPException(status_code=400, detail="Only PDF or image files are supported")
+
+    upload_dir = os.environ.get("UPLOAD_DIR", "uploads")
+    safe_name = f"{txn_id}_{secrets.token_hex(6)}.{ext}"
+    file_path = f"{upload_dir}/bank_receipts/{safe_name}"
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    receipt_url = f"/uploads/bank_receipts/{safe_name}"
+    await db.execute(
+        text("UPDATE bank_transactions SET receipt_url = :url WHERE id = :id"),
+        {"url": receipt_url, "id": txn_id},
+    )
+    await db.commit()
+    return {"receipt_url": receipt_url}
 
 
 # ── Cash-flow summary ─────────────────────────────────────────────────────────

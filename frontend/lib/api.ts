@@ -712,6 +712,7 @@ export interface BankTransaction {
   bill_id: number | null;
   bill_number: string | null;
   note: string | null;
+  receipt_url: string | null;
 }
 
 export interface ParsedRow {
@@ -814,6 +815,13 @@ export const bankApi = {
     bill_id: number | null; note: string;
   }>) => api.put<BankTransaction>(`/bank/transactions/${id}`, d).then((r) => r.data),
   deleteTransaction: (id: number) => api.delete(`/bank/transactions/${id}`).then((r) => r.data),
+  uploadReceipt: (id: number, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api.post<{ receipt_url: string }>(`/bank/transactions/${id}/receipt`, fd,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    ).then((r) => r.data);
+  },
 
   // Summary
   getSummary: (accountId: number, params?: { date_from?: string; date_to?: string }) =>
