@@ -104,7 +104,7 @@ function UploadModal({ accountId, onClose }: { accountId: number; onClose: () =>
                   {preview.map((row, i) => (
                     <tr key={i} className="border-t border-default-100">
                       <td className="p-2 text-default-600 whitespace-nowrap">{row.txn_date}</td>
-                      <td className="p-2 text-default-700 max-w-xs truncate">{row.description}</td>
+                      <td className="p-2 text-default-700 whitespace-normal break-words">{row.description}</td>
                       <td className={`p-2 text-right font-medium ${row.type === "credit" ? "text-success-600" : "text-danger-500"}`}>
                         {row.type === "credit" ? "+" : "-"}{row.amount.toFixed(2)}
                       </td>
@@ -704,11 +704,11 @@ export default function BankDetailPage() {
                 {txns.map((txn) => (
                   <tr key={txn.id} className="border-t border-default-100 hover:bg-default-50/50 transition-colors">
                     <td className="px-4 py-3 text-default-600 whitespace-nowrap text-xs">{txn.txn_date}</td>
-                    <td className="px-4 py-3 text-foreground max-w-[200px]">
-                      <p className="truncate">{txn.description}</p>
-                      {txn.note && <p className="text-xs text-default-400 truncate">{txn.note}</p>}
+                    <td className="px-4 py-3 text-foreground">
+                      <p className="whitespace-normal break-words">{txn.description}</p>
+                      {txn.note && <p className="text-xs text-default-400 whitespace-normal break-words">{txn.note}</p>}
                     </td>
-                    <td className="px-4 py-3 text-default-500 text-xs max-w-[120px] truncate">{txn.party_name ?? "—"}</td>
+                    <td className="px-4 py-3 text-default-500 text-xs whitespace-normal break-words">{txn.party_name ?? "—"}</td>
                     <td className="px-4 py-3">
                       {txn.category_name ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
