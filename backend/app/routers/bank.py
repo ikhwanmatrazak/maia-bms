@@ -1397,3 +1397,34 @@ async def list_unpaid_bills(
          "vendor_name": row[3] or "—", "status": row[4]}
         for row in r.fetchall()
     ]
+
+
+@router.get("/party/search")
+async def search_parties(
+    q: str = Query(""),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Search clients, vendors, and staff by name. Returns up to 10 results per source."""
+    tid = get_effective_tenant_id(current_user)
+    term = f"%{q.strip()}%"
+    tenant_filter = "AND tenant_id = :tid" if tid is not None else ""
+    params: dict = {"term": term}
+    if tid is not None:
+        params["tid"] = tid
+
+    sql = text(f"""
+        SELECT 'client' AS source, company_name AS name FROM clients
+        WHERE company_name LIKE :term {tenant_filter}
+        LIMIT 10
+        UNION ALL
+        SELECT 'vendor' AS source, name AS name FROM vendors
+        WHERE name LIKE :term {tenant_filter}
+        LIMIT 10
+        UNION ALL
+        SELECT 'staff' AS source, full_name AS name FROM hr_employees
+        WHERE full_name LIKE :term {tenant_filter}
+        LIMIT 10
+    """)
+    r = await db.execute(sql, params)
+    return [{"source": row[0], "name": row[1]} for row in r.fetchall()]

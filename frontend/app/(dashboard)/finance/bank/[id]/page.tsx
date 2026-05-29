@@ -397,6 +397,60 @@ function TxnModal({
   );
 }
 
+// ── Party autocomplete ────────────────────────────────────────────────────────
+
+const SOURCE_LABEL: Record<string, string> = { client: "Client", vendor: "Vendor", staff: "Staff" };
+const SOURCE_COLOR: Record<string, string> = { client: "text-primary", vendor: "text-warning-600", staff: "text-success-600" };
+
+function PartySearch({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [results, setResults] = useState<{ source: string; name: string }[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    onChange(v);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (v.trim().length < 1) { setResults([]); setOpen(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await bankApi.searchParties(v.trim());
+        setResults(res);
+        setOpen(res.length > 0);
+      } catch { setResults([]); }
+    }, 250);
+  };
+
+  const pick = (name: string) => { onChange(name); setOpen(false); setResults([]); };
+
+  return (
+    <div className="relative">
+      <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">Party</label>
+      <input
+        value={value}
+        onChange={handleInput}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onFocus={() => value.trim() && results.length > 0 && setOpen(true)}
+        placeholder="Search client, vendor or staff…"
+        className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 bg-white outline-none focus:border-primary"
+      />
+      {open && (
+        <ul className="absolute z-50 left-0 right-0 mt-1 bg-white border border-default-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+          {results.map((r, i) => (
+            <li key={i} onMouseDown={() => pick(r.name)}
+              className="flex items-center justify-between px-3 py-2 hover:bg-default-50 cursor-pointer text-sm">
+              <span className="text-foreground">{r.name}</span>
+              <span className={`text-xs font-medium ${SOURCE_COLOR[r.source] ?? "text-default-400"}`}>
+                {SOURCE_LABEL[r.source] ?? r.source}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ── Edit drawer (category + reconciliation + receipt) ────────────────────────
 
 function EditDrawer({
@@ -491,16 +545,8 @@ function EditDrawer({
           />
         </div>
 
-        {/* Party */}
-        <div>
-          <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">Party</label>
-          <input
-            value={partyName}
-            onChange={(e) => setPartyName(e.target.value)}
-            placeholder="e.g. Vendor name"
-            className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 bg-white outline-none focus:border-primary"
-          />
-        </div>
+        {/* Party — searchable across clients, vendors, staff */}
+        <PartySearch value={partyName} onChange={setPartyName} />
 
         {/* Category */}
         <div>

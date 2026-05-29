@@ -776,6 +776,9 @@ export const bankApi = {
     api.put<BankAccount>(`/bank/accounts/${id}`, d).then((r) => r.data),
   deleteAccount: (id: number) => api.delete(`/bank/accounts/${id}`).then((r) => r.data),
 
+  searchParties: (q: string) =>
+    api.get<{ source: "client" | "vendor" | "staff"; name: string }[]>("/bank/party/search", { params: { q } }).then((r) => r.data),
+
   // Categories
   listCategories: () => api.get<TxnCategory[]>("/bank/categories").then((r) => r.data),
   createCategory: (d: Omit<TxnCategory, "id">) =>
