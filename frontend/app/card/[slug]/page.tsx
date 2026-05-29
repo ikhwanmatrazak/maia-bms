@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import DigitalCardClient from "./DigitalCardClient";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-const STATIC_BASE = API_URL.replace(/\/api\/v1\/?$/, "");
+// Use internal Docker network URL for server-side fetches
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
+// Public base for building absolute static file URLs (og:image must be absolute)
+const PUBLIC_BASE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://ali-axis.maia.com.my";
 
 interface CardData {
   name: string;
@@ -16,7 +18,7 @@ interface CardData {
 
 async function fetchCardMeta(slug: string): Promise<CardData | null> {
   try {
-    const res = await fetch(`${API_URL}/public/card/${slug}`, {
+    const res = await fetch(`${BACKEND_URL}/api/v1/public/card/${slug}`, {
       next: { revalidate: 60 },
     });
     if (!res.ok) return null;
@@ -29,7 +31,7 @@ async function fetchCardMeta(slug: string): Promise<CardData | null> {
 function makeAbsolute(url?: string): string | undefined {
   if (!url) return undefined;
   if (url.startsWith("http")) return url;
-  return `${STATIC_BASE}${url}`;
+  return `${PUBLIC_BASE}${url}`;
 }
 
 export async function generateMetadata({
