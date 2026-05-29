@@ -57,13 +57,19 @@ class CategoryOut(BaseModel):
     color: str
 
 
+class CategoryRef(BaseModel):
+    id: int
+    name: str
+    color: str
+
+
 class TransactionCreate(BaseModel):
     txn_date: date
     description: str
     party_name: Optional[str] = None
     amount: float
     type: str  # credit | debit
-    category_id: Optional[int] = None
+    category_ids: List[int] = []
     note: Optional[str] = None
 
 
@@ -73,7 +79,7 @@ class TransactionUpdate(BaseModel):
     party_name: Optional[str] = None
     amount: Optional[float] = None
     type: Optional[str] = None
-    category_id: Optional[int] = None
+    category_ids: Optional[List[int]] = None  # None = unchanged; [] = clear all
     invoice_id: Optional[int] = None
     bill_id: Optional[int] = None
     note: Optional[str] = None
@@ -88,9 +94,11 @@ class TransactionOut(BaseModel):
     party_name: Optional[str]
     amount: float
     type: str
-    category_id: Optional[int]
-    category_name: Optional[str]
-    category_color: Optional[str]
+    categories: List[CategoryRef] = []
+    # backward-compat single-category fields (first category or None)
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
+    category_color: Optional[str] = None
     invoice_id: Optional[int]
     invoice_number: Optional[str]
     bill_id: Optional[int]
@@ -952,6 +960,80 @@ async def confirm_statement(
     return {"ok": True, "statement_id": stmt_id, "imported": len(rows)}
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _parse_cat_groups(ids_str: Optional[str], names_str: Optional[str], colors_str: Optional[str]) -> List[CategoryRef]:
+    """Parse GROUP_CONCAT category columns into a list of CategoryRef."""
+    if not ids_str:
+        return []
+    ids = [int(x) for x in ids_str.split(",") if x]
+    names = names_str.split("|||") if names_str else []
+    colors = colors_str.split(",") if colors_str else []
+    return [
+        CategoryRef(id=ids[i], name=names[i] if i < len(names) else "", color=colors[i] if i < len(colors) else "#6366f1")
+        for i in range(len(ids))
+    ]
+
+
+def _txn_out_from_row(row: tuple) -> TransactionOut:
+    cats = _parse_cat_groups(row[8], row[9], row[10])
+    first = cats[0] if cats else None
+    return TransactionOut(
+        id=row[0], account_id=row[1], statement_id=row[2],
+        txn_date=str(row[3]), description=row[4], party_name=row[5],
+        amount=float(row[6]), type=row[7],
+        categories=cats,
+        category_id=first.id if first else None,
+        category_name=first.name if first else None,
+        category_color=first.color if first else None,
+        invoice_id=row[11], invoice_number=row[12],
+        bill_id=row[13], bill_number=row[14],
+        note=row[15], receipt_url=row[16],
+    )
+
+
+_TXN_SELECT = """
+    SELECT bt.id, bt.account_id, bt.statement_id, bt.txn_date, bt.description,
+           bt.party_name, bt.amount, bt.type,
+           GROUP_CONCAT(btc.category_id ORDER BY tc.name SEPARATOR ',')   AS cat_ids,
+           GROUP_CONCAT(tc.name         ORDER BY tc.name SEPARATOR '|||') AS cat_names,
+           GROUP_CONCAT(tc.color        ORDER BY tc.name SEPARATOR ',')   AS cat_colors,
+           bt.invoice_id, i.invoice_number,
+           bt.bill_id, b.bill_number,
+           bt.note, bt.receipt_url
+    FROM bank_transactions bt
+    LEFT JOIN bank_transaction_categories btc ON btc.transaction_id = bt.id
+    LEFT JOIN transaction_categories tc ON tc.id = btc.category_id
+    LEFT JOIN invoices i ON i.id = bt.invoice_id
+    LEFT JOIN bills b ON b.id = bt.bill_id
+"""
+
+_TXN_GROUP = """
+    GROUP BY bt.id, bt.account_id, bt.statement_id, bt.txn_date, bt.description,
+             bt.party_name, bt.amount, bt.type,
+             bt.invoice_id, i.invoice_number, bt.bill_id, b.bill_number,
+             bt.note, bt.receipt_url
+"""
+
+
+async def _upsert_categories(db: AsyncSession, txn_id: int, category_ids: List[int]) -> None:
+    await db.execute(
+        text("DELETE FROM bank_transaction_categories WHERE transaction_id = :tid"),
+        {"tid": txn_id},
+    )
+    for cat_id in category_ids:
+        await db.execute(
+            text("INSERT IGNORE INTO bank_transaction_categories (transaction_id, category_id) VALUES (:tid, :cid)"),
+            {"tid": txn_id, "cid": cat_id},
+        )
+    # keep legacy column in sync (first category or NULL)
+    first_cat = category_ids[0] if category_ids else None
+    await db.execute(
+        text("UPDATE bank_transactions SET category_id = :cid WHERE id = :tid"),
+        {"cid": first_cat, "tid": txn_id},
+    )
+
+
 # ── Transaction endpoints ─────────────────────────────────────────────────────
 
 @router.get("/accounts/{account_id}/transactions", response_model=List[TransactionOut])
@@ -981,40 +1063,15 @@ async def list_transactions(
         where.append("bt.type = :type")
         params["type"] = type
     if category_id:
-        where.append("bt.category_id = :cat_id")
+        where.append("EXISTS (SELECT 1 FROM bank_transaction_categories x WHERE x.transaction_id = bt.id AND x.category_id = :cat_id)")
         params["cat_id"] = category_id
     if search:
         where.append("(bt.description LIKE :s OR bt.party_name LIKE :s)")
         params["s"] = f"%{search}%"
 
-    sql = f"""
-        SELECT bt.id, bt.account_id, bt.statement_id, bt.txn_date, bt.description,
-               bt.party_name, bt.amount, bt.type, bt.category_id,
-               tc.name AS cat_name, tc.color AS cat_color,
-               bt.invoice_id, i.invoice_number,
-               bt.bill_id, b.bill_number,
-               bt.note, bt.receipt_url
-        FROM bank_transactions bt
-        LEFT JOIN transaction_categories tc ON tc.id = bt.category_id
-        LEFT JOIN invoices i ON i.id = bt.invoice_id
-        LEFT JOIN bills b ON b.id = bt.bill_id
-        WHERE {' AND '.join(where)}
-        ORDER BY bt.txn_date DESC, bt.id DESC
-    """
+    sql = f"{_TXN_SELECT} WHERE {' AND '.join(where)} {_TXN_GROUP} ORDER BY bt.txn_date DESC, bt.id DESC"
     r = await db.execute(text(sql), params)
-    rows = r.fetchall()
-    return [
-        TransactionOut(
-            id=row[0], account_id=row[1], statement_id=row[2],
-            txn_date=str(row[3]), description=row[4], party_name=row[5],
-            amount=float(row[6]), type=row[7], category_id=row[8],
-            category_name=row[9], category_color=row[10],
-            invoice_id=row[11], invoice_number=row[12],
-            bill_id=row[13], bill_number=row[14],
-            note=row[15], receipt_url=row[16],
-        )
-        for row in rows
-    ]
+    return [_txn_out_from_row(row) for row in r.fetchall()]
 
 
 @router.post("/accounts/{account_id}/transactions", response_model=TransactionOut)
@@ -1026,6 +1083,7 @@ async def create_transaction(
 ):
     tid = _tenant_id(current_user)
     await _get_account(db, account_id, tid)
+    first_cat = payload.category_ids[0] if payload.category_ids else None
     r = await db.execute(
         text("""
             INSERT INTO bank_transactions
@@ -1034,29 +1092,18 @@ async def create_transaction(
         """),
         {"aid": account_id, "d": payload.txn_date, "desc": payload.description,
          "party": payload.party_name, "amt": payload.amount, "type": payload.type,
-         "cat": payload.category_id, "note": payload.note},
+         "cat": first_cat, "note": payload.note},
     )
-    await db.commit()
     txn_id = r.lastrowid
+    if payload.category_ids:
+        await _upsert_categories(db, txn_id, payload.category_ids)
+    await db.commit()
 
-    cat_name = cat_color = None
-    if payload.category_id:
-        cr = await db.execute(
-            text("SELECT name, color FROM transaction_categories WHERE id = :id"),
-            {"id": payload.category_id},
-        )
-        cat_row = cr.fetchone()
-        if cat_row:
-            cat_name, cat_color = cat_row
-
-    return TransactionOut(
-        id=txn_id, account_id=account_id, statement_id=None,
-        txn_date=str(payload.txn_date), description=payload.description,
-        party_name=payload.party_name, amount=payload.amount, type=payload.type,
-        category_id=payload.category_id, category_name=cat_name, category_color=cat_color,
-        invoice_id=None, invoice_number=None, bill_id=None, bill_number=None,
-        note=payload.note,
+    r2 = await db.execute(
+        text(f"{_TXN_SELECT} WHERE bt.id = :id {_TXN_GROUP}"),
+        {"id": txn_id},
     )
+    return _txn_out_from_row(r2.fetchone())
 
 
 @router.put("/transactions/{txn_id}", response_model=TransactionOut)
@@ -1093,6 +1140,12 @@ async def update_transaction(
     new_amount = payload.amount if payload.amount is not None else float(old["amount"])
     new_type = payload.type if payload.type is not None else old["type"]
 
+    # Resolve new legacy category_id: first of new list, or keep old if not changing categories
+    if payload.category_ids is not None:
+        new_cat_id = payload.category_ids[0] if payload.category_ids else None
+    else:
+        new_cat_id = old["category_id"]
+
     await db.execute(
         text("""
             UPDATE bank_transactions
@@ -1113,13 +1166,16 @@ async def update_transaction(
             "party": payload.party_name if payload.party_name is not None else old["party_name"],
             "amt": new_amount,
             "type": new_type,
-            "cat": payload.category_id if payload.category_id is not None else old["category_id"],
+            "cat": new_cat_id,
             "inv": new_invoice_id,
             "bill": new_bill_id,
             "note": payload.note if payload.note is not None else old["note"],
             "id": txn_id,
         },
     )
+
+    if payload.category_ids is not None:
+        await _upsert_categories(db, txn_id, payload.category_ids)
 
     # Auto-mark invoice as paid when linked
     if new_invoice_id and new_invoice_id != old["invoice_id"] and new_type == "credit":
@@ -1148,33 +1204,11 @@ async def update_transaction(
 
     await db.commit()
 
-    # Fetch updated row with joins
     r2 = await db.execute(
-        text("""
-            SELECT bt.id, bt.account_id, bt.statement_id, bt.txn_date, bt.description,
-                   bt.party_name, bt.amount, bt.type, bt.category_id,
-                   tc.name, tc.color,
-                   bt.invoice_id, i.invoice_number,
-                   bt.bill_id, b.bill_number,
-                   bt.note, bt.receipt_url
-            FROM bank_transactions bt
-            LEFT JOIN transaction_categories tc ON tc.id = bt.category_id
-            LEFT JOIN invoices i ON i.id = bt.invoice_id
-            LEFT JOIN bills b ON b.id = bt.bill_id
-            WHERE bt.id = :id
-        """),
+        text(f"{_TXN_SELECT} WHERE bt.id = :id {_TXN_GROUP}"),
         {"id": txn_id},
     )
-    row2 = r2.fetchone()
-    return TransactionOut(
-        id=row2[0], account_id=row2[1], statement_id=row2[2],
-        txn_date=str(row2[3]), description=row2[4], party_name=row2[5],
-        amount=float(row2[6]), type=row2[7], category_id=row2[8],
-        category_name=row2[9], category_color=row2[10],
-        invoice_id=row2[11], invoice_number=row2[12],
-        bill_id=row2[13], bill_number=row2[14],
-        note=row2[15], receipt_url=row2[16],
-    )
+    return _txn_out_from_row(r2.fetchone())
 
 
 @router.delete("/transactions/{txn_id}")
@@ -1310,15 +1344,16 @@ async def get_summary(
         for r in monthly_r.fetchall()
     ]
 
-    # Category breakdown
+    # Category breakdown (uses junction table so multi-category transactions count for each category)
     cat_r = await db.execute(
         text(f"""
             SELECT tc.name, tc.color, bt.type,
                    COALESCE(SUM(bt.amount), 0) AS total
             FROM bank_transactions bt
-            LEFT JOIN transaction_categories tc ON tc.id = bt.category_id
+            LEFT JOIN bank_transaction_categories btc ON btc.transaction_id = bt.id
+            LEFT JOIN transaction_categories tc ON tc.id = btc.category_id
             WHERE {' AND '.join(where)}
-            GROUP BY bt.category_id, tc.name, tc.color, bt.type
+            GROUP BY btc.category_id, tc.name, tc.color, bt.type
             ORDER BY total DESC
         """),
         params,

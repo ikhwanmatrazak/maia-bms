@@ -284,12 +284,12 @@ function TxnModal({
     party_name: editing?.party_name ?? "",
     amount: editing?.amount ?? 0,
     type: editing?.type ?? "credit",
-    category_id: editing?.category_id ?? null as number | null,
+    category_ids: editing?.categories?.map((c) => c.id) ?? [] as number[],
     note: editing?.note ?? "",
   });
 
   const createMut = useMutation({
-    mutationFn: (d: typeof form) => bankApi.createTransaction(accountId, { ...d, category_id: d.category_id ?? undefined }),
+    mutationFn: (d: typeof form) => bankApi.createTransaction(accountId, { ...d }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bank-txns", accountId] });
       qc.invalidateQueries({ queryKey: ["bank-summary", accountId] });
@@ -299,7 +299,7 @@ function TxnModal({
   });
 
   const updateMut = useMutation({
-    mutationFn: (d: typeof form) => bankApi.updateTransaction(editing!.id, { ...d, category_id: d.category_id }),
+    mutationFn: (d: typeof form) => bankApi.updateTransaction(editing!.id, { ...d }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bank-txns", accountId] });
       qc.invalidateQueries({ queryKey: ["bank-summary", accountId] });
@@ -366,15 +366,23 @@ function TxnModal({
         </div>
 
         <div>
-          <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">Category</label>
-          <select value={form.category_id ?? ""}
-            onChange={(e) => setForm((f) => ({ ...f, category_id: e.target.value ? Number(e.target.value) : null }))}
-            className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
-            <option value="">— No category —</option>
-            {categories.filter((c) => c.type === (form.type === "credit" ? "income" : "expense")).map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+          <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">Categories</label>
+          <div className="border border-default-200 rounded-lg overflow-hidden divide-y divide-default-100 max-h-36 overflow-y-auto">
+            {categories.length === 0 ? (
+              <p className="text-xs text-default-400 p-2">No categories yet.</p>
+            ) : categories.map((c) => (
+              <label key={c.id} className="flex items-center gap-2 px-3 py-2 hover:bg-default-50 cursor-pointer">
+                <input type="checkbox" checked={form.category_ids.includes(c.id)}
+                  onChange={(e) => setForm((f) => ({
+                    ...f,
+                    category_ids: e.target.checked ? [...f.category_ids, c.id] : f.category_ids.filter((id) => id !== c.id),
+                  }))}
+                  className="accent-primary" />
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
+                <span className="text-sm text-foreground">{c.name}</span>
+              </label>
             ))}
-          </select>
+          </div>
         </div>
 
         <div>
@@ -466,7 +474,7 @@ function EditDrawer({
   const fileRef = useRef<HTMLInputElement>(null);
   const [description, setDescription] = useState(txn.description ?? "");
   const [partyName, setPartyName] = useState(txn.party_name ?? "");
-  const [catId, setCatId] = useState<number | null>(txn.category_id);
+  const [catIds, setCatIds] = useState<number[]>(txn.categories?.map((c) => c.id) ?? (txn.category_id ? [txn.category_id] : []));
   const [invId, setInvId] = useState<number | null>(txn.invoice_id);
   const [billId, setBillId] = useState<number | null>(txn.bill_id);
   const [note, setNote] = useState(txn.note ?? "");
@@ -476,7 +484,7 @@ function EditDrawer({
   const mut = useMutation({
     mutationFn: () => bankApi.updateTransaction(txn.id, {
       description, party_name: partyName,
-      category_id: catId, invoice_id: invId, bill_id: billId, note,
+      category_ids: catIds, invoice_id: invId, bill_id: billId, note,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bank-txns", txn.account_id] });
@@ -510,7 +518,7 @@ function EditDrawer({
     }),
     onSuccess: (cat) => {
       qc.invalidateQueries({ queryKey: ["bank-cats"] });
-      setCatId(cat.id);
+      setCatIds((prev) => [...prev, cat.id]);
       setShowAddCat(false);
       setNewCatName("");
     },
@@ -579,13 +587,19 @@ function EditDrawer({
               </button>
             </div>
           ) : (
-            <select value={catId ?? ""} onChange={(e) => setCatId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
-              <option value="">— No category —</option>
-              {relevantCats.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+            <div className="border border-default-200 rounded-lg overflow-hidden divide-y divide-default-100 max-h-40 overflow-y-auto">
+              {relevantCats.length === 0 ? (
+                <p className="text-xs text-default-400 p-2">No categories yet. Click "+ New" to add one.</p>
+              ) : relevantCats.map((c) => (
+                <label key={c.id} className="flex items-center gap-2 px-3 py-2 hover:bg-default-50 cursor-pointer">
+                  <input type="checkbox" checked={catIds.includes(c.id)}
+                    onChange={(e) => setCatIds((prev) => e.target.checked ? [...prev, c.id] : prev.filter((id) => id !== c.id))}
+                    className="accent-primary" />
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
+                  <span className="text-sm text-foreground">{c.name}</span>
+                </label>
               ))}
-            </select>
+            </div>
           )}
         </div>
 
@@ -1005,12 +1019,16 @@ export default function BankDetailPage() {
                     <td className="px-4 py-3 text-default-500 text-xs whitespace-normal break-words">{txn.party_name ?? "—"}</td>
                     <td className="px-4 py-3 text-default-500 text-xs whitespace-normal break-words">{txn.note ?? "—"}</td>
                     <td className="px-4 py-3">
-                      {txn.category_name ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
-                          style={{ backgroundColor: `${txn.category_color}35`, color: "#1f2937" }}>
-                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: txn.category_color ?? "#6366f1" }} />
-                          {txn.category_name}
-                        </span>
+                      {txn.categories && txn.categories.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {txn.categories.map((cat) => (
+                            <span key={cat.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                              style={{ backgroundColor: `${cat.color}35`, color: "#1f2937" }}>
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                              {cat.name}
+                            </span>
+                          ))}
+                        </div>
                       ) : (
                         <span className="text-xs text-default-300">—</span>
                       )}

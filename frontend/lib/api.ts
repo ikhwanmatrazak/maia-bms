@@ -704,6 +704,8 @@ export interface BankTransaction {
   party_name: string | null;
   amount: number;
   type: "credit" | "debit";
+  categories: { id: number; name: string; color: string }[];
+  // backward-compat single-category fields
   category_id: number | null;
   category_name: string | null;
   category_color: string | null;
@@ -812,11 +814,11 @@ export const bankApi = {
   }) => api.get<BankTransaction[]>(`/bank/accounts/${accountId}/transactions`, { params }).then((r) => r.data),
   createTransaction: (accountId: number, d: {
     txn_date: string; description: string; party_name?: string;
-    amount: number; type: string; category_id?: number; note?: string;
+    amount: number; type: string; category_ids?: number[]; note?: string;
   }) => api.post<BankTransaction>(`/bank/accounts/${accountId}/transactions`, d).then((r) => r.data),
   updateTransaction: (id: number, d: Partial<{
     txn_date: string; description: string; party_name: string; amount: number;
-    type: string; category_id: number | null; invoice_id: number | null;
+    type: string; category_ids: number[]; invoice_id: number | null;
     bill_id: number | null; note: string;
   }>) => api.put<BankTransaction>(`/bank/transactions/${id}`, d).then((r) => r.data),
   deleteTransaction: (id: number) => api.delete(`/bank/transactions/${id}`).then((r) => r.data),

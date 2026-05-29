@@ -646,6 +646,16 @@ async def _ensure_bank_tables():
             FOREIGN KEY (category_id) REFERENCES transaction_categories(id) ON DELETE SET NULL
         )""",
         "ALTER TABLE bank_transactions ADD COLUMN IF NOT EXISTS receipt_url VARCHAR(500) NULL",
+        """CREATE TABLE IF NOT EXISTS bank_transaction_categories (
+            transaction_id INT NOT NULL,
+            category_id    INT NOT NULL,
+            PRIMARY KEY (transaction_id, category_id),
+            FOREIGN KEY (transaction_id) REFERENCES bank_transactions(id) ON DELETE CASCADE,
+            FOREIGN KEY (category_id)    REFERENCES transaction_categories(id) ON DELETE CASCADE
+        )""",
+        # one-time migration: seed junction table from legacy single category_id column
+        """INSERT IGNORE INTO bank_transaction_categories (transaction_id, category_id)
+           SELECT id, category_id FROM bank_transactions WHERE category_id IS NOT NULL""",
     ]
     async with engine.begin() as conn:
         for stmt in stmts:
