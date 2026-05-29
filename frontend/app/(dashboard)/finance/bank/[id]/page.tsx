@@ -405,19 +405,19 @@ const SOURCE_COLOR: Record<string, string> = { client: "text-primary", vendor: "
 function PartySearch({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const [results, setResults] = useState<{ source: string; name: string }[]>([]);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
     onChange(v);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
+    clearTimeout(debounceRef.current);
     if (v.trim().length < 1) { setResults([]); setOpen(false); return; }
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await bankApi.searchParties(v.trim());
         setResults(res);
         setOpen(res.length > 0);
-      } catch { setResults([]); }
+      } catch (_e) { setResults([]); }
     }, 250);
   };
 
