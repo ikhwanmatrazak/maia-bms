@@ -4,8 +4,8 @@ import DigitalCardClient from "./DigitalCardClient";
 // Force per-request rendering so generateMetadata always runs at request time
 export const dynamic = "force-dynamic";
 
-// Internal Docker network URL — used by next.config.mjs rewrites already
 const BACKEND_URL = process.env.BACKEND_URL || "http://backend:8000";
+const SITE_URL = "https://ali-axis.maia.com.my";
 
 interface CardData {
   name: string;
@@ -53,6 +53,8 @@ export async function generateMetadata({
   if (card.email) descParts.push(card.email);
   const description = descParts.join(" · ") || "Digital Business Card";
 
+  const ogImage = `${SITE_URL}/card/${params.slug}/opengraph-image`;
+
   return {
     title,
     description,
@@ -60,11 +62,13 @@ export async function generateMetadata({
       title,
       description,
       type: "profile",
+      images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
+      images: [ogImage],
     },
   };
 }
