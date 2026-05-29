@@ -410,6 +410,8 @@ function EditDrawer({
 }) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const [description, setDescription] = useState(txn.description ?? "");
+  const [partyName, setPartyName] = useState(txn.party_name ?? "");
   const [catId, setCatId] = useState<number | null>(txn.category_id);
   const [invId, setInvId] = useState<number | null>(txn.invoice_id);
   const [billId, setBillId] = useState<number | null>(txn.bill_id);
@@ -419,6 +421,7 @@ function EditDrawer({
 
   const mut = useMutation({
     mutationFn: () => bankApi.updateTransaction(txn.id, {
+      description, party_name: partyName,
       category_id: catId, invoice_id: invId, bill_id: billId, note,
     }),
     onSuccess: () => {
@@ -472,12 +475,31 @@ function EditDrawer({
 
         {/* Transaction summary */}
         <div className="bg-default-50 rounded-xl p-3 text-sm space-y-1">
-          <p className="font-medium text-foreground">{txn.description}</p>
-          {txn.party_name && <p className="text-default-500 text-xs">{txn.party_name}</p>}
           <p className={`font-bold ${txn.type === "credit" ? "text-success-600" : "text-danger-500"}`}>
             {txn.type === "credit" ? "+" : "-"}{fmt(txn.amount)}
           </p>
           <p className="text-xs text-default-400">{txn.txn_date}</p>
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">Description</label>
+          <input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 bg-white outline-none focus:border-primary"
+          />
+        </div>
+
+        {/* Party */}
+        <div>
+          <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">Party</label>
+          <input
+            value={partyName}
+            onChange={(e) => setPartyName(e.target.value)}
+            placeholder="e.g. Vendor name"
+            className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 bg-white outline-none focus:border-primary"
+          />
         </div>
 
         {/* Category */}
@@ -939,7 +961,7 @@ export default function BankDetailPage() {
                     <td className="px-4 py-3">
                       {txn.category_name ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
-                          style={{ backgroundColor: `${txn.category_color}20`, color: txn.category_color ?? "#6366f1" }}>
+                          style={{ backgroundColor: `${txn.category_color}35`, color: "#1f2937" }}>
                           <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: txn.category_color ?? "#6366f1" }} />
                           {txn.category_name}
                         </span>
