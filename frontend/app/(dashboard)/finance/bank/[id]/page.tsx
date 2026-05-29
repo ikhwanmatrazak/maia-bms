@@ -21,17 +21,20 @@ function fmt(n: number, cur = "MYR") {
 
 function QuickLinkInvoiceModal({
   txn,
-  unpaidInvoices,
   onClose,
 }: {
   txn: BankTransaction;
-  unpaidInvoices: UnpaidInvoice[];
   onClose: () => void;
 }) {
   const qc = useQueryClient();
   const [invIds, setInvIds] = useState<number[]>(
     txn.invoices?.map((i) => i.id) ?? (txn.invoice_id ? [txn.invoice_id] : [])
   );
+
+  const { data: filteredInvoices = [] } = useQuery({
+    queryKey: ["bank-unpaid-inv", txn.id],
+    queryFn: () => bankApi.listUnpaidInvoices(txn.id),
+  });
 
   const mut = useMutation({
     mutationFn: () => bankApi.updateTransaction(txn.id, { invoice_ids: invIds }),
@@ -42,11 +45,7 @@ function QuickLinkInvoiceModal({
     },
   });
 
-  const linkedIds = new Set(txn.invoices?.map((i) => i.id) ?? (txn.invoice_id ? [txn.invoice_id] : []));
-  const allOptions = [
-    ...(txn.invoices ?? []).filter(li => !unpaidInvoices.find(u => u.id === li.id)),
-    ...unpaidInvoices,
-  ];
+  const allOptions = filteredInvoices;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -481,11 +480,10 @@ function PartySearch({ value, onChange }: { value: string; onChange: (v: string)
 // ── Edit drawer (category + reconciliation + receipt) ────────────────────────
 
 function EditDrawer({
-  txn, categories, unpaidInvoices, unpaidBills, onClose,
+  txn, categories, unpaidBills, onClose,
 }: {
   txn: BankTransaction;
   categories: TxnCategory[];
-  unpaidInvoices: UnpaidInvoice[];
   unpaidBills: UnpaidBill[];
   onClose: () => void;
 }) {
@@ -496,6 +494,12 @@ function EditDrawer({
   const [catIds, setCatIds] = useState<number[]>(txn.categories?.map((c) => c.id) ?? (txn.category_id ? [txn.category_id] : []));
   const [invIds, setInvIds] = useState<number[]>(txn.invoices?.map((i) => i.id) ?? (txn.invoice_id ? [txn.invoice_id] : []));
   const [billId, setBillId] = useState<number | null>(txn.bill_id);
+
+  const { data: filteredInvoices = [] } = useQuery({
+    queryKey: ["bank-unpaid-inv", txn.id],
+    queryFn: () => bankApi.listUnpaidInvoices(txn.id),
+    enabled: txn.type === "credit",
+  });
   const [note, setNote] = useState(txn.note ?? "");
   const [receiptUrl, setReceiptUrl] = useState<string | null>(txn.receipt_url);
   const [uploading, setUploading] = useState(false);
@@ -628,32 +632,10 @@ function EditDrawer({
             <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-2">
               Link to Invoice <span className="text-success-600 font-normal">(marks as Paid)</span>
             </label>
-            {/* Currently linked — show with View button */}
-            {invIds.length > 0 && (
-              <div className="mb-2 space-y-1">
-                {[...unpaidInvoices, ...(txn.invoices ?? []).filter(li => !unpaidInvoices.find(u => u.id === li.id))]
-                  .filter(inv => invIds.includes(inv.id))
-                  .map(inv => (
-                    <div key={inv.id} className="flex items-center justify-between bg-success-50 border border-success-200 rounded-lg px-3 py-1.5 text-xs">
-                      <span className="text-success-700 font-medium">
-                        {"invoice_number" in inv ? inv.invoice_number : (inv as any).invoice_number} — {"client_name" in inv ? inv.client_name : ""}
-                      </span>
-                      <a
-                        href={`/api/v1/invoices/${"id" in inv ? inv.id : ""}/pdf`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="ml-2 text-primary hover:underline shrink-0"
-                      >
-                        View
-                      </a>
-                    </div>
-                  ))}
-              </div>
-            )}
             <div className="border border-default-200 rounded-lg overflow-hidden divide-y divide-default-100 max-h-44 overflow-y-auto">
-              {unpaidInvoices.length === 0 ? (
+              {filteredInvoices.length === 0 ? (
                 <p className="text-xs text-default-400 p-2">No invoices available.</p>
-              ) : unpaidInvoices.map((inv) => (
+              ) : filteredInvoices.map((inv) => (
                 <label key={inv.id} className="flex items-center gap-2 px-3 py-2 hover:bg-default-50 cursor-pointer">
                   <input
                     type="checkbox"
@@ -665,6 +647,13 @@ function EditDrawer({
                     <span className="font-medium">{inv.invoice_number}</span>
                     <span className="text-default-400"> — {inv.client_name} [{inv.status ?? ""}] ({fmt(inv.total)})</span>
                   </span>
+                  {invIds.includes(inv.id) && (
+                    <a href={`/api/v1/invoices/${inv.id}/pdf`} target="_blank" rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-xs text-primary hover:underline shrink-0">
+                      View
+                    </a>
+                  )}
                 </label>
               ))}
             </div>
@@ -1154,7 +1143,6 @@ export default function BankDetailPage() {
         <EditDrawer
           txn={drawerTxn}
           categories={categories}
-          unpaidInvoices={unpaidInvoices}
           unpaidBills={unpaidBills}
           onClose={() => setDrawerTxn(null)}
         />

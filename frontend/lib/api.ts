@@ -869,6 +869,6 @@ export const bankApi = {
     api.get<AccountSummary>(`/bank/accounts/${accountId}/summary`, { params }).then((r) => r.data),
 
   // Reconciliation helpers
-  listUnpaidInvoices: () => api.get<UnpaidInvoice[]>("/bank/invoices/unpaid").then((r) => r.data),
+  listUnpaidInvoices: (txn_id?: number) => api.get<UnpaidInvoice[]>("/bank/invoices/unpaid", { params: txn_id ? { txn_id } : {} }).then((r) => r.data),
   listUnpaidBills: () => api.get<UnpaidBill[]>("/bank/bills/unpaid").then((r) => r.data),
 };

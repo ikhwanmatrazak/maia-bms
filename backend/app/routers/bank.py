@@ -1438,6 +1438,7 @@ async def get_summary(
 async def list_unpaid_invoices(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    txn_id: Optional[int] = None,
 ):
     tid = get_effective_tenant_id(current_user)
     where = "i.status != 'cancelled' AND (i.is_deleted = 0 OR i.is_deleted IS NULL)"
@@ -1445,6 +1446,15 @@ async def list_unpaid_invoices(
     if tid is not None:
         where += " AND i.tenant_id = :tid"
         params["tid"] = tid
+    if txn_id is not None:
+        # Exclude invoices already linked to a different transaction
+        where += """
+            AND (
+                NOT EXISTS (SELECT 1 FROM bank_transaction_invoices bti WHERE bti.invoice_id = i.id)
+                OR EXISTS (SELECT 1 FROM bank_transaction_invoices bti WHERE bti.invoice_id = i.id AND bti.transaction_id = :txn_id)
+            )
+        """
+        params["txn_id"] = txn_id
     r = await db.execute(
         text(f"""
             SELECT i.id, i.invoice_number, i.total, i.balance_due, i.status, c.company_name AS client_name
