@@ -831,7 +831,7 @@ export const bankApi = {
   },
 
   // Summary
-  getSummary: (accountId: number, params?: { date_from?: string; date_to?: string }) =>
+  getSummary: (accountId: number, params?: { date_from?: string; date_to?: string; category_id?: number }) =>
     api.get<AccountSummary>(`/bank/accounts/${accountId}/summary`, { params }).then((r) => r.data),
 
   // Reconciliation helpers

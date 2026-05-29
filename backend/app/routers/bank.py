@@ -1283,6 +1283,7 @@ async def get_summary(
     account_id: int,
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    category_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1306,6 +1307,9 @@ async def get_summary(
     if date_to:
         where.append("txn_date <= :dt")
         params["dt"] = date_to
+    if category_id:
+        where.append("id IN (SELECT transaction_id FROM bank_transaction_categories WHERE category_id = :cat_id)")
+        params["cat_id"] = category_id
 
     # Overall totals
     totals_r = await db.execute(
@@ -1344,10 +1348,11 @@ async def get_summary(
         for r in monthly_r.fetchall()
     ]
 
-    # Category breakdown (uses junction table so multi-category transactions count for each category)
+    # Category breakdown (uses junction table; maps credit→income, debit→expense)
     cat_r = await db.execute(
         text(f"""
-            SELECT tc.name, tc.color, bt.type,
+            SELECT tc.name, tc.color,
+                   CASE WHEN bt.type = 'credit' THEN 'income' ELSE 'expense' END AS cat_type,
                    COALESCE(SUM(bt.amount), 0) AS total
             FROM bank_transactions bt
             LEFT JOIN bank_transaction_categories btc ON btc.transaction_id = bt.id

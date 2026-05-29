@@ -842,8 +842,12 @@ export default function BankDetailPage() {
   }), [txns, dateFrom, dateTo]);
 
   const { data: summary } = useQuery({
-    queryKey: ["bank-summary", accountId, dateFrom, dateTo],
-    queryFn: () => bankApi.getSummary(accountId, { date_from: dateFrom || undefined, date_to: dateTo || undefined }),
+    queryKey: ["bank-summary", accountId, dateFrom, dateTo, catFilter],
+    queryFn: () => bankApi.getSummary(accountId, {
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+      category_id: catFilter || undefined,
+    }),
     enabled: !!accountId,
   });
 
