@@ -237,6 +237,86 @@ def _resolve_type(type_cell: str, debit_val: Optional[float], credit_val: Option
     return None
 
 
+def _parse_cimb_portfolio_text(raw: str) -> List[ParsedRow]:
+    """
+    Parse CIMB Portfolio / CASA account statement from raw PDF text.
+
+    Each row follows: ACCT(10) SEQ(9) DATE(8,DDMMYYYY) CODE(3-4) DESCRIPTION BRANCH DOCREF
+    MYR AMOUNT C/D MYR BALANCE BALTYPE TIME CUSTREF 1 RECIPREF OTHERREF SENDERNAME
+    """
+    # Fix hyphenated line-breaks ("MDN2605260-\n14801826" → "MDN2605260-14801826")
+    text = re.sub(r"(\w)-\s+(\w)", r"\1-\2", raw)
+    text = re.sub(r"\s+", " ", text)
+
+    main_re = re.compile(
+        r"\d{10}\s+"            # account number
+        r"\d{9}\s+"             # record sequence
+        r"(\d{8})\s+"           # date DDMMYYYY  [1]
+        r"\d{3,4}\s+"           # transaction code
+        r"([A-Z][A-Z ]+?)\s+"   # description (uppercase) [2]
+        r"(?:-|\d{4})\s+"       # originating branch code
+        r"(\S+)\s+"             # document reference [3]
+        r"MYR\s*([\d,. ]+?)\s+" # transaction amount [4]
+        r"([CD])\s+"            # amount type  [5]
+        r"MYR"                  # balance start (anchor, not captured)
+    )
+
+    matches = list(main_re.finditer(text))
+    results: List[ParsedRow] = []
+
+    for i, m in enumerate(matches):
+        parsed_date = _parse_date(m.group(1))
+        if not parsed_date:
+            continue
+
+        amount = _parse_amount(re.sub(r"\s+", "", m.group(4)))
+        if not amount:
+            continue
+
+        txn_type = "credit" if m.group(5) == "C" else "debit"
+        description = m.group(2).strip()
+        doc_ref = m.group(3)
+
+        # ── Extract customer reference and sender name from the tail ──────────
+        tail_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        tail = text[m.end(): tail_end]
+
+        # Customer reference: between "D time(6)" and filler "1 "
+        cust_ref: Optional[str] = None
+        cr_match = re.search(r"[CD]\s+\d{6}\s+(.*?)\s+1\s+", tail)
+        if cr_match:
+            cr_raw = cr_match.group(1).strip()
+            if cr_raw and cr_raw != "-":
+                cust_ref = cr_raw
+
+        # Sender name: after filler "1 " — skip up to two reference tokens, then grab name
+        sender: Optional[str] = None
+        sn_match = re.search(r"\s1\s+\S+\s+(?:\S+\s+)?([A-Z][A-Z0-9\s\.\'/\-]+)", tail)
+        if sn_match:
+            raw_sn = re.sub(r"\d{8,}.*$", "", sn_match.group(1)).strip()
+            if raw_sn:
+                sender = raw_sn
+
+        # note: prefer descriptive customer ref over raw doc ref
+        if cust_ref and not re.fullmatch(r"[\dA-Za-z/\-]+", cust_ref):
+            note: Optional[str] = cust_ref
+        elif doc_ref and doc_ref != "-":
+            note = doc_ref
+        else:
+            note = cust_ref  # may be None
+
+        results.append(ParsedRow(
+            txn_date=str(parsed_date),
+            description=description,
+            party_name=sender or None,
+            amount=round(abs(amount), 2),
+            type=txn_type,
+            note=note,
+        ))
+
+    return results
+
+
 def _detect_delimiter(content: str) -> str:
     """Pick the delimiter that produces the most columns in the first data row."""
     first_line = content.split("\n")[0]
@@ -442,9 +522,18 @@ def _parse_pdf_content(file_bytes: bytes) -> List[ParsedRow]:
                         except Exception:
                             continue
 
-                # Fallback: text-based regex for simple statements without tables
+                # Fallback: text-based parsing for statements without detectable table borders
                 if not page_had_table:
                     text_content = page.extract_text() or ""
+
+                    # CIMB Portfolio/CASA detection: rows start with 10-digit acct + 9-digit seq + 8-digit date
+                    if re.search(r"\d{10}\s+\d{9}\s+\d{8}", text_content):
+                        cimb_rows = _parse_cimb_portfolio_text(text_content)
+                        if cimb_rows:
+                            results.extend(cimb_rows)
+                            continue  # skip generic regex for this page
+
+                    # Generic regex for DD/MM/YYYY or DD-MM-YYYY statements
                     pattern = re.compile(
                         r"(\d{2}[\/\-]\d{2}[\/\-]\d{4})\s+([\w\s\-\/\*]+?)\s+([\d,]+\.\d{2})(?:\s+([\d,]+\.\d{2}))?",
                         re.MULTILINE,
