@@ -442,7 +442,24 @@ function EditDrawer({
     }
   };
 
-  const relevantCats = categories.filter((c) => c.type === (txn.type === "credit" ? "income" : "expense"));
+  const [showAddCat, setShowAddCat] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatColor, setNewCatColor] = useState("#6366f1");
+  const createCatMut = useMutation({
+    mutationFn: () => bankApi.createCategory({
+      name: newCatName.trim(),
+      type: txn.type === "credit" ? "income" : "expense",
+      color: newCatColor,
+    }),
+    onSuccess: (cat) => {
+      qc.invalidateQueries({ queryKey: ["bank-cats"] });
+      setCatId(cat.id);
+      setShowAddCat(false);
+      setNewCatName("");
+    },
+  });
+  // Show all categories — no type restriction so user always sees options
+  const relevantCats = categories;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
@@ -465,14 +482,43 @@ function EditDrawer({
 
         {/* Category */}
         <div>
-          <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">Category</label>
-          <select value={catId ?? ""} onChange={(e) => setCatId(e.target.value ? Number(e.target.value) : null)}
-            className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
-            <option value="">— No category —</option>
-            {relevantCats.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-medium text-default-500 uppercase tracking-wider">Category</label>
+            <button onClick={() => setShowAddCat((v) => !v)}
+              className="text-xs text-primary hover:underline">
+              {showAddCat ? "Cancel" : "+ Add Category"}
+            </button>
+          </div>
+          {showAddCat ? (
+            <div className="space-y-2 p-3 border border-default-200 rounded-lg bg-default-50">
+              <input
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                placeholder="Category name"
+                className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 bg-white outline-none focus:border-primary"
+              />
+              <div className="flex items-center gap-2">
+                <input type="color" value={newCatColor} onChange={(e) => setNewCatColor(e.target.value)}
+                  className="w-8 h-8 rounded cursor-pointer border-0 p-0" />
+                <span className="text-xs text-default-400">Pick colour</span>
+              </div>
+              <button
+                onClick={() => createCatMut.mutate()}
+                disabled={!newCatName.trim() || createCatMut.isPending}
+                className="w-full py-2 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+              >
+                {createCatMut.isPending ? "Saving…" : "Save Category"}
+              </button>
+            </div>
+          ) : (
+            <select value={catId ?? ""} onChange={(e) => setCatId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
+              <option value="">— No category —</option>
+              {relevantCats.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Link to invoice (for credits) */}
