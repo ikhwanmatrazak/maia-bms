@@ -6,8 +6,6 @@ export const dynamic = "force-dynamic";
 
 // Internal Docker network URL — used by next.config.mjs rewrites already
 const BACKEND_URL = process.env.BACKEND_URL || "http://backend:8000";
-// Public site origin for building absolute og:image URLs
-const PUBLIC_BASE = "https://ali-axis.maia.com.my";
 
 interface CardData {
   name: string;
@@ -31,11 +29,6 @@ async function fetchCardMeta(slug: string): Promise<CardData | null> {
   }
 }
 
-function makeAbsolute(url?: string): string | undefined {
-  if (!url) return undefined;
-  if (url.startsWith("http")) return url;
-  return `${PUBLIC_BASE}${url}`;
-}
 
 export async function generateMetadata({
   params,
@@ -60,8 +53,6 @@ export async function generateMetadata({
   if (card.email) descParts.push(card.email);
   const description = descParts.join(" · ") || "Digital Business Card";
 
-  const imageUrl = makeAbsolute(card.photo_url) ?? makeAbsolute(card.company_logo_url);
-
   return {
     title,
     description,
@@ -69,13 +60,11 @@ export async function generateMetadata({
       title,
       description,
       type: "profile",
-      ...(imageUrl ? { images: [{ url: imageUrl, width: 400, height: 400 }] } : {}),
     },
     twitter: {
-      card: imageUrl ? "summary_large_image" : "summary",
+      card: "summary_large_image",
       title,
       description,
-      ...(imageUrl ? { images: [imageUrl] } : {}),
     },
   };
 }
