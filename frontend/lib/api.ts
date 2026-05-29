@@ -741,6 +741,8 @@ export interface BankTransaction {
   category_id: number | null;
   category_name: string | null;
   category_color: string | null;
+  invoices: { id: number; invoice_number: string; client_name?: string }[];
+  // backward-compat single-invoice fields
   invoice_id: number | null;
   invoice_number: string | null;
   bill_id: number | null;
@@ -846,11 +848,11 @@ export const bankApi = {
   }) => api.get<BankTransaction[]>(`/bank/accounts/${accountId}/transactions`, { params }).then((r) => r.data),
   createTransaction: (accountId: number, d: {
     txn_date: string; description: string; party_name?: string;
-    amount: number; type: string; category_ids?: number[]; note?: string;
+    amount: number; type: string; category_ids?: number[]; invoice_ids?: number[]; note?: string;
   }) => api.post<BankTransaction>(`/bank/accounts/${accountId}/transactions`, d).then((r) => r.data),
   updateTransaction: (id: number, d: Partial<{
     txn_date: string; description: string; party_name: string; amount: number;
-    type: string; category_ids: number[]; invoice_id: number | null;
+    type: string; category_ids: number[]; invoice_ids: number[];
     bill_id: number | null; note: string;
   }>) => api.put<BankTransaction>(`/bank/transactions/${id}`, d).then((r) => r.data),
   deleteTransaction: (id: number) => api.delete(`/bank/transactions/${id}`).then((r) => r.data),

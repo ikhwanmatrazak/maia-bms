@@ -29,10 +29,12 @@ function QuickLinkInvoiceModal({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const [invId, setInvId] = useState<number | null>(txn.invoice_id);
+  const [invIds, setInvIds] = useState<number[]>(
+    txn.invoices?.map((i) => i.id) ?? (txn.invoice_id ? [txn.invoice_id] : [])
+  );
 
   const mut = useMutation({
-    mutationFn: () => bankApi.updateTransaction(txn.id, { invoice_id: invId }),
+    mutationFn: () => bankApi.updateTransaction(txn.id, { invoice_ids: invIds }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bank-txns", txn.account_id] });
       qc.invalidateQueries({ queryKey: ["bank-summary", txn.account_id] });
@@ -40,11 +42,10 @@ function QuickLinkInvoiceModal({
     },
   });
 
+  const linkedIds = new Set(txn.invoices?.map((i) => i.id) ?? (txn.invoice_id ? [txn.invoice_id] : []));
   const allOptions = [
-    ...(txn.invoice_id && txn.invoice_number
-      ? [{ id: txn.invoice_id, invoice_number: txn.invoice_number, client_name: "(currently linked)", balance_due: 0 }]
-      : []),
-    ...unpaidInvoices.filter((inv) => inv.id !== txn.invoice_id),
+    ...(txn.invoices ?? []).filter(li => !unpaidInvoices.find(u => u.id === li.id)),
+    ...unpaidInvoices,
   ];
 
   return (
@@ -63,18 +64,34 @@ function QuickLinkInvoiceModal({
           <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">
             Select Invoice <span className="text-success-600 font-normal">(marks as Paid)</span>
           </label>
-          <select
-            value={invId ?? ""}
-            onChange={(e) => setInvId(e.target.value ? Number(e.target.value) : null)}
-            className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 outline-none focus:border-primary"
-          >
-            <option value="">— No invoice —</option>
-            {allOptions.map((inv) => (
-              <option key={inv.id} value={inv.id}>
-                {inv.invoice_number} — {inv.client_name}{inv.balance_due > 0 ? ` (${fmt(inv.balance_due)})` : ""}
-              </option>
+          <div className="border border-default-200 rounded-lg overflow-hidden divide-y divide-default-100 max-h-52 overflow-y-auto">
+            {allOptions.length === 0 ? (
+              <p className="text-xs text-default-400 p-3">No invoices available.</p>
+            ) : allOptions.map((inv) => (
+              <label key={inv.id} className="flex items-center gap-2 px-3 py-2.5 hover:bg-default-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={invIds.includes(inv.id)}
+                  onChange={(e) => setInvIds(prev => e.target.checked ? [...prev, inv.id] : prev.filter(id => id !== inv.id))}
+                  className="accent-primary"
+                />
+                <span className="text-sm flex-1 min-w-0">
+                  <span className="font-medium text-foreground">{inv.invoice_number}</span>
+                  {"client_name" in inv && <span className="text-default-400"> — {inv.client_name}</span>}
+                  {"balance_due" in inv && (inv as any).balance_due > 0 && (
+                    <span className="text-default-400"> ({fmt((inv as any).balance_due)})</span>
+                  )}
+                </span>
+                {invIds.includes(inv.id) && (
+                  <a href={`/api/v1/invoices/${inv.id}/pdf`} target="_blank" rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-xs text-primary hover:underline shrink-0">
+                    View
+                  </a>
+                )}
+              </label>
             ))}
-          </select>
+          </div>
         </div>
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-default-200 text-sm font-medium">Cancel</button>
@@ -477,7 +494,7 @@ function EditDrawer({
   const [description, setDescription] = useState(txn.description ?? "");
   const [partyName, setPartyName] = useState(txn.party_name ?? "");
   const [catIds, setCatIds] = useState<number[]>(txn.categories?.map((c) => c.id) ?? (txn.category_id ? [txn.category_id] : []));
-  const [invId, setInvId] = useState<number | null>(txn.invoice_id);
+  const [invIds, setInvIds] = useState<number[]>(txn.invoices?.map((i) => i.id) ?? (txn.invoice_id ? [txn.invoice_id] : []));
   const [billId, setBillId] = useState<number | null>(txn.bill_id);
   const [note, setNote] = useState(txn.note ?? "");
   const [receiptUrl, setReceiptUrl] = useState<string | null>(txn.receipt_url);
@@ -486,7 +503,7 @@ function EditDrawer({
   const mut = useMutation({
     mutationFn: () => bankApi.updateTransaction(txn.id, {
       description, party_name: partyName,
-      category_ids: catIds, invoice_id: invId, bill_id: billId, note,
+      category_ids: catIds, invoice_ids: invIds, bill_id: billId, note,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bank-txns", txn.account_id] });
@@ -608,18 +625,49 @@ function EditDrawer({
         {/* Link to invoice (for credits) */}
         {txn.type === "credit" && (
           <div>
-            <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">
+            <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-2">
               Link to Invoice <span className="text-success-600 font-normal">(marks as Paid)</span>
             </label>
-            <select value={invId ?? ""} onChange={(e) => setInvId(e.target.value ? Number(e.target.value) : null)}
-              className="w-full text-sm border border-default-200 rounded-lg px-3 py-2 outline-none focus:border-primary">
-              <option value="">— No invoice —</option>
-              {unpaidInvoices.map((inv) => (
-                <option key={inv.id} value={inv.id}>
-                  {inv.invoice_number} — {inv.client_name} [{inv.status ?? ""}] ({fmt(inv.total)})
-                </option>
+            {/* Currently linked — show with View button */}
+            {invIds.length > 0 && (
+              <div className="mb-2 space-y-1">
+                {[...unpaidInvoices, ...(txn.invoices ?? []).filter(li => !unpaidInvoices.find(u => u.id === li.id))]
+                  .filter(inv => invIds.includes(inv.id))
+                  .map(inv => (
+                    <div key={inv.id} className="flex items-center justify-between bg-success-50 border border-success-200 rounded-lg px-3 py-1.5 text-xs">
+                      <span className="text-success-700 font-medium">
+                        {"invoice_number" in inv ? inv.invoice_number : (inv as any).invoice_number} — {"client_name" in inv ? inv.client_name : ""}
+                      </span>
+                      <a
+                        href={`/api/v1/invoices/${"id" in inv ? inv.id : ""}/pdf`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="ml-2 text-primary hover:underline shrink-0"
+                      >
+                        View
+                      </a>
+                    </div>
+                  ))}
+              </div>
+            )}
+            <div className="border border-default-200 rounded-lg overflow-hidden divide-y divide-default-100 max-h-44 overflow-y-auto">
+              {unpaidInvoices.length === 0 ? (
+                <p className="text-xs text-default-400 p-2">No invoices available.</p>
+              ) : unpaidInvoices.map((inv) => (
+                <label key={inv.id} className="flex items-center gap-2 px-3 py-2 hover:bg-default-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={invIds.includes(inv.id)}
+                    onChange={(e) => setInvIds(prev => e.target.checked ? [...prev, inv.id] : prev.filter(id => id !== inv.id))}
+                    className="accent-primary"
+                  />
+                  <span className="text-sm text-foreground flex-1 min-w-0">
+                    <span className="font-medium">{inv.invoice_number}</span>
+                    <span className="text-default-400"> — {inv.client_name} [{inv.status ?? ""}] ({fmt(inv.total)})</span>
+                  </span>
+                </label>
               ))}
-            </select>
+            </div>
           </div>
         )}
 

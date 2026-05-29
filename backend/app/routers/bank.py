@@ -63,6 +63,12 @@ class CategoryRef(BaseModel):
     color: str
 
 
+class InvoiceRef(BaseModel):
+    id: int
+    invoice_number: str
+    client_name: Optional[str] = None
+
+
 class TransactionCreate(BaseModel):
     txn_date: date
     description: str
@@ -70,6 +76,7 @@ class TransactionCreate(BaseModel):
     amount: float
     type: str  # credit | debit
     category_ids: List[int] = []
+    invoice_ids: List[int] = []
     note: Optional[str] = None
 
 
@@ -80,7 +87,8 @@ class TransactionUpdate(BaseModel):
     amount: Optional[float] = None
     type: Optional[str] = None
     category_ids: Optional[List[int]] = None  # None = unchanged; [] = clear all
-    invoice_id: Optional[int] = None
+    invoice_ids: Optional[List[int]] = None   # None = unchanged; [] = clear all
+    invoice_id: Optional[int] = None          # backward-compat (ignored if invoice_ids set)
     bill_id: Optional[int] = None
     note: Optional[str] = None
 
@@ -99,8 +107,10 @@ class TransactionOut(BaseModel):
     category_id: Optional[int] = None
     category_name: Optional[str] = None
     category_color: Optional[str] = None
-    invoice_id: Optional[int]
-    invoice_number: Optional[str]
+    invoices: List[InvoiceRef] = []
+    # backward-compat single-invoice fields (first invoice or None)
+    invoice_id: Optional[int] = None
+    invoice_number: Optional[str] = None
     bill_id: Optional[int]
     bill_number: Optional[str]
     note: Optional[str]
@@ -963,7 +973,6 @@ async def confirm_statement(
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _parse_cat_groups(ids_str: Optional[str], names_str: Optional[str], colors_str: Optional[str]) -> List[CategoryRef]:
-    """Parse GROUP_CONCAT category columns into a list of CategoryRef."""
     if not ids_str:
         return []
     ids = [int(x) for x in ids_str.split(",") if x]
@@ -975,43 +984,63 @@ def _parse_cat_groups(ids_str: Optional[str], names_str: Optional[str], colors_s
     ]
 
 
+def _parse_inv_groups(ids_str: Optional[str], numbers_str: Optional[str], clients_str: Optional[str]) -> List[InvoiceRef]:
+    if not ids_str:
+        return []
+    ids = [int(x) for x in ids_str.split(",") if x]
+    numbers = numbers_str.split("|||") if numbers_str else []
+    clients = clients_str.split("|||") if clients_str else []
+    return [
+        InvoiceRef(id=ids[i], invoice_number=numbers[i] if i < len(numbers) else "", client_name=clients[i] if i < len(clients) else None)
+        for i in range(len(ids))
+    ]
+
+
 def _txn_out_from_row(row: tuple) -> TransactionOut:
     cats = _parse_cat_groups(row[8], row[9], row[10])
-    first = cats[0] if cats else None
+    invs = _parse_inv_groups(row[11], row[12], row[13])
+    first_cat = cats[0] if cats else None
+    first_inv = invs[0] if invs else None
     return TransactionOut(
         id=row[0], account_id=row[1], statement_id=row[2],
         txn_date=str(row[3]), description=row[4], party_name=row[5],
         amount=float(row[6]), type=row[7],
         categories=cats,
-        category_id=first.id if first else None,
-        category_name=first.name if first else None,
-        category_color=first.color if first else None,
-        invoice_id=row[11], invoice_number=row[12],
-        bill_id=row[13], bill_number=row[14],
-        note=row[15], receipt_url=row[16],
+        category_id=first_cat.id if first_cat else None,
+        category_name=first_cat.name if first_cat else None,
+        category_color=first_cat.color if first_cat else None,
+        invoices=invs,
+        invoice_id=first_inv.id if first_inv else None,
+        invoice_number=first_inv.invoice_number if first_inv else None,
+        bill_id=row[14], bill_number=row[15],
+        note=row[16], receipt_url=row[17],
     )
 
 
 _TXN_SELECT = """
     SELECT bt.id, bt.account_id, bt.statement_id, bt.txn_date, bt.description,
            bt.party_name, bt.amount, bt.type,
-           GROUP_CONCAT(btc.category_id ORDER BY tc.name SEPARATOR ',')   AS cat_ids,
-           GROUP_CONCAT(tc.name         ORDER BY tc.name SEPARATOR '|||') AS cat_names,
-           GROUP_CONCAT(tc.color        ORDER BY tc.name SEPARATOR ',')   AS cat_colors,
-           bt.invoice_id, i.invoice_number,
+           GROUP_CONCAT(DISTINCT btc.category_id ORDER BY tc.name SEPARATOR ',')      AS cat_ids,
+           GROUP_CONCAT(DISTINCT tc.name         ORDER BY tc.name SEPARATOR '|||')    AS cat_names,
+           GROUP_CONCAT(DISTINCT tc.color        ORDER BY tc.name SEPARATOR ',')      AS cat_colors,
+           GROUP_CONCAT(DISTINCT bti.invoice_id  ORDER BY bti.invoice_id SEPARATOR ',')         AS inv_ids,
+           GROUP_CONCAT(DISTINCT inv.invoice_number ORDER BY bti.invoice_id SEPARATOR '|||')    AS inv_numbers,
+           GROUP_CONCAT(DISTINCT COALESCE(ic.company_name,'') ORDER BY bti.invoice_id SEPARATOR '|||') AS inv_clients,
            bt.bill_id, b.bill_number,
            bt.note, bt.receipt_url
     FROM bank_transactions bt
     LEFT JOIN bank_transaction_categories btc ON btc.transaction_id = bt.id
     LEFT JOIN transaction_categories tc ON tc.id = btc.category_id
-    LEFT JOIN invoices i ON i.id = bt.invoice_id
+    LEFT JOIN bank_transaction_invoices bti ON bti.transaction_id = bt.id
+    LEFT JOIN invoices inv ON inv.id = bti.invoice_id
+    LEFT JOIN clients ic ON ic.id = inv.client_id
     LEFT JOIN bills b ON b.id = bt.bill_id
 """
 
 _TXN_GROUP = """
     GROUP BY bt.id, bt.account_id, bt.statement_id, bt.txn_date, bt.description,
              bt.party_name, bt.amount, bt.type,
-             bt.invoice_id, i.invoice_number, bt.bill_id, b.bill_number,
+             bt.bill_id, b.bill_number,
              bt.note, bt.receipt_url
 """
 
@@ -1026,12 +1055,48 @@ async def _upsert_categories(db: AsyncSession, txn_id: int, category_ids: List[i
             text("INSERT IGNORE INTO bank_transaction_categories (transaction_id, category_id) VALUES (:tid, :cid)"),
             {"tid": txn_id, "cid": cat_id},
         )
-    # keep legacy column in sync (first category or NULL)
     first_cat = category_ids[0] if category_ids else None
     await db.execute(
         text("UPDATE bank_transactions SET category_id = :cid WHERE id = :tid"),
         {"cid": first_cat, "tid": txn_id},
     )
+
+
+async def _upsert_invoices(db: AsyncSession, txn_id: int, invoice_ids: List[int], txn_type: str) -> None:
+    # Get currently linked invoice ids to detect newly added ones
+    r = await db.execute(
+        text("SELECT invoice_id FROM bank_transaction_invoices WHERE transaction_id = :tid"),
+        {"tid": txn_id},
+    )
+    old_ids = {row[0] for row in r.fetchall()}
+
+    await db.execute(
+        text("DELETE FROM bank_transaction_invoices WHERE transaction_id = :tid"),
+        {"tid": txn_id},
+    )
+    for inv_id in invoice_ids:
+        await db.execute(
+            text("INSERT IGNORE INTO bank_transaction_invoices (transaction_id, invoice_id) VALUES (:tid, :iid)"),
+            {"tid": txn_id, "iid": inv_id},
+        )
+    # Keep legacy column in sync (first invoice or NULL)
+    first_inv = invoice_ids[0] if invoice_ids else None
+    await db.execute(
+        text("UPDATE bank_transactions SET invoice_id = :iid WHERE id = :tid"),
+        {"iid": first_inv, "tid": txn_id},
+    )
+    # Auto-mark newly linked invoices as paid for credit transactions
+    if txn_type == "credit":
+        for inv_id in invoice_ids:
+            if inv_id not in old_ids:
+                await db.execute(
+                    text("""
+                        UPDATE invoices
+                        SET status = 'paid', amount_paid = total, balance_due = 0, paid_at = NOW()
+                        WHERE id = :id
+                    """),
+                    {"id": inv_id},
+                )
 
 
 # ── Transaction endpoints ─────────────────────────────────────────────────────
@@ -1097,6 +1162,8 @@ async def create_transaction(
     txn_id = r.lastrowid
     if payload.category_ids:
         await _upsert_categories(db, txn_id, payload.category_ids)
+    if payload.invoice_ids:
+        await _upsert_invoices(db, txn_id, payload.invoice_ids, payload.type)
     await db.commit()
 
     r2 = await db.execute(
@@ -1135,12 +1202,10 @@ async def update_transaction(
         "amount": row[6], "type": row[7], "category_id": row[8],
         "invoice_id": row[9], "bill_id": row[10], "note": row[11],
     }
-    new_invoice_id = payload.invoice_id if payload.invoice_id is not None else old["invoice_id"]
     new_bill_id = payload.bill_id if payload.bill_id is not None else old["bill_id"]
     new_amount = payload.amount if payload.amount is not None else float(old["amount"])
     new_type = payload.type if payload.type is not None else old["type"]
 
-    # Resolve new legacy category_id: first of new list, or keep old if not changing categories
     if payload.category_ids is not None:
         new_cat_id = payload.category_ids[0] if payload.category_ids else None
     else:
@@ -1155,7 +1220,6 @@ async def update_transaction(
                 amount      = :amt,
                 type        = :type,
                 category_id = :cat,
-                invoice_id  = :inv,
                 bill_id     = :bill,
                 note        = :note
             WHERE id = :id
@@ -1167,7 +1231,6 @@ async def update_transaction(
             "amt": new_amount,
             "type": new_type,
             "cat": new_cat_id,
-            "inv": new_invoice_id,
             "bill": new_bill_id,
             "note": payload.note if payload.note is not None else old["note"],
             "id": txn_id,
@@ -1177,19 +1240,8 @@ async def update_transaction(
     if payload.category_ids is not None:
         await _upsert_categories(db, txn_id, payload.category_ids)
 
-    # Auto-mark invoice as paid when linked
-    if new_invoice_id and new_invoice_id != old["invoice_id"] and new_type == "credit":
-        await db.execute(
-            text("""
-                UPDATE invoices
-                SET status = 'paid',
-                    amount_paid = total,
-                    balance_due = 0,
-                    paid_at = NOW()
-                WHERE id = :inv_id
-            """),
-            {"inv_id": new_invoice_id},
-        )
+    if payload.invoice_ids is not None:
+        await _upsert_invoices(db, txn_id, payload.invoice_ids, new_type)
 
     # Auto-mark bill as paid when linked
     if new_bill_id and new_bill_id != old["bill_id"] and new_type == "debit":

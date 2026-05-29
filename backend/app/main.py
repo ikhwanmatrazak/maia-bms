@@ -656,6 +656,16 @@ async def _ensure_bank_tables():
         # one-time migration: seed junction table from legacy single category_id column
         """INSERT IGNORE INTO bank_transaction_categories (transaction_id, category_id)
            SELECT id, category_id FROM bank_transactions WHERE category_id IS NOT NULL""",
+        """CREATE TABLE IF NOT EXISTS bank_transaction_invoices (
+            transaction_id INT NOT NULL,
+            invoice_id     INT NOT NULL,
+            PRIMARY KEY (transaction_id, invoice_id),
+            FOREIGN KEY (transaction_id) REFERENCES bank_transactions(id) ON DELETE CASCADE,
+            FOREIGN KEY (invoice_id)     REFERENCES invoices(id) ON DELETE CASCADE
+        )""",
+        # one-time migration: seed from legacy single invoice_id column
+        """INSERT IGNORE INTO bank_transaction_invoices (transaction_id, invoice_id)
+           SELECT id, invoice_id FROM bank_transactions WHERE invoice_id IS NOT NULL""",
     ]
     async with engine.begin() as conn:
         for stmt in stmts:
