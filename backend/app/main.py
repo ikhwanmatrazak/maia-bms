@@ -698,31 +698,53 @@ async def _ensure_bug_reports_table():
 async def _ensure_user_claims_table():
     from app.database import engine
     from sqlalchemy import text
-    stmt = """CREATE TABLE IF NOT EXISTS user_claims (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        tenant_id INT NULL,
-        title VARCHAR(255) NOT NULL,
-        claim_type VARCHAR(100) NOT NULL,
-        description TEXT NOT NULL,
-        amount DECIMAL(12,2) NOT NULL,
-        claim_date DATE NOT NULL,
-        receipt_url VARCHAR(500) NULL,
-        status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
-        rejection_reason TEXT NULL,
-        approved_by INT NULL,
-        approved_at DATETIME NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX ix_user_claims_user_id (user_id),
-        INDEX ix_user_claims_tenant_id (tenant_id),
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )"""
+    stmts = [
+        """CREATE TABLE IF NOT EXISTS user_claims (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            tenant_id INT NULL,
+            title VARCHAR(255) NOT NULL,
+            claim_type VARCHAR(100) NOT NULL,
+            description TEXT NOT NULL,
+            amount DECIMAL(12,2) NOT NULL,
+            claim_date DATE NOT NULL,
+            receipt_url VARCHAR(500) NULL,
+            status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+            rejection_reason TEXT NULL,
+            approved_by INT NULL,
+            approved_at DATETIME NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX ix_user_claims_user_id (user_id),
+            INDEX ix_user_claims_tenant_id (tenant_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )""",
+        """CREATE TABLE IF NOT EXISTS monthly_claims (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            tenant_id INT NULL,
+            year INT NOT NULL,
+            month INT NOT NULL,
+            total_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+            claim_count INT NOT NULL DEFAULT 0,
+            status ENUM('draft','submitted','approved','rejected') NOT NULL DEFAULT 'draft',
+            submitted_at DATETIME NULL,
+            approved_by INT NULL,
+            approved_at DATETIME NULL,
+            rejection_reason TEXT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_user_year_month (user_id, year, month),
+            INDEX ix_monthly_claims_tenant_id (tenant_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )""",
+    ]
     async with engine.begin() as conn:
-        try:
-            await conn.execute(text(stmt))
-        except Exception as e:
-            logger.warning(f"_ensure_user_claims_table skipped: {e}")
+        for stmt in stmts:
+            try:
+                await conn.execute(text(stmt))
+            except Exception as e:
+                logger.warning(f"_ensure_user_claims_table skipped: {e}")
     logger.info("user_claims table ensured")
 
 

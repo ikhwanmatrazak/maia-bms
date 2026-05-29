@@ -508,6 +508,23 @@ export const bugReportsApi = {
 
 const multipartConfig = { headers: { "Content-Type": undefined } };
 
+export interface MonthlyClaim {
+  id: number;
+  user_id: number;
+  tenant_id: number | null;
+  year: number;
+  month: number;
+  total_amount: number;
+  claim_count: number;
+  status: "draft" | "submitted" | "approved" | "rejected";
+  submitted_at: string | null;
+  approved_by: number | null;
+  approved_at: string | null;
+  rejection_reason: string | null;
+  submitted_by_name: string | null;
+  created_at: string;
+}
+
 export const userClaimsApi = {
   listMy: () => api.get("/user-claims/my").then((r) => r.data),
   listAll: (status?: string) => api.get("/user-claims/all", { params: status ? { status } : {} }).then((r) => r.data),
@@ -524,6 +541,21 @@ export const userClaimsApi = {
     return api.patch(`/user-claims/${id}/reject`, form, multipartConfig).then((r) => r.data);
   },
   delete: (id: number) => api.delete(`/user-claims/${id}`).then((r) => r.data),
+
+  // Monthly claims
+  generateMonthly: (year: number, month: number) =>
+    api.post<MonthlyClaim>("/user-claims/monthly/generate", { year, month }).then((r) => r.data),
+  listMyMonthly: () =>
+    api.get<MonthlyClaim[]>("/user-claims/monthly").then((r) => r.data),
+  listAllMonthly: () =>
+    api.get<MonthlyClaim[]>("/user-claims/monthly/all").then((r) => r.data),
+  submitMonthly: (id: number) =>
+    api.patch(`/user-claims/monthly/${id}/submit`).then((r) => r.data),
+  approveMonthly: (id: number) =>
+    api.patch(`/user-claims/monthly/${id}/approve`).then((r) => r.data),
+  rejectMonthly: (id: number, reason: string) =>
+    api.patch(`/user-claims/monthly/${id}/reject`, { reason }).then((r) => r.data),
+  monthlyPdfUrl: (id: number) => `${API_URL}/user-claims/monthly/${id}/pdf`,
 };
 
 const formConfig = { headers: { "Content-Type": "multipart/form-data" } };

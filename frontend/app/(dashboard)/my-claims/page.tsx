@@ -8,8 +8,8 @@ import {
   Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
   Spinner, Tabs, Tab,
 } from "@heroui/react";
-import { Upload, Camera, Sparkles, Plus, Trash2, Eye, X, CheckCircle, XCircle } from "lucide-react";
-import { userClaimsApi } from "@/lib/api";
+import { Upload, Camera, Sparkles, Plus, Trash2, Eye, X, CheckCircle, XCircle, Download, FileText } from "lucide-react";
+import { userClaimsApi, MonthlyClaim, downloadPdf } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { Topbar } from "@/components/ui/Topbar";
 import { formatDate } from "@/lib/utils";
@@ -50,6 +50,12 @@ export default function MyClaimsPage() {
 
   const [tab, setTab] = useState("my");
   const [showSubmit, setShowSubmit] = useState(false);
+
+  // Monthly claims state
+  const [genYear, setGenYear] = useState(() => new Date().getFullYear());
+  const [genMonth, setGenMonth] = useState(() => new Date().getMonth() + 1);
+  const [rejectMonthlyModal, setRejectMonthlyModal] = useState<{ id: number } | null>(null);
+  const [rejectMonthlyReason, setRejectMonthlyReason] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
@@ -102,6 +108,39 @@ export default function MyClaimsPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => userClaimsApi.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["user-claims"] }),
+  });
+
+  // Monthly claims
+  const { data: myMonthly = [], isLoading: myMonthlyLoading } = useQuery({
+    queryKey: ["monthly-claims", "my"],
+    queryFn: userClaimsApi.listMyMonthly,
+  });
+  const { data: allMonthly = [], isLoading: allMonthlyLoading } = useQuery({
+    queryKey: ["monthly-claims", "all"],
+    queryFn: userClaimsApi.listAllMonthly,
+    enabled: isManager,
+  });
+
+  const generateMonthlyMutation = useMutation({
+    mutationFn: () => userClaimsApi.generateMonthly(genYear, genMonth),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["monthly-claims"] }),
+  });
+  const submitMonthlyMutation = useMutation({
+    mutationFn: (id: number) => userClaimsApi.submitMonthly(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["monthly-claims"] }),
+  });
+  const approveMonthlyMutation = useMutation({
+    mutationFn: (id: number) => userClaimsApi.approveMonthly(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["monthly-claims"] }),
+  });
+  const rejectMonthlyMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      userClaimsApi.rejectMonthly(id, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["monthly-claims"] });
+      setRejectMonthlyModal(null);
+      setRejectMonthlyReason("");
+    },
   });
 
   const resetForm = () => {
@@ -301,24 +340,202 @@ export default function MyClaimsPage() {
           </Button>
         </div>
 
-        {isManager ? (
-          <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
-            <Tab key="my" title="My Claims">
-              <Card><CardBody>
-                {myLoading ? <Spinner /> : myClaimsTable(myClaims)}
-              </CardBody></Card>
-            </Tab>
+        <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
+          <Tab key="my" title="My Claims">
+            <Card><CardBody>
+              {myLoading ? <Spinner /> : myClaimsTable(myClaims)}
+            </CardBody></Card>
+          </Tab>
+
+          {isManager && (
             <Tab key="all" title="All Claims">
               <Card><CardBody>
                 {allLoading ? <Spinner /> : allClaimsTable(allClaims)}
               </CardBody></Card>
             </Tab>
-          </Tabs>
-        ) : (
-          <Card><CardBody>
-            {myLoading ? <Spinner /> : myClaimsTable(myClaims)}
-          </CardBody></Card>
-        )}
+          )}
+
+          <Tab key="monthly" title="Monthly Claims">
+            <div className="space-y-4">
+              {/* Generator bar */}
+              <Card><CardBody>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Year</p>
+                    <select
+                      value={genYear}
+                      onChange={(e) => setGenYear(Number(e.target.value))}
+                      className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-primary"
+                    >
+                      {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Month</p>
+                    <select
+                      value={genMonth}
+                      onChange={(e) => setGenMonth(Number(e.target.value))}
+                      className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-primary"
+                    >
+                      {["January","February","March","April","May","June","July","August","September","October","November","December"].map((m, i) => (
+                        <option key={i+1} value={i+1}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <Button
+                    color="primary"
+                    startContent={<FileText size={15} />}
+                    isLoading={generateMonthlyMutation.isPending}
+                    onPress={() => generateMonthlyMutation.mutate()}
+                  >
+                    Generate Monthly Claim
+                  </Button>
+                </div>
+              </CardBody></Card>
+
+              {/* My monthly claims list */}
+              <Card><CardBody>
+                <p className="text-sm font-semibold text-gray-700 mb-3">My Monthly Claims</p>
+                {myMonthlyLoading ? <Spinner /> : myMonthly.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-4">No monthly claims yet. Select a month above and click Generate.</p>
+                ) : (
+                  <Table aria-label="My Monthly Claims" removeWrapper>
+                    <TableHeader>
+                      <TableColumn>Period</TableColumn>
+                      <TableColumn>Claims</TableColumn>
+                      <TableColumn>Total (RM)</TableColumn>
+                      <TableColumn>Status</TableColumn>
+                      <TableColumn>Actions</TableColumn>
+                    </TableHeader>
+                    <TableBody>
+                      {myMonthly.map((mc) => (
+                        <TableRow key={mc.id}>
+                          <TableCell>
+                            <span className="font-medium text-sm">
+                              {["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][mc.month]} {mc.year}
+                            </span>
+                          </TableCell>
+                          <TableCell><span className="text-sm">{mc.claim_count} claim(s)</span></TableCell>
+                          <TableCell><span className="font-semibold text-sm">RM {Number(mc.total_amount).toFixed(2)}</span></TableCell>
+                          <TableCell>
+                            <Chip size="sm" variant="flat" color={
+                              mc.status === "approved" ? "success" :
+                              mc.status === "rejected" ? "danger" :
+                              mc.status === "submitted" ? "primary" : "default"
+                            }>
+                              {mc.status}
+                            </Chip>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1 flex-wrap">
+                              {mc.status === "draft" && (
+                                <Button size="sm" color="primary" variant="flat"
+                                  isLoading={submitMonthlyMutation.isPending}
+                                  onPress={() => submitMonthlyMutation.mutate(mc.id)}>
+                                  Submit
+                                </Button>
+                              )}
+                              <Button size="sm" variant="flat" startContent={<Download size={13} />}
+                                onPress={() => downloadPdf(userClaimsApi.monthlyPdfUrl(mc.id), `Monthly_Claim_${mc.year}_${String(mc.month).padStart(2,"0")}.pdf`)}>
+                                PDF
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardBody></Card>
+
+              {/* Admin: all employees' monthly claims */}
+              {isManager && (
+                <Card><CardBody>
+                  <p className="text-sm font-semibold text-gray-700 mb-3">All Employees — Monthly Claims</p>
+                  {allMonthlyLoading ? <Spinner /> : allMonthly.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-4">No monthly claims submitted yet.</p>
+                  ) : (
+                    <Table aria-label="All Monthly Claims" removeWrapper>
+                      <TableHeader>
+                        <TableColumn>Employee</TableColumn>
+                        <TableColumn>Period</TableColumn>
+                        <TableColumn>Claims</TableColumn>
+                        <TableColumn>Total (RM)</TableColumn>
+                        <TableColumn>Status</TableColumn>
+                        <TableColumn>Actions</TableColumn>
+                      </TableHeader>
+                      <TableBody>
+                        {allMonthly.map((mc) => (
+                          <TableRow key={mc.id}>
+                            <TableCell><span className="text-sm">{mc.submitted_by_name ?? "—"}</span></TableCell>
+                            <TableCell>
+                              <span className="font-medium text-sm">
+                                {["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][mc.month]} {mc.year}
+                              </span>
+                            </TableCell>
+                            <TableCell><span className="text-sm">{mc.claim_count}</span></TableCell>
+                            <TableCell><span className="font-semibold text-sm">RM {Number(mc.total_amount).toFixed(2)}</span></TableCell>
+                            <TableCell>
+                              <Chip size="sm" variant="flat" color={
+                                mc.status === "approved" ? "success" :
+                                mc.status === "rejected" ? "danger" :
+                                mc.status === "submitted" ? "primary" : "default"
+                              }>
+                                {mc.status}
+                              </Chip>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1 flex-wrap">
+                                {mc.status === "submitted" && (
+                                  <>
+                                    <Button size="sm" color="success" variant="flat" isIconOnly
+                                      isLoading={approveMonthlyMutation.isPending}
+                                      onPress={() => approveMonthlyMutation.mutate(mc.id)}>
+                                      <CheckCircle size={14} />
+                                    </Button>
+                                    <Button size="sm" color="danger" variant="flat" isIconOnly
+                                      onPress={() => { setRejectMonthlyModal({ id: mc.id }); setRejectMonthlyReason(""); }}>
+                                      <XCircle size={14} />
+                                    </Button>
+                                  </>
+                                )}
+                                <Button size="sm" variant="flat" startContent={<Download size={13} />}
+                                  onPress={() => downloadPdf(userClaimsApi.monthlyPdfUrl(mc.id), `Monthly_Claim_${mc.year}_${String(mc.month).padStart(2,"0")}_${mc.submitted_by_name ?? "staff"}.pdf`)}>
+                                  PDF
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardBody></Card>
+              )}
+            </div>
+          </Tab>
+        </Tabs>
+
+        {/* Reject Monthly Modal */}
+        <Modal isOpen={!!rejectMonthlyModal} onClose={() => setRejectMonthlyModal(null)}>
+          <ModalContent>
+            <ModalHeader>Reject Monthly Claim</ModalHeader>
+            <ModalBody>
+              <Textarea label="Reason" labelPlacement="outside" variant="bordered"
+                placeholder="Reason for rejection..." value={rejectMonthlyReason}
+                onChange={(e) => setRejectMonthlyReason(e.target.value)} />
+            </ModalBody>
+            <ModalFooter>
+              <Button variant="flat" onPress={() => setRejectMonthlyModal(null)}>Cancel</Button>
+              <Button color="danger" isLoading={rejectMonthlyMutation.isPending}
+                onPress={() => rejectMonthlyModal && rejectMonthlyMutation.mutate({ id: rejectMonthlyModal.id, reason: rejectMonthlyReason })}>
+                Reject
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
 
         {/* Submit Modal */}
         <Modal isOpen={showSubmit} onClose={() => setShowSubmit(false)} size="2xl" scrollBehavior="inside">

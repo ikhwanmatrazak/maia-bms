@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #1a1a2e; background: #fff; }
+
+  .page { padding: 28px 32px; }
+
+  /* ── Header ── */
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a2e; padding-bottom: 14px; margin-bottom: 18px; }
+  .company-info h1 { font-size: 15pt; font-weight: 700; color: #1a1a2e; margin-bottom: 2px; }
+  .company-info p { font-size: 8pt; color: #555; line-height: 1.5; }
+  .logo-block { text-align: right; }
+  .logo-block img { max-height: 60px; max-width: 140px; object-fit: contain; }
+
+  /* ── Title block ── */
+  .title-block { text-align: center; margin-bottom: 18px; }
+  .title-block h2 { font-size: 13pt; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #1a1a2e; }
+  .title-block .period { font-size: 10pt; color: #444; margin-top: 3px; }
+
+  /* ── Info grid ── */
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid #ccc; margin-bottom: 18px; }
+  .info-row { display: contents; }
+  .info-label { background: #f0f0f0; padding: 5px 10px; font-size: 8.5pt; font-weight: 600; color: #444; border-bottom: 1px solid #ccc; border-right: 1px solid #ccc; }
+  .info-value { padding: 5px 10px; font-size: 8.5pt; color: #1a1a2e; border-bottom: 1px solid #ccc; }
+
+  /* ── Claims table ── */
+  .section-title { font-size: 10pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1a1a2e; border-left: 3px solid #1a1a2e; padding-left: 8px; margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 6px; font-size: 8.5pt; }
+  thead th { background: #1a1a2e; color: #fff; padding: 6px 8px; text-align: left; font-size: 8pt; }
+  thead th.num { text-align: right; }
+  tbody tr:nth-child(even) { background: #f8f8f8; }
+  tbody td { padding: 5px 8px; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
+  tbody td.num { text-align: right; }
+  tfoot td { padding: 6px 8px; font-weight: 700; border-top: 2px solid #1a1a2e; }
+  tfoot td.num { text-align: right; font-size: 10pt; color: #1a1a2e; }
+
+  .status-badge { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 7pt; font-weight: 600; text-transform: uppercase; }
+  .status-pending  { background: #fef3c7; color: #92400e; }
+  .status-approved { background: #d1fae5; color: #065f46; }
+  .status-rejected { background: #fee2e2; color: #991b1b; }
+
+  /* ── Receipts section ── */
+  .receipts-section { margin-top: 18px; }
+  .receipt-item { margin-bottom: 20px; page-break-inside: avoid; }
+  .receipt-header { background: #f0f0f0; padding: 5px 10px; font-size: 8.5pt; font-weight: 600; border-left: 3px solid #1a1a2e; margin-bottom: 6px; }
+  .receipt-images img { max-width: 100%; max-height: 320px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 6px; display: block; }
+
+  /* ── Signature block ── */
+  .signature-section { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .sig-box { border-top: 1px solid #999; padding-top: 8px; }
+  .sig-box .sig-label { font-size: 8pt; color: #555; }
+  .sig-box .sig-name { font-size: 9pt; font-weight: 600; margin-top: 4px; }
+  .sig-line { border-bottom: 1px solid #999; height: 36px; margin-bottom: 6px; }
+
+  /* ── Footer ── */
+  .doc-footer { margin-top: 24px; text-align: center; font-size: 7.5pt; color: #999; border-top: 1px solid #eee; padding-top: 8px; }
+
+  @page { size: A4; margin: 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="company-info">
+      <h1>{{ company.get('name', 'Company') }}</h1>
+      {% if company.get('address') %}<p>{{ company['address'] }}</p>{% endif %}
+      {% if company.get('phone') %}<p>Tel: {{ company['phone'] }}</p>{% endif %}
+      {% if company.get('email') %}<p>{{ company['email'] }}</p>{% endif %}
+    </div>
+    {% if logo_data %}
+    <div class="logo-block">
+      <img src="{{ logo_data }}" alt="Logo" />
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Title -->
+  <div class="title-block">
+    <h2>Monthly Expense Claim Form</h2>
+    <div class="period">{{ month_name }} {{ year }}</div>
+  </div>
+
+  <!-- Employee info -->
+  <div class="info-grid">
+    <div class="info-label">Employee Name</div>
+    <div class="info-value">{{ employee.get('full_name', '—') }}</div>
+
+    <div class="info-label">Employee No.</div>
+    <div class="info-value">{{ employee.get('employee_no', '—') }}</div>
+
+    <div class="info-label">Designation</div>
+    <div class="info-value">{{ employee.get('designation', '—') }}</div>
+
+    <div class="info-label">Department</div>
+    <div class="info-value">{{ employee.get('dept_name', '—') }}</div>
+
+    <div class="info-label">Email</div>
+    <div class="info-value">{{ employee.get('email', '—') }}</div>
+
+    <div class="info-label">Claim Period</div>
+    <div class="info-value">{{ month_name }} {{ year }}</div>
+
+    <div class="info-label">Claim Status</div>
+    <div class="info-value">{{ mc['status']|upper }}</div>
+
+    <div class="info-label">Generated On</div>
+    <div class="info-value">{{ generated_at }}</div>
+  </div>
+
+  <!-- Claims table -->
+  <div class="section-title">Claim Details</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28px">#</th>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Title / Description</th>
+        <th>Status</th>
+        <th class="num">Amount (RM)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in claims %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td style="white-space:nowrap">{{ c['claim_date'] }}</td>
+        <td>{{ c['claim_type'] }}</td>
+        <td>
+          <strong>{{ c['title'] }}</strong>
+          {% if c['description'] %}<br/><span style="color:#666">{{ c['description'] }}</span>{% endif %}
+        </td>
+        <td>
+          <span class="status-badge status-{{ c['status'] }}">{{ c['status'] }}</span>
+        </td>
+        <td class="num">{{ '%.2f'|format(c['amount']) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="5" style="text-align:right;font-weight:700">TOTAL</td>
+        <td class="num">RM {{ '%.2f'|format(total_amount) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- Signature block -->
+  <div class="signature-section">
+    <div class="sig-box">
+      <div class="sig-line"></div>
+      <div class="sig-label">Submitted by</div>
+      <div class="sig-name">{{ employee.get('full_name', '—') }}</div>
+      <div class="sig-label">Date: ___________________</div>
+    </div>
+    <div class="sig-box">
+      <div class="sig-line"></div>
+      <div class="sig-label">Approved by</div>
+      <div class="sig-name">Manager / HR</div>
+      <div class="sig-label">Date: ___________________</div>
+    </div>
+  </div>
+
+  <!-- Attached receipts -->
+  {% set has_receipts = claims | selectattr('receipt_images') | list %}
+  {% if has_receipts %}
+  <div class="receipts-section">
+    <div class="section-title" style="margin-top:24px">Attached Receipts</div>
+    {% for c in claims %}
+      {% if c['receipt_images'] %}
+      <div class="receipt-item">
+        <div class="receipt-header">
+          #{{ loop.index }} — {{ c['title'] }} &nbsp;|&nbsp; {{ c['claim_date'] }} &nbsp;|&nbsp; RM {{ '%.2f'|format(c['amount']) }}
+        </div>
+        <div class="receipt-images">
+          {% for img_uri in c['receipt_images'] %}
+          <img src="{{ img_uri }}" alt="Receipt" />
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Footer -->
+  <div class="doc-footer">
+    Generated by MAIA BMS &nbsp;·&nbsp; {{ generated_at }} &nbsp;·&nbsp; This document is system-generated.
+  </div>
+
+</div>
+</body>
+</html>
