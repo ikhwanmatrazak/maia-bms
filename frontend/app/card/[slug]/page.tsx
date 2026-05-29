@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import DigitalCardClient from "./DigitalCardClient";
 
-// Use internal Docker network URL for server-side fetches
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
-// Public base for building absolute static file URLs (og:image must be absolute)
-const PUBLIC_BASE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://ali-axis.maia.com.my";
+// Force per-request rendering so generateMetadata always runs at request time
+export const dynamic = "force-dynamic";
+
+// Internal Docker network URL — used by next.config.mjs rewrites already
+const BACKEND_URL = process.env.BACKEND_URL || "http://backend:8000";
+// Public site origin for building absolute og:image URLs
+const PUBLIC_BASE = "https://ali-axis.maia.com.my";
 
 interface CardData {
   name: string;
@@ -19,7 +22,7 @@ interface CardData {
 async function fetchCardMeta(slug: string): Promise<CardData | null> {
   try {
     const res = await fetch(`${BACKEND_URL}/api/v1/public/card/${slug}`, {
-      next: { revalidate: 60 },
+      cache: "no-store",
     });
     if (!res.ok) return null;
     return res.json();
