@@ -317,6 +317,123 @@ def _parse_cimb_portfolio_text(raw: str) -> List[ParsedRow]:
     return results
 
 
+def _parse_cimb_portfolio_page(page) -> List[ParsedRow]:
+    """
+    Parse a single CIMB Portfolio/CASA statement page.
+
+    Each logical table row spans multiple physical lines (cells wrap: "DUITNOW TO" /
+    "ACCOUNT", "MYR 16,000." / "00", etc.).  The fix: find every occurrence of the
+    10-digit account number in the leftmost column — each marks exactly one transaction.
+    Collect ALL words between consecutive account-number y-positions, sort by (y, x),
+    then apply the transaction regex.  This reconstructs rows correctly regardless of
+    column-major text ordering or wrapped cells.
+    """
+    try:
+        words = page.extract_words(x_tolerance=5, y_tolerance=3)
+    except Exception:
+        return _parse_cimb_portfolio_text(page.extract_text() or "")
+
+    if not words:
+        return _parse_cimb_portfolio_text(page.extract_text() or "")
+
+    # ── 1. Find account-number words (10-digit integers) in the leftmost column ──
+    acct_words = [w for w in words if re.fullmatch(r"\d{10}", w["text"])]
+    if not acct_words:
+        return _parse_cimb_portfolio_text(page.extract_text() or "")
+
+    # Keep only the leftmost column (real acct-no column), skip any that appear
+    # further right (shouldn't happen, but guards against edge cases).
+    min_x0 = min(w["x0"] for w in acct_words)
+    row_anchors = sorted(
+        [w for w in acct_words if w["x0"] <= min_x0 + 15],
+        key=lambda w: w["top"],
+    )
+
+    if not row_anchors:
+        return _parse_cimb_portfolio_text(page.extract_text() or "")
+
+    # ── 2. For each transaction (anchor → next anchor), collect & sort words ────
+    row_re = re.compile(
+        r"\d{10}\s+"            # account number
+        r"\d{9}\s+"             # record sequence
+        r"(\d{8})\s+"           # date DDMMYYYY  [1]
+        r"\d{3,4}\s+"           # transaction code
+        r"([A-Z][A-Z ]+?)\s+"   # description (uppercase, lazy) [2]
+        r"(?:-|\d{4})\s+"       # originating branch code
+        r"(\S+?)\s+"            # document reference (lazy) [3]
+        r"MYR\s*([\d,. ]+?)\s+" # transaction amount (allows split like "16,000. ") [4]
+        r"([CD])\s+"            # amount type  [5]
+        r"MYR"                  # balance start anchor (not captured)
+    )
+
+    results: List[ParsedRow] = []
+
+    for i, anchor in enumerate(row_anchors):
+        y_start = anchor["top"] - 3
+        y_end   = row_anchors[i + 1]["top"] - 3 if i + 1 < len(row_anchors) else float("inf")
+
+        row_words = [w for w in words if y_start <= w["top"] < y_end]
+        # Sort by (y-band, x) so the primary "first line" of each column comes first,
+        # followed by wrapped second-line content.
+        row_words = sorted(row_words, key=lambda w: (round(w["top"]), w["x0"]))
+        row_text  = " ".join(w["text"] for w in row_words)
+
+        m = row_re.search(row_text)
+        if not m:
+            continue
+
+        parsed_date = _parse_date(m.group(1))
+        if not parsed_date:
+            continue
+
+        amount = _parse_amount(re.sub(r"\s+", "", m.group(4)))
+        if not amount:
+            continue
+
+        txn_type    = "credit" if m.group(5) == "C" else "debit"
+        description = m.group(2).strip()
+        doc_ref     = m.group(3).rstrip("-")   # strip trailing hyphen from split refs
+        tail        = row_text[m.end():]
+
+        # Customer reference: after time(6 digits) up to filler "1 "
+        cust_ref: Optional[str] = None
+        cr_match = re.search(r"[CD]\s+\d{6}\s+(.*?)\s+1\s+", tail)
+        if cr_match:
+            cr_raw = cr_match.group(1).strip()
+            if cr_raw and cr_raw != "-":
+                cust_ref = cr_raw
+
+        # Sender name: last block of UPPER-CASE words in the tail (after filler "1 ")
+        sender: Optional[str] = None
+        # Look for the filler "1" then skip two reference tokens, then grab the name
+        sn_match = re.search(
+            r"\b1\b\s+\S.*?([A-Z]{2}[A-Z0-9\s\.\'/\-]+?)(?:\s+\d{6,}|\s*$)", tail
+        )
+        if sn_match:
+            raw_sn = sn_match.group(1).strip()
+            # Filter out short or purely numeric fragments
+            if raw_sn and not re.fullmatch(r"[\d\-/]+", raw_sn) and len(raw_sn) >= 3:
+                sender = raw_sn
+
+        if cust_ref and not re.fullmatch(r"[\dA-Za-z/\-]+", cust_ref):
+            note: Optional[str] = cust_ref
+        elif doc_ref and doc_ref != "-":
+            note = doc_ref
+        else:
+            note = cust_ref
+
+        results.append(ParsedRow(
+            txn_date=str(parsed_date),
+            description=description,
+            party_name=sender or None,
+            amount=round(abs(amount), 2),
+            type=txn_type,
+            note=note,
+        ))
+
+    return results
+
+
 def _detect_delimiter(content: str) -> str:
     """Pick the delimiter that produces the most columns in the first data row."""
     first_line = content.split("\n")[0]
@@ -526,9 +643,10 @@ def _parse_pdf_content(file_bytes: bytes) -> List[ParsedRow]:
                 if not page_had_table:
                     text_content = page.extract_text() or ""
 
-                    # CIMB Portfolio/CASA detection: rows start with 10-digit acct + 9-digit seq + 8-digit date
-                    if re.search(r"\d{10}\s+\d{9}\s+\d{8}", text_content):
-                        cimb_rows = _parse_cimb_portfolio_text(text_content)
+                    # CIMB Portfolio/CASA detection: statement has 10-digit account numbers and "Amount Type" column.
+                    # Use the word-coordinate parser so rows are reconstructed left-to-right, not column-major.
+                    if re.search(r"\d{10}", text_content) and re.search(r"Amount\s*Type|MYR\s+[\d,]+\.\d{2}\s+[CD]", text_content):
+                        cimb_rows = _parse_cimb_portfolio_page(page)
                         if cimb_rows:
                             results.extend(cimb_rows)
                             continue  # skip generic regex for this page
@@ -720,6 +838,29 @@ async def delete_account(
 
 
 # ── Statement upload & parse ──────────────────────────────────────────────────
+
+@router.post("/debug/parse-pdf")
+async def debug_parse_pdf(file: UploadFile = File(...)):
+    """Temporary debug endpoint — returns raw pdfplumber extraction info."""
+    import pdfplumber, io as _io
+    content = await file.read()
+    result: dict = {"pages": []}
+    with pdfplumber.open(_io.BytesIO(content)) as pdf:
+        for pg_num, page in enumerate(pdf.pages):
+            text = page.extract_text() or ""
+            words = page.extract_words(x_tolerance=5, y_tolerance=3)
+            acct_words = [w for w in words if __import__("re").fullmatch(r"\d{10}", w["text"])]
+            cimb_rows = _parse_cimb_portfolio_page(page)
+            result["pages"].append({
+                "page": pg_num + 1,
+                "text_preview": text[:500],
+                "word_count": len(words),
+                "acct_number_hits": [{"text": w["text"], "x0": w["x0"], "top": w["top"]} for w in acct_words],
+                "cimb_rows_found": len(cimb_rows),
+                "cimb_rows": [r.dict() for r in cimb_rows],
+            })
+    return result
+
 
 @router.post("/accounts/{account_id}/upload/preview")
 async def preview_statement(
