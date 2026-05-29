@@ -10,6 +10,8 @@ import {
 import { Topbar } from "@/components/ui/Topbar";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Static files are served at the root (not under /api/v1), so strip that suffix
+const STATIC_BASE = API_URL.replace(/\/api\/v1\/?$/, "");
 
 function fmt(n: number, cur = "MYR") {
   return `${cur} ${n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -112,7 +114,7 @@ function ReceiptUploadCell({ txn }: { txn: BankTransaction }) {
   if (txn.receipt_url) {
     return (
       <a
-        href={`${API_URL}${txn.receipt_url}`}
+        href={`${STATIC_BASE}${txn.receipt_url}`}
         target="_blank"
         rel="noreferrer"
         className="inline-flex items-center gap-1 text-xs text-primary font-medium hover:underline"
@@ -650,7 +652,7 @@ function EditDrawer({
               {receiptUrl ? (
                 <div className="flex items-center gap-2">
                   <a
-                    href={`${API_URL}${receiptUrl}`}
+                    href={`${STATIC_BASE}${receiptUrl}`}
                     target="_blank"
                     rel="noreferrer"
                     className="flex-1 text-sm text-primary font-medium hover:underline truncate"
