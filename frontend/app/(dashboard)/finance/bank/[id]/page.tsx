@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -686,13 +686,16 @@ export default function BankDetailPage() {
   const [catFilter, setCatFilter] = useState<number | "">("");
   const [search, setSearch] = useState("");
 
-  const filterParams = {
-    date_from: dateFrom || undefined,
-    date_to: dateTo || undefined,
-    type: txnType || undefined,
-    category_id: catFilter || undefined,
-    search: search || undefined,
-  };
+  // Build a clean params object — no undefined values so React Query key serializes reliably
+  const filterParams = useMemo(() => {
+    const p: Record<string, string | number> = {};
+    if (dateFrom) p.date_from = dateFrom;
+    if (dateTo) p.date_to = dateTo;
+    if (txnType) p.type = txnType;
+    if (catFilter) p.category_id = catFilter as number;
+    if (search) p.search = search;
+    return p;
+  }, [dateFrom, dateTo, txnType, catFilter, search]);
 
   const { data: accounts = [] } = useQuery({ queryKey: ["bank-accounts"], queryFn: bankApi.listAccounts });
   const account = accounts.find((a) => a.id === accountId);
@@ -702,6 +705,13 @@ export default function BankDetailPage() {
     queryFn: () => bankApi.listTransactions(accountId, filterParams),
     enabled: !!accountId,
   });
+
+  // Client-side date guard — belt-and-suspenders in case cached/unfiltered data sneaks through
+  const filteredTxns = useMemo(() => txns.filter((t) => {
+    if (dateFrom && t.txn_date < dateFrom) return false;
+    if (dateTo && t.txn_date > dateTo) return false;
+    return true;
+  }), [txns, dateFrom, dateTo]);
 
   const { data: summary } = useQuery({
     queryKey: ["bank-summary", accountId, dateFrom, dateTo],
@@ -852,7 +862,7 @@ export default function BankDetailPage() {
           <div className="flex justify-center py-12">
             <div className="w-7 h-7 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : txns.length === 0 ? (
+        ) : filteredTxns.length === 0 ? (
           <div className="text-center py-12 text-default-400 text-sm">
             No transactions found. Upload a statement or add one manually.
           </div>
@@ -871,7 +881,7 @@ export default function BankDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {txns.map((txn) => (
+                {filteredTxns.map((txn) => (
                   <tr key={txn.id} className="border-t border-default-100 hover:bg-default-50/50 transition-colors">
                     <td className="px-4 py-3 text-default-600 whitespace-nowrap text-xs">{txn.txn_date}</td>
                     <td className="px-4 py-3 text-foreground">
