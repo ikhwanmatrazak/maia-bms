@@ -874,6 +874,7 @@ export default function BankDetailPage() {
                   <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Date</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Description</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Party</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Remarks</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Category</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-success-600">Money In</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-danger-500">Money Out</th>
@@ -886,9 +887,9 @@ export default function BankDetailPage() {
                     <td className="px-4 py-3 text-default-600 whitespace-nowrap text-xs">{txn.txn_date}</td>
                     <td className="px-4 py-3 text-foreground">
                       <p className="whitespace-normal break-words">{txn.description}</p>
-                      {txn.note && <p className="text-xs text-default-400 whitespace-normal break-words">{txn.note}</p>}
                     </td>
                     <td className="px-4 py-3 text-default-500 text-xs whitespace-normal break-words">{txn.party_name ?? "—"}</td>
+                    <td className="px-4 py-3 text-default-500 text-xs whitespace-normal break-words">{txn.note ?? "—"}</td>
                     <td className="px-4 py-3">
                       {txn.category_name ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
