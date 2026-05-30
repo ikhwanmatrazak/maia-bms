@@ -39,12 +39,6 @@ export default function MyProfilePage() {
     retry: false,
   });
 
-  const { data: leaveTypes = [] } = useQuery({
-    queryKey: ["leave-types"],
-    queryFn: hrApi.listLeaveTypes,
-    enabled: !!emp,
-  });
-
   const { data: leaveBalances = [] } = useQuery({
     queryKey: ["my-leave-balances", emp?.id],
     queryFn: () => hrApi.listLeaveBalances({ employee_id: emp!.id, year: new Date().getFullYear() }),
@@ -115,8 +109,6 @@ export default function MyProfilePage() {
     );
   }
 
-  const balanceMap = Object.fromEntries(leaveBalances.map((b: any) => [b.leave_type_id, b]));
-
   return (
     <div>
       <Topbar title="My Profile" />
@@ -154,18 +146,17 @@ export default function MyProfilePage() {
               <Plus size={13} /> Apply Leave
             </button>
           </div>
-          {leaveTypes.length === 0 ? (
-            <p className="text-sm text-gray-400">No leave types configured yet.</p>
+          {leaveBalances.length === 0 ? (
+            <p className="text-sm text-gray-400">No leave balances set for this year.</p>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {leaveTypes.map((lt: any) => {
-                const bal = balanceMap[lt.id];
-                const entitled = bal?.entitled_days ?? lt.days_per_year ?? 0;
-                const taken = bal?.taken_days ?? 0;
-                const remaining = entitled - taken;
+              {(leaveBalances as any[]).map((b: any) => {
+                const entitled = b.entitled ?? 0;
+                const taken = b.taken ?? 0;
+                const remaining = b.balance ?? (entitled - taken);
                 return (
-                  <div key={lt.id} className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs text-gray-500 font-medium">{lt.name}</p>
+                  <div key={b.id} className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-xs text-gray-500 font-medium">{b.leave_type_name}</p>
                     <p className="text-2xl font-bold text-gray-900 mt-1">{remaining}</p>
                     <p className="text-xs text-gray-400">of {entitled} days remaining</p>
                   </div>
@@ -259,8 +250,8 @@ export default function MyProfilePage() {
                 onChange={(e) => setLeaveForm({ ...leaveForm, leave_type_id: e.target.value })}
               >
                 <option value="">Select type</option>
-                {leaveTypes.map((lt: any) => (
-                  <option key={lt.id} value={lt.id}>{lt.name}</option>
+                {(leaveBalances as any[]).map((b: any) => (
+                  <option key={b.leave_type_id} value={b.leave_type_id}>{b.leave_type_name}</option>
                 ))}
               </select>
             </div>
