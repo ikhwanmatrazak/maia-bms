@@ -891,6 +891,10 @@ class AllowanceItem(BaseModel):
     name: str
     amount: float
 
+class BenefitItem(BaseModel):
+    name: str
+    value: str = "As per company policy"
+
 class OfferLetterRequest(BaseModel):
     position: str
     department: str
@@ -901,7 +905,7 @@ class OfferLetterRequest(BaseModel):
     probation_months: Optional[int] = 3
     basic_salary: float
     allowances: Optional[List[AllowanceItem]] = []
-    benefits: Optional[List[str]] = []
+    benefits: Optional[List[BenefitItem]] = []
     conditions: Optional[List[str]] = []
     expiry_date: str
     signatory_name: Optional[str] = None

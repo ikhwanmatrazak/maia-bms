@@ -477,7 +477,14 @@ export default function EmployeeDetailPage() {
     position: "", department: "", reporting_to: "", work_location: "",
     employment_type: "Full-Time", start_date: "", probation_months: 3,
     basic_salary: "", allowances: [] as { name: string; amount: string }[],
-    benefits: ["Annual Leave", "Medical Benefits", "EPF", "SOCSO", "EIS"],
+    benefits: [
+      { name: "Annual Leave", value: "" },
+      { name: "Medical Leave", value: "" },
+      { name: "Medical Benefits", value: "" },
+      { name: "EPF", value: "As per statutory requirements" },
+      { name: "SOCSO", value: "As per statutory requirements" },
+      { name: "EIS", value: "As per statutory requirements" },
+    ] as { name: string; value: string }[],
     expiry_date: "", signatory_name: "", signatory_title: "Human Resource Manager", notes: "",
   });
   const setOffer = (k: string, v: any) => setOfferForm((p) => ({ ...p, [k]: v }));
@@ -863,14 +870,27 @@ export default function EmployeeDetailPage() {
               </div>
               <div>
                 <label className={LABEL}>Benefits</label>
-                <div className="flex flex-wrap gap-x-5 gap-y-2 mt-1">
-                  {["Annual Leave", "Medical Benefits", "EPF", "SOCSO", "EIS", "Dental", "Vision", "Parking", "Phone Allowance", "Laptop"].map(b => (
-                    <label key={b} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                      <input type="checkbox" className="w-3.5 h-3.5" checked={offerForm.benefits.includes(b)}
-                        onChange={e => setOffer("benefits", e.target.checked ? [...offerForm.benefits, b] : offerForm.benefits.filter(x => x !== b))} />
-                      {b}
-                    </label>
+                <div className="space-y-2 mt-1">
+                  {offerForm.benefits.map((b, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        className={`${INPUT} flex-1`}
+                        value={b.name}
+                        onChange={e => { const arr = [...offerForm.benefits]; arr[i] = { ...arr[i], name: e.target.value }; setOffer("benefits", arr); }}
+                        placeholder="Benefit name"
+                      />
+                      <input
+                        className={`${INPUT} flex-1`}
+                        value={b.value}
+                        onChange={e => { const arr = [...offerForm.benefits]; arr[i] = { ...arr[i], value: e.target.value }; setOffer("benefits", arr); }}
+                        placeholder="e.g. 14 days per year"
+                      />
+                      <button onClick={() => setOffer("benefits", offerForm.benefits.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 shrink-0"><Trash2 size={14} /></button>
+                    </div>
                   ))}
+                  <button onClick={() => setOffer("benefits", [...offerForm.benefits, { name: "", value: "" }])} className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium">
+                    <Plus size={14} /> Add Benefit
+                  </button>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
