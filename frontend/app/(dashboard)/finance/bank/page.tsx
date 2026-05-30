@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { bankApi, BankAccount } from "@/lib/api";
+import { bankApi, BankAccount, downloadPdf } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
 
 const EMPTY: Omit<BankAccount, "id" | "current_balance" | "total_credit" | "total_debit"> = {
@@ -21,6 +21,34 @@ export default function BankAccountsPage() {
   const [editing, setEditing] = useState<BankAccount | null>(null);
   const [form, setForm] = useState(EMPTY);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  // Cashflow download
+  const today = new Date().toISOString().slice(0, 10);
+  const firstOfYear = `${new Date().getFullYear()}-01-01`;
+  const [cfFrom, setCfFrom] = useState(firstOfYear);
+  const [cfTo, setCfTo] = useState(today);
+  const [cfLoading, setCfLoading] = useState<"pdf" | "excel" | null>(null);
+
+  const handleCfDownload = async (type: "pdf" | "excel") => {
+    if (!cfFrom || !cfTo) return;
+    setCfLoading(type);
+    try {
+      if (type === "pdf") {
+        await downloadPdf(bankApi.cashflowPdfUrl(cfFrom, cfTo), `cashflow_${cfFrom}_${cfTo}.pdf`);
+      } else {
+        const url = bankApi.cashflowExcelUrl(cfFrom, cfTo);
+        const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+        const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        const blob = await res.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `cashflow_${cfFrom}_${cfTo}.xlsx`;
+        a.click();
+      }
+    } finally {
+      setCfLoading(null);
+    }
+  };
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ["bank-accounts"],
@@ -159,6 +187,59 @@ export default function BankAccountsPage() {
           })}
         </div>
       )}
+
+      {/* Cashflow Download */}
+      <div className="mt-8 bg-white border border-default-200 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-1 h-5 bg-primary rounded-full" />
+          <h2 className="font-semibold text-foreground">Download Cashflow Report</h2>
+          <span className="text-xs text-default-400 ml-1">All accounts combined</span>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">From</label>
+            <input
+              type="date"
+              value={cfFrom}
+              onChange={(e) => setCfFrom(e.target.value)}
+              className="text-sm border border-default-200 rounded-lg px-3 py-2 outline-none focus:border-primary"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">To</label>
+            <input
+              type="date"
+              value={cfTo}
+              onChange={(e) => setCfTo(e.target.value)}
+              className="text-sm border border-default-200 rounded-lg px-3 py-2 outline-none focus:border-primary"
+            />
+          </div>
+          <button
+            onClick={() => handleCfDownload("pdf")}
+            disabled={!cfFrom || !cfTo || cfLoading !== null}
+            className="px-4 py-2 rounded-xl bg-[#1a1a2e] text-white text-sm font-medium hover:bg-[#252540] disabled:opacity-50 transition-colors flex items-center gap-2"
+          >
+            {cfLoading === "pdf" ? (
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+            )}
+            PDF
+          </button>
+          <button
+            onClick={() => handleCfDownload("excel")}
+            disabled={!cfFrom || !cfTo || cfLoading !== null}
+            className="px-4 py-2 rounded-xl bg-success-600 text-white text-sm font-medium hover:bg-success-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+          >
+            {cfLoading === "excel" ? (
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+            )}
+            Excel
+          </button>
+        </div>
+      </div>
 
       {/* Add / Edit Modal */}
       {showModal && (

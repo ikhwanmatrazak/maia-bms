@@ -1527,3 +1527,323 @@ async def search_parties(
     """)
     r = await db.execute(sql, params)
     return [{"source": row[0], "name": row[1]} for row in r.fetchall()]
+
+
+# ── Cashflow report helpers ───────────────────────────────────────────────────
+
+async def _cashflow_data(db: AsyncSession, date_from: str, date_to: str, tid: Optional[int]):
+    """Fetch all data needed for cashflow reports (PDF + Excel share this)."""
+    tenant_filter = "AND ba.tenant_id = :tid" if tid is not None else ""
+    params: dict = {"d_from": date_from, "d_to": date_to}
+    if tid is not None:
+        params["tid"] = tid
+
+    # Opening balance = sum of account opening balances + all transactions before date_from
+    r = await db.execute(
+        text(f"""
+            SELECT
+                COALESCE(SUM(ba.opening_balance), 0) +
+                COALESCE(SUM(CASE WHEN bt.txn_date < :d_from AND bt.type = 'credit' THEN bt.amount ELSE 0 END), 0) -
+                COALESCE(SUM(CASE WHEN bt.txn_date < :d_from AND bt.type = 'debit'  THEN bt.amount ELSE 0 END), 0)
+            FROM bank_accounts ba
+            LEFT JOIN bank_transactions bt ON bt.account_id = ba.id
+            WHERE 1=1 {tenant_filter}
+        """),
+        params,
+    )
+    opening_balance = float(r.scalar() or 0)
+
+    # All transactions in range
+    r = await db.execute(
+        text(f"""
+            SELECT bt.txn_date, bt.description, bt.party_name, bt.amount, bt.type,
+                   ba.name AS account_name,
+                   GROUP_CONCAT(DISTINCT tc.name ORDER BY tc.name SEPARATOR ', ') AS categories
+            FROM bank_transactions bt
+            JOIN bank_accounts ba ON ba.id = bt.account_id
+            LEFT JOIN bank_transaction_categories btc ON btc.transaction_id = bt.id
+            LEFT JOIN transaction_categories tc ON tc.id = btc.category_id
+            WHERE bt.txn_date BETWEEN :d_from AND :d_to {tenant_filter}
+            GROUP BY bt.id, bt.txn_date, bt.description, bt.party_name, bt.amount, bt.type, ba.name
+            ORDER BY bt.txn_date ASC, bt.id ASC
+        """),
+        params,
+    )
+    rows = r.fetchall()
+
+    # Build transaction list with running balance
+    transactions = []
+    running = opening_balance
+    for row in rows:
+        if row[4] == "credit":
+            running += float(row[2] if isinstance(row[2], float) else row[3])
+        else:
+            running -= float(row[2] if isinstance(row[2], float) else row[3])
+        # row: txn_date, description, party_name, amount, type, account_name, categories
+        amt = float(row[3])
+        running_prev = running
+        if row[4] == "credit":
+            running = running_prev  # already added above
+        transactions.append({
+            "txn_date": str(row[0]),
+            "description": row[1] or "",
+            "party_name": row[2] or "",
+            "amount": float(row[3]),
+            "type": row[4],
+            "account_name": row[5] or "",
+            "categories": row[6] or "",
+            "running_balance": running,
+        })
+
+    # Recalculate running balance correctly
+    running = opening_balance
+    for t in transactions:
+        if t["type"] == "credit":
+            running += t["amount"]
+        else:
+            running -= t["amount"]
+        t["running_balance"] = running
+
+    total_credit = sum(t["amount"] for t in transactions if t["type"] == "credit")
+    total_debit = sum(t["amount"] for t in transactions if t["type"] == "debit")
+    closing_balance = opening_balance + total_credit - total_debit
+
+    # Monthly summary
+    from collections import defaultdict
+    monthly_map: dict = defaultdict(lambda: {"credit": 0.0, "debit": 0.0})
+    for t in transactions:
+        ym = t["txn_date"][:7]  # YYYY-MM
+        if t["type"] == "credit":
+            monthly_map[ym]["credit"] += t["amount"]
+        else:
+            monthly_map[ym]["debit"] += t["amount"]
+
+    monthly = []
+    bal = opening_balance
+    MONTHS = ["", "January", "February", "March", "April", "May", "June",
+              "July", "August", "September", "October", "November", "December"]
+    for ym in sorted(monthly_map.keys()):
+        year, mon = int(ym[:4]), int(ym[5:])
+        cr = monthly_map[ym]["credit"]
+        dr = monthly_map[ym]["debit"]
+        net = cr - dr
+        bal += net
+        monthly.append({
+            "month_label": f"{MONTHS[mon]} {year}",
+            "credit": cr,
+            "debit": dr,
+            "net": net,
+            "balance": bal,
+        })
+
+    return {
+        "opening_balance": opening_balance,
+        "closing_balance": closing_balance,
+        "total_credit": total_credit,
+        "total_debit": total_debit,
+        "transactions": transactions,
+        "monthly": monthly,
+    }
+
+
+@router.get("/cashflow/pdf")
+async def cashflow_pdf(
+    date_from: str = Query(...),
+    date_to: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from io import BytesIO
+    import base64
+    from jinja2 import Environment, FileSystemLoader
+    from weasyprint import HTML as WP_HTML
+
+    tid = get_effective_tenant_id(current_user)
+    data = await _cashflow_data(db, date_from, date_to, tid)
+
+    # Company info + logo
+    r = await db.execute(text("SELECT name, address, phone, email, logo_url FROM company_settings WHERE tenant_id = :tid LIMIT 1"), {"tid": tid})
+    cr = r.fetchone()
+    company = {"name": cr[0], "address": cr[1], "phone": cr[2], "email": cr[3]} if cr else {}
+    logo_data = None
+    if cr and cr[4]:
+        logo_path = os.path.join("uploads", cr[4].lstrip("/uploads/").lstrip("/"))
+        if os.path.exists(logo_path):
+            with open(logo_path, "rb") as f:
+                ext = logo_path.rsplit(".", 1)[-1].lower()
+                mime = "image/png" if ext == "png" else "image/jpeg"
+                logo_data = f"data:{mime};base64,{base64.b64encode(f.read()).decode()}"
+
+    tmpl_dir = os.path.join(os.path.dirname(__file__), "..", "templates", "pdf")
+    env = Environment(loader=FileSystemLoader(tmpl_dir))
+    tmpl = env.get_template("cashflow.html")
+    html = tmpl.render(
+        company=company,
+        logo_data=logo_data,
+        date_from=date_from,
+        date_to=date_to,
+        generated_at=datetime.now().strftime("%d %b %Y %H:%M"),
+        **data,
+    )
+    from fastapi.responses import StreamingResponse
+    pdf_bytes = WP_HTML(string=html).write_pdf()
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="cashflow_{date_from}_{date_to}.pdf"'},
+    )
+
+
+@router.get("/cashflow/excel")
+async def cashflow_excel(
+    date_from: str = Query(...),
+    date_to: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+
+    tid = get_effective_tenant_id(current_user)
+    data = await _cashflow_data(db, date_from, date_to, tid)
+
+    wb = openpyxl.Workbook()
+
+    # ── Styles ──────────────────────────────────────────────────────────────
+    navy = "1A1A2E"
+    green = "065F46"
+    red = "991B1B"
+    hdr_font = Font(name="Arial", bold=True, color="FFFFFF", size=10)
+    hdr_fill = PatternFill("solid", fgColor=navy)
+    hdr_align = Alignment(horizontal="center", vertical="center")
+    title_font = Font(name="Arial", bold=True, size=13, color=navy)
+    sub_font = Font(name="Arial", size=9, color="444444")
+    num_fmt = '#,##0.00'
+    thin = Side(style="thin", color="CCCCCC")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    def style_header_row(ws, row, cols):
+        for col in range(1, cols + 1):
+            cell = ws.cell(row=row, column=col)
+            cell.font = hdr_font
+            cell.fill = hdr_fill
+            cell.alignment = hdr_align
+            cell.border = border
+
+    def style_data_row(ws, row, cols, even=False):
+        for col in range(1, cols + 1):
+            cell = ws.cell(row=row, column=col)
+            cell.font = Font(name="Arial", size=9)
+            cell.fill = PatternFill("solid", fgColor="F8F8F8" if even else "FFFFFF")
+            cell.border = border
+
+    # ── Sheet 1: Monthly Summary ─────────────────────────────────────────────
+    ws1 = wb.active
+    ws1.title = "Monthly Summary"
+
+    ws1["A1"] = "Cash Flow Statement"
+    ws1["A1"].font = title_font
+    ws1["A2"] = f"Period: {date_from} to {date_to}"
+    ws1["A2"].font = sub_font
+    ws1["A3"] = f"Opening Balance: MYR {data['opening_balance']:,.2f}"
+    ws1["A3"].font = Font(name="Arial", size=10, bold=True, color=navy)
+
+    # Balance summary row
+    ws1["A5"] = "Opening Balance"
+    ws1["B5"] = data["opening_balance"]
+    ws1["A6"] = "Total Cash In"
+    ws1["B6"] = data["total_credit"]
+    ws1["A7"] = "Total Cash Out"
+    ws1["B7"] = data["total_debit"]
+    ws1["A8"] = "Closing Balance"
+    ws1["B8"] = data["closing_balance"]
+    for r in range(5, 9):
+        ws1.cell(r, 1).font = Font(name="Arial", bold=True, size=9)
+        ws1.cell(r, 2).number_format = num_fmt
+        ws1.cell(r, 2).font = Font(name="Arial", size=9)
+
+    # Monthly table
+    headers = ["Month", "Cash In (MYR)", "Cash Out (MYR)", "Net (MYR)", "Closing Balance (MYR)"]
+    start_row = 10
+    for col, h in enumerate(headers, 1):
+        ws1.cell(start_row, col).value = h
+    style_header_row(ws1, start_row, len(headers))
+
+    for i, row in enumerate(data["monthly"]):
+        r = start_row + 1 + i
+        ws1.cell(r, 1).value = row["month_label"]
+        ws1.cell(r, 2).value = row["credit"]
+        ws1.cell(r, 3).value = row["debit"]
+        ws1.cell(r, 4).value = row["net"]
+        ws1.cell(r, 5).value = row["balance"]
+        style_data_row(ws1, r, len(headers), i % 2 == 1)
+        for col in [2, 3, 4, 5]:
+            ws1.cell(r, col).number_format = num_fmt
+        ws1.cell(r, 4).font = Font(name="Arial", size=9,
+                                   color=green if row["net"] >= 0 else red, bold=True)
+
+    # Total row
+    tr = start_row + 1 + len(data["monthly"])
+    ws1.cell(tr, 1).value = "TOTAL"
+    ws1.cell(tr, 2).value = data["total_credit"]
+    ws1.cell(tr, 3).value = data["total_debit"]
+    ws1.cell(tr, 4).value = data["total_credit"] - data["total_debit"]
+    ws1.cell(tr, 5).value = data["closing_balance"]
+    style_header_row(ws1, tr, len(headers))
+    for col in [2, 3, 4, 5]:
+        ws1.cell(tr, col).number_format = num_fmt
+
+    ws1.column_dimensions["A"].width = 20
+    for col in ["B", "C", "D", "E"]:
+        ws1.column_dimensions[col].width = 22
+
+    # ── Sheet 2: Transaction Details ─────────────────────────────────────────
+    ws2 = wb.create_sheet("Transaction Details")
+    headers2 = ["Date", "Account", "Description", "Party", "Category", "Cash In (MYR)", "Cash Out (MYR)", "Balance (MYR)"]
+    ws2["A1"] = "Transaction Details"
+    ws2["A1"].font = title_font
+    ws2["A2"] = f"Period: {date_from} to {date_to}"
+    ws2["A2"].font = sub_font
+
+    h_row = 4
+    for col, h in enumerate(headers2, 1):
+        ws2.cell(h_row, col).value = h
+    style_header_row(ws2, h_row, len(headers2))
+
+    for i, t in enumerate(data["transactions"]):
+        r = h_row + 1 + i
+        ws2.cell(r, 1).value = t["txn_date"]
+        ws2.cell(r, 2).value = t["account_name"]
+        ws2.cell(r, 3).value = t["description"]
+        ws2.cell(r, 4).value = t["party_name"]
+        ws2.cell(r, 5).value = t["categories"]
+        ws2.cell(r, 6).value = t["amount"] if t["type"] == "credit" else None
+        ws2.cell(r, 7).value = t["amount"] if t["type"] == "debit" else None
+        ws2.cell(r, 8).value = t["running_balance"]
+        style_data_row(ws2, r, len(headers2), i % 2 == 1)
+        for col in [6, 7, 8]:
+            ws2.cell(r, col).number_format = num_fmt
+        if t["type"] == "credit":
+            ws2.cell(r, 6).font = Font(name="Arial", size=9, color=green)
+        else:
+            ws2.cell(r, 7).font = Font(name="Arial", size=9, color=red)
+
+    ws2.column_dimensions["A"].width = 12
+    ws2.column_dimensions["B"].width = 18
+    ws2.column_dimensions["C"].width = 30
+    ws2.column_dimensions["D"].width = 20
+    ws2.column_dimensions["E"].width = 18
+    for col in ["F", "G", "H"]:
+        ws2.column_dimensions[col].width = 18
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="cashflow_{date_from}_{date_to}.xlsx"'},
+    )

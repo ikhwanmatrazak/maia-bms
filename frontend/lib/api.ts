@@ -871,4 +871,8 @@ export const bankApi = {
   // Reconciliation helpers
   listUnpaidInvoices: (txn_id?: number) => api.get<UnpaidInvoice[]>("/bank/invoices/unpaid", { params: txn_id ? { txn_id } : {} }).then((r) => r.data),
   listUnpaidBills: () => api.get<UnpaidBill[]>("/bank/bills/unpaid").then((r) => r.data),
+  cashflowPdfUrl: (dateFrom: string, dateTo: string) =>
+    `${API_URL}/bank/cashflow/pdf?date_from=${dateFrom}&date_to=${dateTo}`,
+  cashflowExcelUrl: (dateFrom: string, dateTo: string) =>
+    `${API_URL}/bank/cashflow/excel?date_from=${dateFrom}&date_to=${dateTo}`,
 };
