@@ -41,8 +41,9 @@ app_settings = get_settings()
 # ─── helpers ────────────────────────────────────────────────────────────────
 
 def _prorate_months(join: date, target_year: int) -> int:
-    """Count calendar months fully completed by the employee within target_year,
-    as of today. A month is 'completed' once its last day has passed."""
+    """Count months in target_year where the employee was active.
+    A month counts if its first day has passed (or is today) and the
+    employee joined on or before that month's last day."""
     today = date.today()
     year_start = date(target_year, 1, 1)
     year_end = date(target_year, 12, 31)
@@ -50,18 +51,15 @@ def _prorate_months(join: date, target_year: int) -> int:
     if effective_start > min(today, year_end):
         return 0
     count = 0
-    m_year, m_month = effective_start.year, effective_start.month
-    while m_year < target_year or (m_year == target_year and m_month <= 12):
-        last_day = date(m_year, m_month, _monthrange(m_year, m_month)[1])
-        if last_day <= today and last_day <= year_end:
+    for month in range(1, 13):
+        first_day = date(target_year, month, 1)
+        last_day = date(target_year, month, _monthrange(target_year, month)[1])
+        if effective_start <= last_day and first_day <= today and first_day <= year_end:
             count += 1
-        m_month += 1
-        if m_month > 12:
-            m_month = 1
-            m_year += 1
-        if m_year > target_year:
-            break
     return min(count, 12)
+
+# Alias used by sync_all_leave_balances
+_completed_months = _prorate_months
 
 
 async def _save_file(upload: UploadFile, subfolder: str = "hr") -> str:

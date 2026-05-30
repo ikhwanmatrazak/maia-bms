@@ -213,9 +213,12 @@ function LeaveBalancesTab({ empId, emp, leaveBalances, refetchLeave }: { empId: 
   const applyProrate = async () => {
     setProrating(true);
     try {
-      await hrApi.applyProrate(empId, year);
+      const result = await hrApi.applyProrate(empId, year);
       refetchLeave();
       setPreviewOpen(false);
+      alert(`Applied: ${result.updated.map((u: any) => `${u.leave_type} → ${u.entitled} days`).join(", ") || "No pro-rated types updated"}`);
+    } catch (e: any) {
+      alert(`Failed to apply: ${e?.response?.data?.detail || e?.message || "Unknown error"}`);
     } finally {
       setProrating(false);
     }
