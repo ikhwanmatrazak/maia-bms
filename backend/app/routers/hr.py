@@ -1200,8 +1200,9 @@ async def list_leave_balances(
     out = []
     for b in balances:
         lt = b.leave_type_rel
-        if lt and lt.applicable_gender and emp_gender:
-            if lt.applicable_gender.lower() != emp_gender:
+        if lt and lt.applicable_gender:
+            # Hide gender-restricted leave unless employee gender explicitly matches
+            if not emp_gender or lt.applicable_gender.lower() != emp_gender:
                 continue
         out.append(LeaveBalanceResponse(
             id=b.id,
@@ -1293,8 +1294,8 @@ async def sync_all_leave_balances(
 
         emp_gender = (emp.gender or "").lower().strip() or None
         for lt in leave_types:
-            # Skip gender-restricted leave types that don't match this employee
-            if lt.applicable_gender and emp_gender and lt.applicable_gender.lower() != emp_gender:
+            # Skip gender-restricted leave types unless employee gender explicitly matches
+            if lt.applicable_gender and (not emp_gender or lt.applicable_gender.lower() != emp_gender):
                 skipped += 1
                 continue
 

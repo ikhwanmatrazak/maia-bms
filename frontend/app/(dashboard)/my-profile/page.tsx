@@ -47,7 +47,7 @@ export default function MyProfilePage() {
 
   const { data: leaveBalances = [] } = useQuery({
     queryKey: ["my-leave-balances", emp?.id],
-    queryFn: () => hrApi.listLeaveBalances({ employee_id: emp!.id }),
+    queryFn: () => hrApi.listLeaveBalances({ employee_id: emp!.id, year: new Date().getFullYear() }),
     enabled: !!emp,
   });
 
