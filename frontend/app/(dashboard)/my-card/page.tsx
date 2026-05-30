@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import QRCode from "react-qr-code";
 import { nameCardApi, CardSummary, CardCreate } from "@/lib/api";
+import { Topbar } from "@/components/ui/Topbar";
 
 const EMPTY_FORM: CardCreate = { title: "", name: "", designation: "", phone: "", email: "", photo_url: "" };
 
@@ -106,7 +107,9 @@ export default function MyCardPage() {
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div>
+      <Topbar title="My Name Cards" />
+      <div className="p-6 max-w-2xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -335,6 +338,7 @@ export default function MyCardPage() {
       <p className="text-xs text-default-400 text-center mt-6">
         Default card info comes from your employee profile. Manual cards let you set any info.
       </p>
+    </div>
     </div>
   );
 }
