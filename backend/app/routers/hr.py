@@ -244,6 +244,7 @@ class LeaveTypeCreate(BaseModel):
     is_paid: bool = True
     requires_document: bool = False
     is_pro_rated: bool = False
+    applicable_gender: Optional[str] = None
 
 class LeaveTypeResponse(BaseModel):
     id: int
@@ -253,6 +254,7 @@ class LeaveTypeResponse(BaseModel):
     requires_document: bool
     is_pro_rated: bool = False
     is_active: bool
+    applicable_gender: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
@@ -1184,13 +1186,26 @@ async def list_leave_balances(
         query = query.where(LeaveBalance.year == year)
     result = await db.execute(query)
     balances = result.scalars().all()
+
+    # Resolve employee gender for filtering gender-restricted leave types
+    emp_gender: Optional[str] = None
+    if employee_id:
+        emp_res = await db.execute(select(Employee).where(Employee.id == employee_id))
+        emp_obj = emp_res.scalar_one_or_none()
+        if emp_obj:
+            emp_gender = (emp_obj.gender or "").lower().strip() or None
+
     out = []
     for b in balances:
+        lt = b.leave_type_rel
+        if lt and lt.applicable_gender and emp_gender:
+            if lt.applicable_gender.lower() != emp_gender:
+                continue
         out.append(LeaveBalanceResponse(
             id=b.id,
             employee_id=b.employee_id,
             leave_type_id=b.leave_type_id,
-            leave_type_name=b.leave_type_rel.name if b.leave_type_rel else None,
+            leave_type_name=lt.name if lt else None,
             year=b.year,
             entitled=float(b.entitled),
             taken=float(b.taken),
@@ -1274,7 +1289,13 @@ async def sync_all_leave_balances(
         join = emp.join_date or year_start
         months_worked = _completed_months(join, target_year)
 
+        emp_gender = (emp.gender or "").lower().strip() or None
         for lt in leave_types:
+            # Skip gender-restricted leave types that don't match this employee
+            if lt.applicable_gender and emp_gender and lt.applicable_gender.lower() != emp_gender:
+                skipped += 1
+                continue
+
             entitled = round((lt.days_per_year / 12) * months_worked, 2) if lt.is_pro_rated else float(lt.days_per_year)
 
             q = select(LeaveBalance).where(

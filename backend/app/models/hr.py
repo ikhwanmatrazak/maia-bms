@@ -156,6 +156,7 @@ class LeaveType(Base):
     requires_document = Column(Boolean, default=False)
     is_pro_rated = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
+    applicable_gender = Column(String(10), nullable=True, default=None)
 
     applications = relationship("LeaveApplication", back_populates="leave_type_rel")
     balances = relationship("LeaveBalance", back_populates="leave_type_rel")

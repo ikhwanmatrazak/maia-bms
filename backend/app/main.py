@@ -666,6 +666,9 @@ async def _ensure_bank_tables():
         # one-time migration: seed from legacy single invoice_id column
         """INSERT IGNORE INTO bank_transaction_invoices (transaction_id, invoice_id)
            SELECT id, invoice_id FROM bank_transactions WHERE invoice_id IS NOT NULL""",
+        "ALTER TABLE hr_leave_types ADD COLUMN IF NOT EXISTS applicable_gender VARCHAR(10) NULL DEFAULT NULL",
+        "UPDATE hr_leave_types SET applicable_gender = 'female' WHERE LOWER(name) LIKE '%maternity%' AND applicable_gender IS NULL",
+        "UPDATE hr_leave_types SET applicable_gender = 'male' WHERE LOWER(name) LIKE '%paternity%' AND applicable_gender IS NULL",
     ]
     async with engine.begin() as conn:
         for stmt in stmts:
