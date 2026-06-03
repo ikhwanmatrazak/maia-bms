@@ -690,6 +690,7 @@ async def get_invoice_email_tracking(
 @router.get("/{invoice_id}/pdf")
 async def get_invoice_pdf(
     invoice_id: int,
+    style: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -712,16 +713,20 @@ async def get_invoice_pdf(
     if company is None:
         _fb = await db.execute(select(CompanySettings).limit(1))
         company = _fb.scalar_one_or_none()
-    template_style = "professional"
-    if invoice.template_id:
-        from app.models.settings import DocumentTemplate
-        tmpl_result = await db.execute(select(DocumentTemplate).where(DocumentTemplate.id == invoice.template_id))
-        tmpl = tmpl_result.scalar_one_or_none()
-        if tmpl and tmpl.template_json:
-            try:
-                template_style = _json.loads(tmpl.template_json).get("style", "professional")
-            except Exception:
-                pass
+    VALID_STYLES = {"professional", "modern", "minimal", "compact"}
+    if style and style in VALID_STYLES:
+        template_style = style
+    else:
+        template_style = "professional"
+        if invoice.template_id:
+            from app.models.settings import DocumentTemplate
+            tmpl_result = await db.execute(select(DocumentTemplate).where(DocumentTemplate.id == invoice.template_id))
+            tmpl = tmpl_result.scalar_one_or_none()
+            if tmpl and tmpl.template_json:
+                try:
+                    template_style = _json.loads(tmpl.template_json).get("style", "professional")
+                except Exception:
+                    pass
     pdf_bytes = await generate_pdf("invoice", invoice, company, template_style)
     return StreamingResponse(
         io.BytesIO(pdf_bytes),

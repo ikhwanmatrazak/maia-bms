@@ -203,7 +203,7 @@ export const invoicesApi = {
   recordPayment: (id: number, data: object) => api.post(`/invoices/${id}/payments`, data).then((r) => r.data),
   generateReceipt: (id: number) => api.post(`/invoices/${id}/generate-receipt`).then((r) => r.data),
   getPayments: (id: number) => api.get(`/invoices/${id}/payments`).then((r) => r.data),
-  getPdfUrl: (id: number) => `${API_URL}/invoices/${id}/pdf`,
+  getPdfUrl: (id: number, style?: string) => `${API_URL}/invoices/${id}/pdf${style ? `?style=${style}` : ""}`,
   summary: (month?: string) => api.get("/invoices/summary", { params: month ? { month } : {} }).then((r) => r.data),
   getEmailTracking: (id: number) => api.get(`/invoices/${id}/email-tracking`).then((r) => r.data),
   createPaymentLink: (id: number) => api.post(`/gateway/billplz/bill/${id}`).then((r) => r.data),

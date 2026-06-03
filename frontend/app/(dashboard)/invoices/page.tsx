@@ -59,6 +59,7 @@ export default function InvoicesPage() {
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [stylePickerId, setStylePickerId] = useState<number | null>(null);
 
   const handleDelete = (id: number) => {
     if (confirmDeleteId === id) {
@@ -263,7 +264,7 @@ export default function InvoicesPage() {
                     <Button as={Link} href={`/invoices/${inv.id}`} size="sm" variant="flat" isIconOnly title="View"><Eye size={15} /></Button>
                     <Button size="sm" variant="flat" color="primary" isIconOnly isLoading={sendingId === inv.id} title="Send Invoice" onPress={() => handleSendOne(inv)}><Send size={15} /></Button>
                     <Button as={Link} href={`/invoices/${inv.id}?receipt=1`} size="sm" variant="flat" color="success" isIconOnly title="Create Receipt"><ReceiptText size={15} /></Button>
-                    <Button size="sm" variant="flat" isIconOnly title="Download PDF" onPress={() => downloadPdf(invoicesApi.getPdfUrl(inv.id), (inv.invoice_number || "invoice-" + inv.id) + ".pdf")}><FileDown size={15} /></Button>
+                    <Button size="sm" variant="flat" isIconOnly title="Download PDF" onPress={() => setStylePickerId(inv.id)}><FileDown size={15} /></Button>
                     <Button size="sm" variant="flat" isIconOnly title="Duplicate" onPress={() => router.push(`/invoices/new?from=${inv.id}`)}><Copy size={15} /></Button>
                     {inv.status !== "paid" && (
                       <Button size="sm" variant="flat" color="danger" isIconOnly={confirmDeleteId !== inv.id}
@@ -322,6 +323,40 @@ export default function InvoicesPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Template style picker */}
+      {stylePickerId !== null && (() => {
+        const inv = invoices.find((i: any) => i.id === stylePickerId);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+              <h2 className="font-semibold text-lg text-foreground">Choose Invoice Design</h2>
+              <p className="text-sm text-default-400">Select a layout. Invoice data stays the same.</p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { key: "professional", label: "Professional", desc: "Clean corporate layout" },
+                  { key: "modern", label: "Modern", desc: "Bold and contemporary" },
+                  { key: "minimal", label: "Minimal", desc: "Simple and elegant" },
+                  { key: "compact", label: "Compact", desc: "Condensed single-page" },
+                ].map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => {
+                      downloadPdf(invoicesApi.getPdfUrl(stylePickerId, t.key), `${inv?.invoice_number || "invoice-" + stylePickerId}_${t.key}.pdf`);
+                      setStylePickerId(null);
+                    }}
+                    className="flex flex-col items-start p-3 border border-default-200 rounded-xl hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                  >
+                    <span className="font-medium text-sm text-foreground">{t.label}</span>
+                    <span className="text-xs text-default-400 mt-0.5">{t.desc}</span>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setStylePickerId(null)} className="w-full py-2 text-sm text-default-500 hover:text-foreground">Cancel</button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

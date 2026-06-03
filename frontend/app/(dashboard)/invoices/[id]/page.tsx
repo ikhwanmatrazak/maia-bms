@@ -42,6 +42,7 @@ export default function InvoiceDetailPage() {
   const [payLinkModal, setPayLinkModal] = useState(false);
   const [payLinkUrl, setPayLinkUrl] = useState<string | null>(null);
   const [payLinkCopied, setPayLinkCopied] = useState(false);
+  const [styleModal, setStyleModal] = useState(false);
 
   const { data: inv, isLoading } = useQuery({
     queryKey: ["invoices", id],
@@ -208,7 +209,7 @@ export default function InvoiceDetailPage() {
               );
             })()}
             <Button size="sm" color="primary" variant="flat" onPress={openEmailModal}>Email PDF</Button>
-            <Button size="sm" variant="flat" onPress={() => downloadPdf(invoicesApi.getPdfUrl(id), (inv?.invoice_number || "invoice-" + id) + ".pdf")}>PDF</Button>
+            <Button size="sm" variant="flat" onPress={() => setStyleModal(true)}>Download PDF</Button>
             <Button size="sm" variant="flat" onPress={() => router.push(`/invoices/new?from=${id}`)}>Duplicate</Button>
             <Button size="sm" variant="flat" onPress={() => { setTemplateName(inv.invoice_number); setTemplateSaved(false); setTemplateModal(true); }}>
               Save as Template
@@ -577,6 +578,37 @@ export default function InvoiceDetailPage() {
             </ModalFooter>
           </ModalContent>
         </Modal>
+
+        {/* Template style picker */}
+        {styleModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+              <h2 className="font-semibold text-lg text-foreground">Choose Invoice Design</h2>
+              <p className="text-sm text-default-400">Select a layout to download this invoice. Your invoice data stays the same.</p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { key: "professional", label: "Professional", desc: "Clean corporate layout" },
+                  { key: "modern", label: "Modern", desc: "Bold and contemporary" },
+                  { key: "minimal", label: "Minimal", desc: "Simple and elegant" },
+                  { key: "compact", label: "Compact", desc: "Condensed single-page" },
+                ].map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => {
+                      downloadPdf(invoicesApi.getPdfUrl(id, t.key), `${inv?.invoice_number || "invoice-" + id}_${t.key}.pdf`);
+                      setStyleModal(false);
+                    }}
+                    className="flex flex-col items-start p-3 border border-default-200 rounded-xl hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                  >
+                    <span className="font-medium text-sm text-foreground">{t.label}</span>
+                    <span className="text-xs text-default-400 mt-0.5">{t.desc}</span>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setStyleModal(false)} className="w-full py-2 text-sm text-default-500 hover:text-foreground">Cancel</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
