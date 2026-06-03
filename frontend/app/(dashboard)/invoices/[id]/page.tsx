@@ -8,6 +8,7 @@ import {
   ModalHeader, ModalBody, ModalFooter, Input, Select, SelectItem,
 } from "@heroui/react";
 import { invoicesApi, paymentsApi, settingsApi, downloadPdf } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 import { Mail as MailIcon, Eye as EyeIcon, Link as LinkIcon, Copy as CopyIcon, CheckCheck } from "lucide-react";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
@@ -43,6 +44,7 @@ export default function InvoiceDetailPage() {
   const [payLinkUrl, setPayLinkUrl] = useState<string | null>(null);
   const [payLinkCopied, setPayLinkCopied] = useState(false);
   const [styleModal, setStyleModal] = useState(false);
+  const isSuperAdmin = getUser()?.is_super_admin === true;
 
   const { data: inv, isLoading } = useQuery({
     queryKey: ["invoices", id],
@@ -211,6 +213,11 @@ export default function InvoiceDetailPage() {
             <Button size="sm" color="primary" variant="flat" onPress={openEmailModal}>Email PDF</Button>
             <Button size="sm" variant="flat" onPress={() => setStyleModal(true)}>Download PDF</Button>
             <Button size="sm" variant="flat" onPress={() => router.push(`/invoices/new?from=${id}`)}>Duplicate</Button>
+            {isSuperAdmin && (
+              <Button size="sm" color="warning" variant="flat" onPress={() => router.push(`/invoices/new?edit=${id}`)}>
+                Edit Invoice
+              </Button>
+            )}
             <Button size="sm" variant="flat" onPress={() => { setTemplateName(inv.invoice_number); setTemplateSaved(false); setTemplateModal(true); }}>
               Save as Template
             </Button>

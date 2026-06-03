@@ -62,7 +62,9 @@ class OwnershipChecker:
 
     @staticmethod
     def can_edit(current_user: User, resource_created_by: int) -> bool:
-        """Admin/Manager can edit any; Staff can only edit own."""
+        """Super admin / Admin / Manager can edit any; Staff can only edit own."""
+        if getattr(current_user, "is_super_admin", False):
+            return True
         if current_user.role in (UserRole.admin, UserRole.manager):
             return True
         return current_user.id == resource_created_by
