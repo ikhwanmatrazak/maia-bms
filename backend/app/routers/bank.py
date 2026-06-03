@@ -1768,106 +1768,115 @@ async def account_transactions_excel(
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from io import BytesIO
-    from fastapi.responses import StreamingResponse
+    from fastapi.responses import Response as FastResponse
 
     tid = _tenant_id(current_user)
-    await _get_account(db, account_id, tid)  # access check only
-    acc_row2 = await db.execute(
+    await _get_account(db, account_id, tid)
+    acc_r = await db.execute(
         text("SELECT name, bank_name, account_number, currency FROM bank_accounts WHERE id = :id"),
         {"id": account_id},
     )
-    acc2 = acc_row2.fetchone()
+    acc = acc_r.fetchone()
+    acc_name = acc[0] if acc else str(account_id)
 
     where = ["bt.account_id = :aid"]
-    params: dict = {"aid": account_id}
+    qp: dict = {"aid": account_id}
     if date_from:
-        where.append("bt.txn_date >= :date_from")
-        params["date_from"] = date_from
+        where.append("bt.txn_date >= :date_from"); qp["date_from"] = date_from
     if date_to:
-        where.append("bt.txn_date <= :date_to")
-        params["date_to"] = date_to
+        where.append("bt.txn_date <= :date_to"); qp["date_to"] = date_to
     if type:
-        where.append("bt.type = :type")
-        params["type"] = type
+        where.append("bt.type = :type"); qp["type"] = type
     if category_id:
         where.append("EXISTS (SELECT 1 FROM bank_transaction_categories x WHERE x.transaction_id = bt.id AND x.category_id = :cat_id)")
-        params["cat_id"] = category_id
+        qp["cat_id"] = category_id
     if search:
-        where.append("(bt.description LIKE :s OR bt.party_name LIKE :s)")
-        params["s"] = f"%{search}%"
+        where.append("(bt.description LIKE :s OR bt.party_name LIKE :s)"); qp["s"] = f"%{search}%"
 
     sql = f"{_TXN_SELECT} WHERE {' AND '.join(where)} {_TXN_GROUP} ORDER BY bt.txn_date ASC, bt.id ASC"
-    r = await db.execute(text(sql), params)
-    txns = [_txn_out_from_row(row) for row in r.fetchall()]
+    res = await db.execute(text(sql), qp)
+    txns = [_txn_out_from_row(row) for row in res.fetchall()]
 
+    # ── Build workbook ────────────────────────────────────────────────────
     navy = "1A1A2E"
-    green = "065F46"
+    green_c = "065F46"
     red_c = "991B1B"
     num_fmt = '#,##0.00'
-    hdr_font = Font(name="Arial", bold=True, color="FFFFFF", size=10)
-    hdr_fill = PatternFill("solid", fgColor=navy)
     thin = Side(style="thin", color="CCCCCC")
     bdr = Border(left=thin, right=thin, top=thin, bottom=thin)
+    hdr_font = Font(name="Arial", bold=True, color="FFFFFF", size=10)
+    hdr_fill = PatternFill("solid", fgColor=navy)
+    data_font = Font(name="Arial", size=9)
+    title_font = Font(name="Arial", bold=True, size=13, color=navy)
 
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Transactions"
 
-    title_font = Font(name="Arial", bold=True, size=13, color=navy)
-    sub_font = Font(name="Arial", size=9, color="555555")
-
-    ws["A1"] = f"Transaction Report — {acc2[0] if acc2 else account_id}"
+    ws["A1"] = f"Transaction Report — {acc_name}"
     ws["A1"].font = title_font
     ws["A2"] = f"Period: {date_from or 'all'} to {date_to or 'all'}"
-    ws["A2"].font = sub_font
+    ws["A2"].font = Font(name="Arial", size=9, color="555555")
 
-    headers = ["Date", "Description", "Party", "Category", "Remarks", "Money In", "Money Out"]
-    h_row = 4
-    for col, h in enumerate(headers, 1):
-        cell = ws.cell(h_row, col)
-        cell.value = h
-        cell.font = hdr_font
-        cell.fill = hdr_fill
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = bdr
+    HEADERS = ["Date", "Description", "Party", "Category", "Remarks", "Money In", "Money Out"]
+    H_ROW = 4
+    for col, h in enumerate(HEADERS, 1):
+        c = ws.cell(H_ROW, col)
+        c.value = h
+        c.font = hdr_font
+        c.fill = hdr_fill
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = bdr
 
     total_credit = 0.0
     total_debit = 0.0
     for i, t in enumerate(txns):
-        r = h_row + 1 + i
-        ws.cell(r, 1).value = str(t.txn_date) if hasattr(t.txn_date, "strftime") else t.txn_date
-        ws.cell(r, 2).value = t.description or ""
-        ws.cell(r, 3).value = t.party_name or ""
-        ws.cell(r, 4).value = ", ".join(c.name for c in (t.categories or []))
-        ws.cell(r, 5).value = t.note or ""
+        row_n = H_ROW + 1 + i
+        row_fill = PatternFill("solid", fgColor="F8F8F8" if i % 2 else "FFFFFF")
         is_credit = t.type == "credit"
-        ws.cell(r, 6).value = float(t.amount) if is_credit else None
-        ws.cell(r, 7).value = float(t.amount) if not is_credit else None
+        amt = float(t.amount)
+
+        values = [
+            t.txn_date,
+            t.description or "",
+            t.party_name or "",
+            ", ".join(c.name for c in (t.categories or [])),
+            t.note or "",
+            amt if is_credit else None,
+            amt if not is_credit else None,
+        ]
+        for col, val in enumerate(values, 1):
+            c = ws.cell(row_n, col)
+            c.value = val
+            c.font = data_font
+            c.fill = row_fill
+            c.border = bdr
+
+        # Colour money columns
         if is_credit:
-            total_credit += float(t.amount)
-            ws.cell(r, 6).font = Font(name="Arial", size=9, color=green)
+            ws.cell(row_n, 6).font = Font(name="Arial", size=9, color=green_c)
+            total_credit += amt
         else:
-            total_debit += float(t.amount)
-            ws.cell(r, 7).font = Font(name="Arial", size=9, color=red_c)
-        for col in range(1, 8):
-            ws.cell(r, col).font = ws.cell(r, col).font or Font(name="Arial", size=9)
-            ws.cell(r, col).border = bdr
-            fill = PatternFill("solid", fgColor="F8F8F8" if i % 2 else "FFFFFF")
-            ws.cell(r, col).fill = fill
-        for col in [6, 7]:
-            ws.cell(r, col).number_format = num_fmt
+            ws.cell(row_n, 7).font = Font(name="Arial", size=9, color=red_c)
+            total_debit += amt
+
+        ws.cell(row_n, 6).number_format = num_fmt
+        ws.cell(row_n, 7).number_format = num_fmt
 
     # Total row
-    tr = h_row + 1 + len(txns)
-    ws.cell(tr, 1).value = "TOTAL"
-    ws.cell(tr, 6).value = total_credit
-    ws.cell(tr, 7).value = total_debit
+    tot_row = H_ROW + 1 + len(txns)
+    tot_fill = PatternFill("solid", fgColor=navy)
+    tot_font = Font(name="Arial", bold=True, color="FFFFFF", size=10)
     for col in range(1, 8):
-        ws.cell(tr, col).font = Font(name="Arial", bold=True, color="FFFFFF", size=10)
-        ws.cell(tr, col).fill = PatternFill("solid", fgColor=navy)
-        ws.cell(tr, col).border = bdr
-    for col in [6, 7]:
-        ws.cell(tr, col).number_format = num_fmt
+        c = ws.cell(tot_row, col)
+        c.font = tot_font
+        c.fill = tot_fill
+        c.border = bdr
+    ws.cell(tot_row, 1).value = "TOTAL"
+    ws.cell(tot_row, 6).value = total_credit
+    ws.cell(tot_row, 7).value = total_debit
+    ws.cell(tot_row, 6).number_format = num_fmt
+    ws.cell(tot_row, 7).number_format = num_fmt
 
     ws.column_dimensions["A"].width = 12
     ws.column_dimensions["B"].width = 30
@@ -1879,11 +1888,12 @@ async def account_transactions_excel(
 
     buf = BytesIO()
     wb.save(buf)
-    buf.seek(0)
-    fname = f"report_{acc2[0] if acc2 else account_id}_{date_from or 'all'}_{date_to or 'all'}.xlsx".replace(" ", "_")
-    return StreamingResponse(buf,
+    fname = f"report_{acc_name}_{date_from or 'all'}_{date_to or 'all'}.xlsx".replace(" ", "_")
+    return FastResponse(
+        content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
 
 
 @router.get("/cashflow/pdf")
@@ -1945,7 +1955,7 @@ async def cashflow_excel(
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
     from io import BytesIO
-    from fastapi.responses import StreamingResponse
+    from fastapi.responses import Response as FastResponse
 
     tid = get_effective_tenant_id(current_user)
     data = await _cashflow_data(db, date_from, date_to, tid)
@@ -2081,9 +2091,8 @@ async def cashflow_excel(
 
     buf = BytesIO()
     wb.save(buf)
-    buf.seek(0)
-    return StreamingResponse(
-        buf,
+    return FastResponse(
+        content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="cashflow_{date_from}_{date_to}.xlsx"'},
     )

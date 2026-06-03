@@ -21,9 +21,9 @@ export async function downloadFile(url: string, filename: string, mimeType: stri
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(href), 100);
-  } catch (err) {
+  } catch (err: any) {
     console.error("Download failed:", err);
-    alert(`Failed to download ${filename}. Please try again or check server logs.`);
+    alert(`Download failed: ${err?.message || "Unknown error"}`);
   }
 }
 
