@@ -82,11 +82,12 @@ function QuickLinkInvoiceModal({
                   )}
                 </span>
                 {invIds.includes(inv.id) && (
-                  <a href={`/api/v1/invoices/${inv.id}/pdf`} target="_blank" rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); downloadPdf(`/api/v1/invoices/${inv.id}/pdf`, `invoice_${inv.id}.pdf`); }}
                     className="text-xs text-primary hover:underline shrink-0">
                     View
-                  </a>
+                  </button>
                 )}
               </label>
             ))}
@@ -648,11 +649,12 @@ function EditDrawer({
                     <span className="text-default-400"> — {inv.client_name} [{inv.status ?? ""}] ({fmt(inv.total)})</span>
                   </span>
                   {invIds.includes(inv.id) && (
-                    <a href={`/api/v1/invoices/${inv.id}/pdf`} target="_blank" rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); downloadPdf(`/api/v1/invoices/${inv.id}/pdf`, `invoice_${inv.id}.pdf`); }}
                       className="text-xs text-primary hover:underline shrink-0">
                       View
-                    </a>
+                    </button>
                   )}
                 </label>
               ))}
