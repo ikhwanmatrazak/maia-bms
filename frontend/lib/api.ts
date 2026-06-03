@@ -2,6 +2,31 @@ import axios, { AxiosError } from "axios";
 import { getAccessToken, getRefreshToken, setTokens, clearAuth } from "@/lib/auth";
 
 // Download a PDF via fetch (avoids axios baseURL double-path issue with relative API URLs)
+export async function downloadFile(url: string, filename: string, mimeType: string) {
+  try {
+    const token = getAccessToken();
+    const response = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
+    }
+    const blob = await response.blob();
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(href), 100);
+  } catch (err) {
+    console.error("Download failed:", err);
+    alert(`Failed to download ${filename}. Please try again or check server logs.`);
+  }
+}
+
 export async function downloadPdf(url: string, filename: string) {
   try {
     const token = getAccessToken();

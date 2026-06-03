@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { bankApi, BankAccount, downloadPdf } from "@/lib/api";
+import { bankApi, BankAccount, downloadPdf, downloadFile } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
 
 const EMPTY: Omit<BankAccount, "id" | "current_balance" | "total_credit" | "total_debit"> = {
@@ -36,14 +36,11 @@ export default function BankAccountsPage() {
       if (type === "pdf") {
         await downloadPdf(bankApi.cashflowPdfUrl(cfFrom, cfTo), `cashflow_${cfFrom}_${cfTo}.pdf`);
       } else {
-        const url = bankApi.cashflowExcelUrl(cfFrom, cfTo);
-        const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-        const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-        const blob = await res.blob();
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `cashflow_${cfFrom}_${cfTo}.xlsx`;
-        a.click();
+        await downloadFile(
+          bankApi.cashflowExcelUrl(cfFrom, cfTo),
+          `cashflow_${cfFrom}_${cfTo}.xlsx`,
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        );
       }
     } finally {
       setCfLoading(null);
