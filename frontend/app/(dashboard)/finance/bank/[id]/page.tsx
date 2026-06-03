@@ -84,7 +84,7 @@ function QuickLinkInvoiceModal({
                 {invIds.includes(inv.id) && (
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); downloadPdf(`/api/v1/invoices/${inv.id}/pdf`, `invoice_${inv.id}.pdf`); }}
+                    onClick={async (e) => { e.stopPropagation(); const { getAccessToken } = await import("@/lib/auth"); const r = await fetch(`/api/v1/invoices/${inv.id}/pdf`, { headers: { Authorization: `Bearer ${getAccessToken()}` } }); const blob = await r.blob(); window.open(URL.createObjectURL(blob), "_blank"); }}
                     className="text-xs text-primary hover:underline shrink-0">
                     View
                   </button>
@@ -651,7 +651,7 @@ function EditDrawer({
                   {invIds.includes(inv.id) && (
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); downloadPdf(`/api/v1/invoices/${inv.id}/pdf`, `invoice_${inv.id}.pdf`); }}
+                      onClick={async (e) => { e.stopPropagation(); const { getAccessToken } = await import("@/lib/auth"); const r = await fetch(`/api/v1/invoices/${inv.id}/pdf`, { headers: { Authorization: `Bearer ${getAccessToken()}` } }); const blob = await r.blob(); window.open(URL.createObjectURL(blob), "_blank"); }}
                       className="text-xs text-primary hover:underline shrink-0">
                       View
                     </button>
