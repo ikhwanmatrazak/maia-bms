@@ -1663,7 +1663,12 @@ async def account_transactions_pdf(
     from pathlib import Path
 
     tid = _tenant_id(current_user)
-    account = await _get_account(db, account_id, tid)
+    await _get_account(db, account_id, tid)  # access check only
+    acc_row = await db.execute(
+        text("SELECT name, bank_name, account_number, currency FROM bank_accounts WHERE id = :id"),
+        {"id": account_id},
+    )
+    acc = acc_row.fetchone()
 
     where = ["bt.account_id = :aid"]
     params: dict = {"aid": account_id}
@@ -1712,10 +1717,10 @@ async def account_transactions_pdf(
         "company": company,
         "logo_data": logo_data,
         "primary_color": primary_color,
-        "account_name": account.name,
-        "account_bank": account.bank_name or "",
-        "account_number": account.account_number or "",
-        "currency": account.currency,
+        "account_name": acc[0] if acc else "",
+        "account_bank": acc[1] or "" if acc else "",
+        "account_number": acc[2] or "" if acc else "",
+        "currency": acc[3] if acc else "MYR",
         "filter_label": " | ".join(filters) if filters else "All transactions",
         "generated_at": date.today().strftime("%d %B %Y"),
         "txns": [
@@ -1744,7 +1749,7 @@ async def account_transactions_pdf(
     loop = asyncio.get_event_loop()
     pdf_bytes = await loop.run_in_executor(None, lambda: HTML(string=html_content).write_pdf())
 
-    fname = f"report_{account.name}_{date_from or 'all'}_{date_to or 'all'}.pdf".replace(" ", "_")
+    fname = f"report_{acc[0] if acc else account_id}_{date_from or 'all'}_{date_to or 'all'}.pdf".replace(" ", "_")
     return Response(content=pdf_bytes, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
@@ -1766,7 +1771,12 @@ async def account_transactions_excel(
     from fastapi.responses import StreamingResponse
 
     tid = _tenant_id(current_user)
-    account = await _get_account(db, account_id, tid)
+    await _get_account(db, account_id, tid)  # access check only
+    acc_row2 = await db.execute(
+        text("SELECT name, bank_name, account_number, currency FROM bank_accounts WHERE id = :id"),
+        {"id": account_id},
+    )
+    acc2 = acc_row2.fetchone()
 
     where = ["bt.account_id = :aid"]
     params: dict = {"aid": account_id}
@@ -1806,7 +1816,7 @@ async def account_transactions_excel(
     title_font = Font(name="Arial", bold=True, size=13, color=navy)
     sub_font = Font(name="Arial", size=9, color="555555")
 
-    ws["A1"] = f"Transaction Report — {account.name}"
+    ws["A1"] = f"Transaction Report — {acc2[0] if acc2 else account_id}"
     ws["A1"].font = title_font
     ws["A2"] = f"Period: {date_from or 'all'} to {date_to or 'all'}"
     ws["A2"].font = sub_font
@@ -1870,7 +1880,7 @@ async def account_transactions_excel(
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)
-    fname = f"report_{account.name}_{date_from or 'all'}_{date_to or 'all'}.xlsx".replace(" ", "_")
+    fname = f"report_{acc2[0] if acc2 else account_id}_{date_from or 'all'}_{date_to or 'all'}.xlsx".replace(" ", "_")
     return StreamingResponse(buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'})
