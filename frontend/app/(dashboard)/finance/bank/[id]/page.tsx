@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import {
   bankApi, BankTransaction, TxnCategory, ParsedRow,
-  UnpaidInvoice, UnpaidBill,
+  UnpaidInvoice, UnpaidBill, downloadPdf, downloadFile,
 } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
 
@@ -852,6 +852,20 @@ export default function BankDetailPage() {
   const [txnType, setTxnType] = useState("");
   const [catFilter, setCatFilter] = useState<number | "">("");
   const [search, setSearch] = useState("");
+  const [reportLoading, setReportLoading] = useState<"pdf" | "excel" | null>(null);
+
+  const handleReportDownload = async (format: "pdf" | "excel") => {
+    setReportLoading(format);
+    const params = { date_from: dateFrom || undefined, date_to: dateTo || undefined, type: txnType || undefined, category_id: catFilter || undefined, search: search || undefined };
+    const url = bankApi.accountReportUrl(accountId, params, format);
+    const filename = `report_${account?.name || accountId}_${dateFrom || "all"}_${dateTo || "all"}.${format === "pdf" ? "pdf" : "xlsx"}`.replace(/\s+/g, "_");
+    try {
+      if (format === "pdf") await downloadPdf(url, filename);
+      else await downloadFile(url, filename, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    } finally {
+      setReportLoading(null);
+    }
+  };
 
   // Build a clean params object — no undefined values so React Query key serializes reliably
   const filterParams = useMemo(() => {
@@ -1024,6 +1038,24 @@ export default function BankDetailPage() {
             <button onClick={() => { setDateFrom(""); setDateTo(""); setTxnType(""); setCatFilter(""); setSearch(""); }}
               className="text-xs text-default-400 hover:text-danger-500 py-1.5">Clear</button>
           )}
+          <div className="ml-auto flex gap-2">
+            <button
+              onClick={() => handleReportDownload("pdf")}
+              disabled={reportLoading !== null}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1a1a2e] text-white text-xs font-medium hover:bg-[#252540] disabled:opacity-50 transition-colors"
+            >
+              {reportLoading === "pdf" ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>}
+              PDF
+            </button>
+            <button
+              onClick={() => handleReportDownload("excel")}
+              disabled={reportLoading !== null}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-success-600 text-white text-xs font-medium hover:bg-success-700 disabled:opacity-50 transition-colors"
+            >
+              {reportLoading === "excel" ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>}
+              Excel
+            </button>
+          </div>
         </div>
       </div>
 

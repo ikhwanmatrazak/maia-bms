@@ -1646,6 +1646,236 @@ async def _cashflow_data(db: AsyncSession, date_from: str, date_to: str, tid: Op
     }
 
 
+@router.get("/accounts/{account_id}/transactions/report")
+async def account_transactions_pdf(
+    account_id: int,
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    type: Optional[str] = Query(None),
+    category_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from fastapi.responses import Response
+    from jinja2 import Environment, FileSystemLoader
+    from weasyprint import HTML
+    from pathlib import Path
+
+    tid = _tenant_id(current_user)
+    account = await _get_account(db, account_id, tid)
+
+    where = ["bt.account_id = :aid"]
+    params: dict = {"aid": account_id}
+    if date_from:
+        where.append("bt.txn_date >= :date_from")
+        params["date_from"] = date_from
+    if date_to:
+        where.append("bt.txn_date <= :date_to")
+        params["date_to"] = date_to
+    if type:
+        where.append("bt.type = :type")
+        params["type"] = type
+    if category_id:
+        where.append("EXISTS (SELECT 1 FROM bank_transaction_categories x WHERE x.transaction_id = bt.id AND x.category_id = :cat_id)")
+        params["cat_id"] = category_id
+    if search:
+        where.append("(bt.description LIKE :s OR bt.party_name LIKE :s)")
+        params["s"] = f"%{search}%"
+
+    sql = f"{_TXN_SELECT} WHERE {' AND '.join(where)} {_TXN_GROUP} ORDER BY bt.txn_date ASC, bt.id ASC"
+    r = await db.execute(text(sql), params)
+    txns = [_txn_out_from_row(row) for row in r.fetchall()]
+
+    total_credit = sum(t.amount for t in txns if t.type == "credit")
+    total_debit = sum(t.amount for t in txns if t.type == "debit")
+
+    # Company settings
+    cs = await db.execute(
+        text("SELECT * FROM company_settings WHERE (tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL)) LIMIT 1"),
+        {"tid": tid}
+    )
+    company = cs.mappings().first() or {}
+    logo_data = company.get("logo_url")
+    primary_color = company.get("primary_color") or "#1a1a2e"
+
+    # Build filter label
+    filters = []
+    if date_from or date_to:
+        filters.append(f"{date_from or '—'} to {date_to or '—'}")
+    if type:
+        filters.append(f"Type: {type.capitalize()}")
+    if search:
+        filters.append(f'Search: "{search}"')
+
+    context = {
+        "company": company,
+        "logo_data": logo_data,
+        "primary_color": primary_color,
+        "account_name": account.name,
+        "account_bank": account.bank_name or "",
+        "account_number": account.account_number or "",
+        "currency": account.currency,
+        "filter_label": " | ".join(filters) if filters else "All transactions",
+        "generated_at": date.today().strftime("%d %B %Y"),
+        "txns": [
+            {
+                "txn_date": str(t.txn_date) if hasattr(t.txn_date, "strftime") else t.txn_date,
+                "description": t.description or "",
+                "party_name": t.party_name or "",
+                "categories": ", ".join(c.name for c in (t.categories or [])),
+                "type": t.type,
+                "amount": float(t.amount),
+            }
+            for t in txns
+        ],
+        "total_credit": total_credit,
+        "total_debit": total_debit,
+        "net": total_credit - total_debit,
+        "count": len(txns),
+    }
+
+    templates_dir = Path(__file__).parent.parent / "templates" / "pdf"
+    jinja_env = Environment(loader=FileSystemLoader(str(templates_dir)))
+    template = jinja_env.get_template("account_report.html")
+    html_content = template.render(**context)
+
+    import asyncio
+    loop = asyncio.get_event_loop()
+    pdf_bytes = await loop.run_in_executor(None, lambda: HTML(string=html_content).write_pdf())
+
+    fname = f"report_{account.name}_{date_from or 'all'}_{date_to or 'all'}.pdf".replace(" ", "_")
+    return Response(content=pdf_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
+@router.get("/accounts/{account_id}/transactions/excel")
+async def account_transactions_excel(
+    account_id: int,
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    type: Optional[str] = Query(None),
+    category_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from io import BytesIO
+    from fastapi.responses import StreamingResponse
+
+    tid = _tenant_id(current_user)
+    account = await _get_account(db, account_id, tid)
+
+    where = ["bt.account_id = :aid"]
+    params: dict = {"aid": account_id}
+    if date_from:
+        where.append("bt.txn_date >= :date_from")
+        params["date_from"] = date_from
+    if date_to:
+        where.append("bt.txn_date <= :date_to")
+        params["date_to"] = date_to
+    if type:
+        where.append("bt.type = :type")
+        params["type"] = type
+    if category_id:
+        where.append("EXISTS (SELECT 1 FROM bank_transaction_categories x WHERE x.transaction_id = bt.id AND x.category_id = :cat_id)")
+        params["cat_id"] = category_id
+    if search:
+        where.append("(bt.description LIKE :s OR bt.party_name LIKE :s)")
+        params["s"] = f"%{search}%"
+
+    sql = f"{_TXN_SELECT} WHERE {' AND '.join(where)} {_TXN_GROUP} ORDER BY bt.txn_date ASC, bt.id ASC"
+    r = await db.execute(text(sql), params)
+    txns = [_txn_out_from_row(row) for row in r.fetchall()]
+
+    navy = "1A1A2E"
+    green = "065F46"
+    red_c = "991B1B"
+    num_fmt = '#,##0.00'
+    hdr_font = Font(name="Arial", bold=True, color="FFFFFF", size=10)
+    hdr_fill = PatternFill("solid", fgColor=navy)
+    thin = Side(style="thin", color="CCCCCC")
+    bdr = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Transactions"
+
+    title_font = Font(name="Arial", bold=True, size=13, color=navy)
+    sub_font = Font(name="Arial", size=9, color="555555")
+
+    ws["A1"] = f"Transaction Report — {account.name}"
+    ws["A1"].font = title_font
+    ws["A2"] = f"Period: {date_from or 'all'} to {date_to or 'all'}"
+    ws["A2"].font = sub_font
+
+    headers = ["Date", "Description", "Party", "Category", "Remarks", "Money In", "Money Out"]
+    h_row = 4
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(h_row, col)
+        cell.value = h
+        cell.font = hdr_font
+        cell.fill = hdr_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = bdr
+
+    total_credit = 0.0
+    total_debit = 0.0
+    for i, t in enumerate(txns):
+        r = h_row + 1 + i
+        ws.cell(r, 1).value = str(t.txn_date) if hasattr(t.txn_date, "strftime") else t.txn_date
+        ws.cell(r, 2).value = t.description or ""
+        ws.cell(r, 3).value = t.party_name or ""
+        ws.cell(r, 4).value = ", ".join(c.name for c in (t.categories or []))
+        ws.cell(r, 5).value = t.note or ""
+        is_credit = t.type == "credit"
+        ws.cell(r, 6).value = float(t.amount) if is_credit else None
+        ws.cell(r, 7).value = float(t.amount) if not is_credit else None
+        if is_credit:
+            total_credit += float(t.amount)
+            ws.cell(r, 6).font = Font(name="Arial", size=9, color=green)
+        else:
+            total_debit += float(t.amount)
+            ws.cell(r, 7).font = Font(name="Arial", size=9, color=red_c)
+        for col in range(1, 8):
+            ws.cell(r, col).font = ws.cell(r, col).font or Font(name="Arial", size=9)
+            ws.cell(r, col).border = bdr
+            fill = PatternFill("solid", fgColor="F8F8F8" if i % 2 else "FFFFFF")
+            ws.cell(r, col).fill = fill
+        for col in [6, 7]:
+            ws.cell(r, col).number_format = num_fmt
+
+    # Total row
+    tr = h_row + 1 + len(txns)
+    ws.cell(tr, 1).value = "TOTAL"
+    ws.cell(tr, 6).value = total_credit
+    ws.cell(tr, 7).value = total_debit
+    for col in range(1, 8):
+        ws.cell(tr, col).font = Font(name="Arial", bold=True, color="FFFFFF", size=10)
+        ws.cell(tr, col).fill = PatternFill("solid", fgColor=navy)
+        ws.cell(tr, col).border = bdr
+    for col in [6, 7]:
+        ws.cell(tr, col).number_format = num_fmt
+
+    ws.column_dimensions["A"].width = 12
+    ws.column_dimensions["B"].width = 30
+    ws.column_dimensions["C"].width = 22
+    ws.column_dimensions["D"].width = 18
+    ws.column_dimensions["E"].width = 20
+    ws.column_dimensions["F"].width = 16
+    ws.column_dimensions["G"].width = 16
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = f"report_{account.name}_{date_from or 'all'}_{date_to or 'all'}.xlsx".replace(" ", "_")
+    return StreamingResponse(buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
 @router.get("/cashflow/pdf")
 async def cashflow_pdf(
     date_from: str = Query(...),

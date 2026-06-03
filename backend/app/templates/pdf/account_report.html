@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1a1a2e; background: #fff; }
+  .page { padding: 26px 30px; }
+
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid {{ primary_color }}; padding-bottom: 12px; margin-bottom: 16px; }
+  .company-info h1 { font-size: 14pt; font-weight: 700; color: #1a1a2e; margin-bottom: 2px; }
+  .company-info p { font-size: 8pt; color: #555; line-height: 1.5; }
+  .logo-block img { max-height: 56px; max-width: 130px; object-fit: contain; }
+
+  .title-block { text-align: center; margin-bottom: 16px; }
+  .title-block h2 { font-size: 12.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .title-block .sub { font-size: 9pt; color: #555; margin-top: 2px; }
+  .title-block .filter { font-size: 8.5pt; color: #888; margin-top: 3px; }
+
+  .summary { display: flex; gap: 0; border: 1px solid #ccc; border-radius: 5px; overflow: hidden; margin-bottom: 18px; }
+  .sum-cell { flex: 1; padding: 9px 12px; }
+  .sum-cell + .sum-cell { border-left: 1px solid #ccc; }
+  .sum-cell .label { font-size: 7.5pt; color: #666; text-transform: uppercase; letter-spacing: 0.3px; }
+  .sum-cell .value { font-size: 12pt; font-weight: 700; margin-top: 2px; }
+  .green { color: #065f46; } .red { color: #991b1b; } .blue { color: #1e40af; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+  thead th { background: {{ primary_color }}; color: #fff; padding: 6px 8px; text-align: left; font-size: 8pt; }
+  thead th.num { text-align: right; }
+  tbody tr:nth-child(even) { background: #f8f8f8; }
+  tbody td { padding: 5px 8px; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
+  tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tfoot td { padding: 6px 8px; font-weight: 700; border-top: 2px solid #1a1a2e; font-size: 9pt; }
+  tfoot td.num { text-align: right; }
+  .cr { color: #065f46; } .dr { color: #991b1b; }
+
+  .footer { margin-top: 20px; text-align: center; font-size: 7.5pt; color: #aaa; border-top: 1px solid #eee; padding-top: 8px; }
+  @page { size: A4; margin: 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div class="company-info">
+      <h1>{{ company.get('company_name', 'Company') }}</h1>
+      {% if company.get('address') %}<p>{{ company['address'] }}</p>{% endif %}
+      {% if company.get('phone') %}<p>Tel: {{ company['phone'] }}</p>{% endif %}
+      {% if company.get('email') %}<p>{{ company['email'] }}</p>{% endif %}
+    </div>
+    {% if logo_data %}
+    <div class="logo-block"><img src="{{ logo_data }}" alt="Logo" /></div>
+    {% endif %}
+  </div>
+
+  <div class="title-block">
+    <h2>Transaction Report</h2>
+    <div class="sub">{{ account_name }}{% if account_bank %} · {{ account_bank }}{% endif %}{% if account_number %} ••• {{ account_number[-4:] }}{% endif %} · {{ currency }}</div>
+    <div class="filter">{{ filter_label }} &nbsp;·&nbsp; Generated {{ generated_at }}</div>
+  </div>
+
+  <div class="summary">
+    <div class="sum-cell">
+      <div class="label">Total Transactions</div>
+      <div class="value blue">{{ count }}</div>
+    </div>
+    <div class="sum-cell">
+      <div class="label">Total In (Credit)</div>
+      <div class="value green">+ {{ '{:,.2f}'.format(total_credit) }}</div>
+    </div>
+    <div class="sum-cell">
+      <div class="label">Total Out (Debit)</div>
+      <div class="value red">- {{ '{:,.2f}'.format(total_debit) }}</div>
+    </div>
+    <div class="sum-cell">
+      <div class="label">Net</div>
+      <div class="value {% if net >= 0 %}green{% else %}red{% endif %}">{{ '{:,.2f}'.format(net) }}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:70px">Date</th>
+        <th>Description</th>
+        <th>Party</th>
+        <th>Category</th>
+        <th class="num">Money In</th>
+        <th class="num">Money Out</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in txns %}
+      <tr>
+        <td style="white-space:nowrap">{{ t.txn_date }}</td>
+        <td>{{ t.description }}{% if t.get('note') %}<br/><span style="color:#888;font-size:7.5pt">{{ t.note }}</span>{% endif %}</td>
+        <td style="font-size:8pt">{{ t.party_name or '—' }}</td>
+        <td style="font-size:7.5pt;color:#555">{{ t.categories or '—' }}</td>
+        <td class="num cr">{% if t.type == 'credit' %}{{ '{:,.2f}'.format(t.amount) }}{% endif %}</td>
+        <td class="num dr">{% if t.type == 'debit' %}{{ '{:,.2f}'.format(t.amount) }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" style="text-align:right">TOTAL</td>
+        <td class="num cr">{{ '{:,.2f}'.format(total_credit) }}</td>
+        <td class="num dr">{{ '{:,.2f}'.format(total_debit) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="footer">
+    Generated by MAIA BMS &nbsp;·&nbsp; {{ generated_at }} &nbsp;·&nbsp; This document is system-generated.
+  </div>
+
+</div>
+</body>
+</html>

@@ -900,4 +900,14 @@ export const bankApi = {
     `${API_URL}/bank/cashflow/pdf?date_from=${dateFrom}&date_to=${dateTo}`,
   cashflowExcelUrl: (dateFrom: string, dateTo: string) =>
     `${API_URL}/bank/cashflow/excel?date_from=${dateFrom}&date_to=${dateTo}`,
+  accountReportUrl: (accountId: number, params: { date_from?: string; date_to?: string; type?: string; category_id?: number; search?: string }, format: "pdf" | "excel") => {
+    const q = new URLSearchParams();
+    if (params.date_from) q.set("date_from", params.date_from);
+    if (params.date_to) q.set("date_to", params.date_to);
+    if (params.type) q.set("type", params.type);
+    if (params.category_id) q.set("category_id", String(params.category_id));
+    if (params.search) q.set("search", params.search);
+    const suffix = format === "pdf" ? "report" : "excel";
+    return `${API_URL}/bank/accounts/${accountId}/transactions/${suffix}?${q.toString()}`;
+  },
 };
