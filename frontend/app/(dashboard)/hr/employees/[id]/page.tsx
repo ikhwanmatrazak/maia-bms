@@ -380,6 +380,13 @@ export default function EmployeeDetailPage() {
     setForm((prev: any) => ({ ...prev, user_id: userId, email: user ? user.email : prev.email }));
   };
 
+  // Pre-fill offer letter location/reporting fields from saved employee data
+  useEffect(() => {
+    if (!emp) return;
+    if (emp.work_location) setOffer("work_location", emp.work_location);
+    if (emp.reporting_to) setOffer("reporting_to", emp.reporting_to);
+  }, [emp]);
+
   // Initialize form when employee data loads or employee changes
   useEffect(() => {
     if (!emp) return;
@@ -496,6 +503,13 @@ export default function EmployeeDetailPage() {
     if (!form.join_date || !effectiveExpiry) return;
     setOfferGenerating(true);
     try {
+      // Persist reporting_to and work_location to the employee record
+      if (offerForm.reporting_to || offerForm.work_location) {
+        await hrApi.updateEmployee(Number(id), {
+          reporting_to: offerForm.reporting_to || null,
+          work_location: offerForm.work_location || null,
+        });
+      }
       await hrApi.generateOfferLetter(Number(id), {
         // Pull from employee form (no duplication)
         position: form.designation || "",

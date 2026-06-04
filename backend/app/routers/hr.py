@@ -190,6 +190,8 @@ class EmployeeCreate(BaseModel):
     user_id: Optional[int] = None
     designation_id: Optional[int] = None
     employment_terms: Optional[dict] = None
+    work_location: Optional[str] = None
+    reporting_to: Optional[str] = None
 
 class EmployeeUpdate(EmployeeCreate):
     pass
@@ -232,6 +234,8 @@ class EmployeeResponse(BaseModel):
     user_id: Optional[int] = None
     designation_id: Optional[int] = None
     employment_terms: Optional[dict] = None
+    work_location: Optional[str] = None
+    reporting_to: Optional[str] = None
     created_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
 
@@ -572,6 +576,8 @@ def _emp_to_response(emp: Employee) -> EmployeeResponse:
         user_id=emp.user_id,
         designation_id=emp.designation_id if hasattr(emp, 'designation_id') else None,
         employment_terms=json.loads(emp.employment_terms) if getattr(emp, 'employment_terms', None) else None,
+        work_location=getattr(emp, 'work_location', None),
+        reporting_to=getattr(emp, 'reporting_to', None),
         created_at=emp.created_at,
     )
 
