@@ -503,13 +503,6 @@ export default function EmployeeDetailPage() {
     if (!form.join_date || !effectiveExpiry) return;
     setOfferGenerating(true);
     try {
-      // Persist reporting_to and work_location to the employee record
-      if (offerForm.reporting_to || offerForm.work_location) {
-        await hrApi.updateEmployee(Number(id), {
-          reporting_to: offerForm.reporting_to || null,
-          work_location: offerForm.work_location || null,
-        });
-      }
       await hrApi.generateOfferLetter(Number(id), {
         // Pull from employee form (no duplication)
         position: form.designation || "",
@@ -573,6 +566,8 @@ export default function EmployeeDetailPage() {
       if (data[k] === "") data[k] = null;
     });
     data.employment_terms = termsForm;
+    data.reporting_to = offerForm.reporting_to || null;
+    data.work_location = offerForm.work_location || null;
     updateMutation.mutate(data);
   };
 
