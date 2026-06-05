@@ -422,6 +422,9 @@ export default function EmployeeDetailPage() {
       children_count: emp.children_count || 0,
       spouse_working: emp.spouse_working || false,
       user_id: emp.user_id ?? "",
+      has_epf: emp.has_epf !== false,
+      has_socso_eis: emp.has_socso_eis !== false,
+      has_income_tax: emp.has_income_tax !== false,
     });
     // Pre-fill job responsibilities from designation
     if (emp.designation_id) {
@@ -478,6 +481,7 @@ export default function EmployeeDetailPage() {
     outpatient_employee_limit: 1500, outpatient_dependent_limit: 1000, outpatient_per_receipt: 300,
     hospitalization_employee_limit: 3000, hospitalization_dependent_limit: 2000, hospitalization_per_receipt: 1000,
     dental_limit: 200, newborn_allowance: 1000, newborn_max: 3,
+    travel_tier1_km: 100, travel_tier1_rate: 0.70, travel_tier2_rate: 0.50,
   });
   const setTerms = (k: string, v: any) => setTermsForm(p => ({ ...p, [k]: v }));
   const [designationJobResp, setDesignationJobResp] = useState("");
@@ -818,6 +822,23 @@ export default function EmployeeDetailPage() {
                 <ValidatedInput label="SOCSO No. (auto from IC No.)" value={form.socso_no} onChange={v => set("socso_no", v)} validate={validateSocso} placeholder="Same as IC No. (12 digits)" />
                 <ValidatedInput label="Income Tax No." value={form.income_tax_no} onChange={v => set("income_tax_no", v)} validate={validateIncomeTax} placeholder="e.g. SG12345678" />
               </div>
+              <div>
+                <label className={LABEL}>Statutory Deductions</label>
+                <div className="flex flex-wrap gap-6 mt-1">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" checked={!!form.has_epf} onChange={e => set("has_epf", e.target.checked)} className="w-4 h-4" />
+                    EPF / KWSP
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" checked={!!form.has_socso_eis} onChange={e => set("has_socso_eis", e.target.checked)} className="w-4 h-4" />
+                    SOCSO &amp; EIS
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" checked={!!form.has_income_tax} onChange={e => set("has_income_tax", e.target.checked)} className="w-4 h-4" />
+                    Income Tax (PCB)
+                  </label>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className={LABEL}>No. of Children</label><input type="number" min="0" className={INPUT} value={form.children_count} onChange={e => set("children_count", e.target.value)} /></div>
                 <div className="flex items-center gap-3 pt-5">
@@ -977,10 +998,19 @@ export default function EmployeeDetailPage() {
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Dental &amp; Newborn</p>
                 <div className="grid grid-cols-3 gap-4">
-                  <div><label className={LABEL}>Dental Limit (RM/yr)</label><input type="number" className={INPUT} value={termsForm.dental_limit} onChange={e => setTerms("dental_limit", Number(e.target.value))} /></div>
-                  <div><label className={LABEL}>Newborn Allowance (RM)</label><input type="number" className={INPUT} value={termsForm.newborn_allowance} onChange={e => setTerms("newborn_allowance", Number(e.target.value))} /></div>
+                  <div><label className={LABEL}>Dental Limit (RM/yr) — set 0 to hide</label><input type="number" className={INPUT} value={termsForm.dental_limit} onChange={e => setTerms("dental_limit", Number(e.target.value))} /></div>
+                  <div><label className={LABEL}>Newborn Allowance (RM) — set 0 to hide</label><input type="number" className={INPUT} value={termsForm.newborn_allowance} onChange={e => setTerms("newborn_allowance", Number(e.target.value))} /></div>
                   <div><label className={LABEL}>Max Births Covered</label><input type="number" className={INPUT} value={termsForm.newborn_max} onChange={e => setTerms("newborn_max", Number(e.target.value))} /></div>
                 </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Travel / Mileage Claim Rate</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div><label className={LABEL}>Tier 1 Distance (km)</label><input type="number" className={INPUT} value={termsForm.travel_tier1_km} onChange={e => setTerms("travel_tier1_km", Number(e.target.value))} /></div>
+                  <div><label className={LABEL}>Tier 1 Rate (RM/km)</label><input type="number" step="0.01" className={INPUT} value={termsForm.travel_tier1_rate} onChange={e => setTerms("travel_tier1_rate", Number(e.target.value))} /></div>
+                  <div><label className={LABEL}>Tier 2 Rate (RM/km)</label><input type="number" step="0.01" className={INPUT} value={termsForm.travel_tier2_rate} onChange={e => setTerms("travel_tier2_rate", Number(e.target.value))} /></div>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">e.g. First 100 km at RM0.70/km, remaining at RM0.50/km</p>
               </div>
             </div>
           </div>

@@ -522,6 +522,9 @@ async def _ensure_calendar_tables():
         "ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS work_location VARCHAR(200) NULL",
         "ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS reporting_to VARCHAR(200) NULL",
         "ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS offer_benefits TEXT NULL",
+        "ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS has_epf TINYINT(1) NOT NULL DEFAULT 1",
+        "ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS has_socso_eis TINYINT(1) NOT NULL DEFAULT 1",
+        "ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS has_income_tax TINYINT(1) NOT NULL DEFAULT 1",
         "ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS employment_terms_defaults TEXT NULL",
     ]
     async with engine.begin() as conn:

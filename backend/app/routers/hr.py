@@ -193,6 +193,9 @@ class EmployeeCreate(BaseModel):
     work_location: Optional[str] = None
     reporting_to: Optional[str] = None
     offer_benefits: Optional[list] = None
+    has_epf: bool = True
+    has_socso_eis: bool = True
+    has_income_tax: bool = True
 
 class EmployeeUpdate(EmployeeCreate):
     pass
@@ -238,6 +241,9 @@ class EmployeeResponse(BaseModel):
     work_location: Optional[str] = None
     reporting_to: Optional[str] = None
     offer_benefits: Optional[list] = None
+    has_epf: bool = True
+    has_socso_eis: bool = True
+    has_income_tax: bool = True
     created_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
 
@@ -581,6 +587,9 @@ def _emp_to_response(emp: Employee) -> EmployeeResponse:
         work_location=getattr(emp, 'work_location', None),
         reporting_to=getattr(emp, 'reporting_to', None),
         offer_benefits=json.loads(emp.offer_benefits) if getattr(emp, 'offer_benefits', None) else None,
+        has_epf=bool(getattr(emp, 'has_epf', True)),
+        has_socso_eis=bool(getattr(emp, 'has_socso_eis', True)),
+        has_income_tax=bool(getattr(emp, 'has_income_tax', True)),
         created_at=emp.created_at,
     )
 
@@ -1060,6 +1069,9 @@ class EmploymentTermsRequest(BaseModel):
     dental_limit: float = 200
     newborn_allowance: float = 1000
     newborn_max: int = 3
+    travel_tier1_km: int = 100
+    travel_tier1_rate: float = 0.70
+    travel_tier2_rate: float = 0.50
 
 @router.post("/employees/{emp_id}/employment-terms")
 async def generate_employment_terms(
@@ -1117,6 +1129,12 @@ async def generate_employment_terms(
         "dental_limit": body.dental_limit,
         "newborn_allowance": body.newborn_allowance,
         "newborn_max": body.newborn_max,
+        "has_epf": bool(getattr(emp, 'has_epf', True)),
+        "has_socso_eis": bool(getattr(emp, 'has_socso_eis', True)),
+        "has_income_tax": bool(getattr(emp, 'has_income_tax', True)),
+        "travel_tier1_km": body.travel_tier1_km,
+        "travel_tier1_rate": body.travel_tier1_rate,
+        "travel_tier2_rate": body.travel_tier2_rate,
     }
 
     templates_dir = Path(__file__).parent.parent / "templates" / "pdf"
