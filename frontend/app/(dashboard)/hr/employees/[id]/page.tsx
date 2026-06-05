@@ -490,9 +490,6 @@ export default function EmployeeDetailPage() {
       { name: "Annual Leave", value: "" },
       { name: "Medical Leave", value: "" },
       { name: "Medical Benefits", value: "" },
-      { name: "EPF", value: "As per statutory requirements" },
-      { name: "SOCSO", value: "As per statutory requirements" },
-      { name: "EIS", value: "As per statutory requirements" },
     ] as { name: string; value: string }[],
     expiry_date: "", signatory_name: "", signatory_title: "Human Resource Manager", notes: "",
   });
