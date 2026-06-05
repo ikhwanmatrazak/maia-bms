@@ -120,6 +120,7 @@ class Employee(Base):
     photo_url = Column(String(500), nullable=True)
     work_location = Column(String(200), nullable=True)
     reporting_to = Column(String(200), nullable=True)
+    offer_benefits = Column(Text, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

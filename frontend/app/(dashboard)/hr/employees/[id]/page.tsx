@@ -16,8 +16,8 @@ const SELECT = "w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus
 // Income Tax No: 1–2 uppercase letters + optional space/dash + 7–12 digits
 // e.g. SG12345678, OG 12345678, D1234567890, TA1234567890
 const INCOME_TAX_RE = /^[A-Za-z]{1,2}[\s-]?\d{7,12}$/;
-// SOCSO No: exactly 10 numeric digits
-const SOCSO_RE = /^\d{10}$/;
+// SOCSO No: 10 digits (old format) OR 12 digits (new format = IC No)
+const SOCSO_RE = /^\d{10,12}$/;
 // EPF/KWSP No: 7–14 numeric digits
 const EPF_RE = /^\d{7,14}$/;
 
@@ -29,7 +29,7 @@ function validateIncomeTax(v: string): string | null {
 }
 function validateSocso(v: string): string | null {
   if (!v) return null;
-  if (!SOCSO_RE.test(v.trim())) return "SOCSO No. must be exactly 10 digits";
+  if (!SOCSO_RE.test(v.trim().replace(/[-\s]/g, ""))) return "SOCSO No. must be 10–12 digits (IC No. accepted)";
   return null;
 }
 function validateEpf(v: string): string | null {
@@ -380,11 +380,14 @@ export default function EmployeeDetailPage() {
     setForm((prev: any) => ({ ...prev, user_id: userId, email: user ? user.email : prev.email }));
   };
 
-  // Pre-fill offer letter location/reporting fields from saved employee data
+  // Pre-fill offer letter fields from saved employee data
   useEffect(() => {
     if (!emp) return;
     if (emp.work_location) setOffer("work_location", emp.work_location);
     if (emp.reporting_to) setOffer("reporting_to", emp.reporting_to);
+    if (emp.offer_benefits && Array.isArray(emp.offer_benefits) && emp.offer_benefits.length > 0) {
+      setOffer("benefits", emp.offer_benefits);
+    }
   }, [emp]);
 
   // Initialize form when employee data loads or employee changes
@@ -568,6 +571,7 @@ export default function EmployeeDetailPage() {
     data.employment_terms = termsForm;
     data.reporting_to = offerForm.reporting_to || null;
     data.work_location = offerForm.work_location || null;
+    data.offer_benefits = offerForm.benefits.length > 0 ? offerForm.benefits : null;
     updateMutation.mutate(data);
   };
 
@@ -763,7 +767,13 @@ export default function EmployeeDetailPage() {
                 <div><label className={LABEL}>Phone</label><input className={INPUT} value={form.phone} onChange={e => set("phone", e.target.value)} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className={LABEL}>IC No.</label><input className={INPUT} value={form.ic_no} onChange={e => set("ic_no", e.target.value)} /></div>
+                <div><label className={LABEL}>IC No.</label><input className={INPUT} value={form.ic_no} onChange={e => {
+                  const val = e.target.value;
+                  set("ic_no", val);
+                  // Auto-populate SOCSO No from IC No (digits only)
+                  const digits = val.replace(/\D/g, "");
+                  if (digits.length === 12 && !form.socso_no) set("socso_no", digits);
+                }} /></div>
                 <div><label className={LABEL}>Date of Birth</label><input type="date" className={INPUT} value={form.date_of_birth} onChange={e => set("date_of_birth", e.target.value)} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -812,7 +822,7 @@ export default function EmployeeDetailPage() {
                 <ValidatedInput label="EPF No." value={form.epf_no} onChange={v => set("epf_no", v)} validate={validateEpf} placeholder="e.g. 1234567" />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <ValidatedInput label="SOCSO No." value={form.socso_no} onChange={v => set("socso_no", v)} validate={validateSocso} placeholder="10 digits" />
+                <ValidatedInput label="SOCSO No. (auto from IC No.)" value={form.socso_no} onChange={v => set("socso_no", v)} validate={validateSocso} placeholder="Same as IC No. (12 digits)" />
                 <ValidatedInput label="Income Tax No." value={form.income_tax_no} onChange={v => set("income_tax_no", v)} validate={validateIncomeTax} placeholder="e.g. SG12345678" />
               </div>
               <div className="grid grid-cols-2 gap-4">

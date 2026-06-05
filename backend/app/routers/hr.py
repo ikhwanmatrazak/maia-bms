@@ -192,6 +192,7 @@ class EmployeeCreate(BaseModel):
     employment_terms: Optional[dict] = None
     work_location: Optional[str] = None
     reporting_to: Optional[str] = None
+    offer_benefits: Optional[list] = None
 
 class EmployeeUpdate(EmployeeCreate):
     pass
@@ -236,6 +237,7 @@ class EmployeeResponse(BaseModel):
     employment_terms: Optional[dict] = None
     work_location: Optional[str] = None
     reporting_to: Optional[str] = None
+    offer_benefits: Optional[list] = None
     created_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
 
@@ -578,6 +580,7 @@ def _emp_to_response(emp: Employee) -> EmployeeResponse:
         employment_terms=json.loads(emp.employment_terms) if getattr(emp, 'employment_terms', None) else None,
         work_location=getattr(emp, 'work_location', None),
         reporting_to=getattr(emp, 'reporting_to', None),
+        offer_benefits=json.loads(emp.offer_benefits) if getattr(emp, 'offer_benefits', None) else None,
         created_at=emp.created_at,
     )
 
@@ -703,8 +706,8 @@ async def update_employee(
             raise HTTPException(status_code=422, detail="EPF No. must be 7–14 digits")
     if body.socso_no:
         clean = re.sub(r"[\s\-]", "", body.socso_no)
-        if not re.fullmatch(r"\d{10}", clean):
-            raise HTTPException(status_code=422, detail="SOCSO No. must be exactly 10 digits")
+        if not re.fullmatch(r"\d{10,12}", clean):
+            raise HTTPException(status_code=422, detail="SOCSO No. must be 10–12 digits (IC No. accepted)")
     if body.income_tax_no:
         clean = re.sub(r"[\s\-]", "", body.income_tax_no)
         if not re.fullmatch(r"[A-Za-z]{1,2}\d{7,12}", clean):
@@ -717,6 +720,7 @@ async def update_employee(
         raise HTTPException(status_code=404, detail="Employee not found")
     data = body.model_dump(exclude_none=False)
     employment_terms_val = data.pop("employment_terms", None)
+    offer_benefits_val = data.pop("offer_benefits", None)
     for k, v in data.items():
         if hasattr(emp, k):
             setattr(emp, k, v)
@@ -724,6 +728,10 @@ async def update_employee(
         emp.employment_terms = json.dumps(employment_terms_val)
     elif "employment_terms" in data:
         emp.employment_terms = None
+    if offer_benefits_val is not None:
+        emp.offer_benefits = json.dumps(offer_benefits_val)
+    elif offer_benefits_val is None and "offer_benefits" in body.model_dump(exclude_unset=True):
+        emp.offer_benefits = None
     await db.commit()
     await db.refresh(emp)
     result2 = await db.execute(
