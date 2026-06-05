@@ -50,19 +50,15 @@ function ValidatedInput({ label, value, onChange, validate, placeholder }: {
       <label className={LABEL}>{label}</label>
       <div className="relative">
         <input
-          className={`${INPUT} pr-8 ${error ? "border-red-400 focus:ring-red-400/20" : isValid ? "border-green-400 focus:ring-green-400/20" : ""}`}
+          className={`${INPUT} pr-8 ${error ? "border-red-400 focus:ring-red-400/20" : ""}`}
           value={value} placeholder={placeholder}
           onChange={e => onChange(e.target.value)}
         />
-        {isValid && (
-          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-green-500 text-sm font-bold">✓</span>
-        )}
         {error && (
           <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-red-400 text-sm">✕</span>
         )}
       </div>
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-      {isValid && <p className="text-xs text-green-600 mt-1">Valid format</p>}
     </div>
   );
 }
