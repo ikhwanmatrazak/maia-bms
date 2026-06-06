@@ -233,7 +233,6 @@
         {% if outpatient_dependent_limit > 0 %}<li>Accumulated limit of <span class="highlight">RM{{ "%.2f"|format(outpatient_dependent_limit) }}</span> for the employee's dependent (family members) per year</li>{% endif %}
         <li>Amount limit per receipt is <span class="highlight">RM{{ "%.2f"|format(outpatient_per_receipt) }}</span></li>
         <li>Employee must produce the original payment receipt to the company</li>
-        <li>Prenatal and postnatal checkup or any treatment which is not considered as sickness are not covered</li>
         {% if outpatient_dependent_limit > 0 %}
         <li>Employee must declare and register the dependent details to the company</li>
         <li>Dependent is a family member ONLY: Spouse; Son or daughter under 21 years old and is dependent on the employee for support; Son or daughter above 21 years old with mental or physical illness and is dependent on the employee for support</li>
@@ -250,7 +249,6 @@
         {% if hospitalization_dependent_limit > 0 %}<li>Accumulated limit of <span class="highlight">RM{{ "%.2f"|format(hospitalization_dependent_limit) }}</span> for the employee's dependent (family members) per year</li>{% endif %}
         <li>Amount limit per receipt is <span class="highlight">RM{{ "%.2f"|format(hospitalization_per_receipt) }}</span></li>
         <li>Employee must produce the original payment receipt to the company</li>
-        <li>Prenatal and postnatal checkup or any treatment which is not considered as sickness are not covered</li>
         {% if hospitalization_dependent_limit > 0 %}<li>Step child or adopted child are not covered</li>{% endif %}
       </ul>
     </li>
