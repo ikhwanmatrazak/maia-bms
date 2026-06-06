@@ -1009,7 +1009,7 @@ async def generate_offer_letter(
     loop = asyncio.get_event_loop()
     pdf_bytes = await loop.run_in_executor(None, lambda: HTML(string=html_content).write_pdf())
 
-    filename = f"Offer_Letter_{emp.employee_no}_{emp.full_name.replace(' ', '_')}.pdf"
+    filename = f"Offer_Letter_{emp.full_name.replace(' ', '_')}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -1146,7 +1146,7 @@ async def generate_employment_terms(
     loop = asyncio.get_event_loop()
     pdf_bytes = await loop.run_in_executor(None, lambda: HTML(string=html_content).write_pdf())
 
-    filename = f"Employment_Terms_{emp.employee_no}_{emp.full_name.replace(' ', '_')}.pdf"
+    filename = f"Employment_Terms_{emp.full_name.replace(' ', '_')}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
