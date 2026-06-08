@@ -440,8 +440,11 @@ export const hrApi = {
   deleteEmployee: (id: number) => api.delete(`/hr/employees/${id}`),
   generateOfferLetter: async (id: number, data: object) => {
     const resp = await api.post(`/hr/employees/${id}/offer-letter`, data, { responseType: "blob" });
+    const disposition = resp.headers["content-disposition"] || "";
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : `Offer_Letter_${id}.pdf`;
     const url = URL.createObjectURL(new Blob([resp.data], { type: "application/pdf" }));
-    const a = document.createElement("a"); a.href = url; a.download = `Offer_Letter_${id}.pdf`;
+    const a = document.createElement("a"); a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 100);
   },
@@ -449,8 +452,11 @@ export const hrApi = {
   saveEmploymentTermsDefaults: (data: object) => api.put("/hr/employment-terms-defaults", data).then((r) => r.data),
   generateEmploymentTerms: async (id: number, data: object) => {
     const resp = await api.post(`/hr/employees/${id}/employment-terms`, data, { responseType: "blob" });
+    const disposition = resp.headers["content-disposition"] || "";
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : `Employment_Terms_${id}.pdf`;
     const url = URL.createObjectURL(new Blob([resp.data], { type: "application/pdf" }));
-    const a = document.createElement("a"); a.href = url; a.download = `Employment_Terms_${id}.pdf`;
+    const a = document.createElement("a"); a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 100);
   },
