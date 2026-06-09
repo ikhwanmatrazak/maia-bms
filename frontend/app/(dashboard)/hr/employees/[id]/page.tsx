@@ -426,11 +426,6 @@ export default function EmployeeDetailPage() {
       has_socso_eis: emp.has_socso_eis !== false,
       has_income_tax: emp.has_income_tax !== false,
     });
-    // Pre-fill job responsibilities from designation
-    if (emp.designation_id) {
-      const des = (designations as any[]).find((d: any) => d.id === emp.designation_id);
-      if (des) setDesignationJobResp(des.job_responsibilities || "");
-    }
     // Load employment terms: company defaults overlaid with employee-specific values
     const empTerms = (emp.employment_terms || {}) as Record<string, number>;
     const compTerms = (termsDefaults || {}) as Record<string, number>;
@@ -440,6 +435,13 @@ export default function EmployeeDetailPage() {
       ...empTerms,
     }));
   }, [emp?.id, termsDefaults]);
+
+  // Separate effect: load job responsibilities once both emp and designations are ready
+  useEffect(() => {
+    if (!emp?.designation_id || !designations.length) return;
+    const des = (designations as any[]).find((d: any) => d.id === emp.designation_id);
+    if (des) setDesignationJobResp(des.job_responsibilities || "");
+  }, [emp?.designation_id, designations]);
 
   const updateMutation = useMutation({
     mutationFn: (data: object) => hrApi.updateEmployee(Number(id), data),
@@ -572,6 +574,7 @@ export default function EmployeeDetailPage() {
     // Save job responsibilities to the designation (if one is selected)
     if (form.designation_id && designationJobResp !== undefined) {
       designationsApi.update(Number(form.designation_id), { job_responsibilities: designationJobResp })
+        .then(() => refetchDesignations())
         .catch(() => alert("Failed to save job responsibilities"));
     }
     updateMutation.mutate(data);
