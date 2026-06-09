@@ -179,7 +179,7 @@ function DesignationCombobox({ value, jobResp, onChange, onJobRespChange, design
           onBlur={async () => {
             const des = designations.find(d => d.name === value);
             if (des) {
-              try { await designationsApi.update(des.id, { job_responsibilities: jobResp }); } catch { /* silent */ }
+              try { await designationsApi.update(des.id, { job_responsibilities: jobResp }); } catch { alert("Failed to save job responsibilities"); }
             }
           }}
         />
@@ -569,6 +569,11 @@ export default function EmployeeDetailPage() {
     data.reporting_to = offerForm.reporting_to || null;
     data.work_location = offerForm.work_location || null;
     data.offer_benefits = offerForm.benefits.length > 0 ? offerForm.benefits : null;
+    // Save job responsibilities to the designation (if one is selected)
+    if (form.designation_id && designationJobResp !== undefined) {
+      designationsApi.update(Number(form.designation_id), { job_responsibilities: designationJobResp })
+        .catch(() => alert("Failed to save job responsibilities"));
+    }
     updateMutation.mutate(data);
   };
 
