@@ -437,11 +437,18 @@ export default function EmployeeDetailPage() {
   }, [emp?.id, termsDefaults]);
 
   // Separate effect: load job responsibilities once both emp and designations are ready
+  // Match by designation_id first, fall back to name for older records where designation_id is NULL
   useEffect(() => {
-    if (!emp?.designation_id || !designations.length) return;
-    const des = (designations as any[]).find((d: any) => d.id === emp.designation_id);
+    if (!emp || !designations.length) return;
+    let des: any = null;
+    if (emp.designation_id) {
+      des = (designations as any[]).find((d: any) => d.id === emp.designation_id);
+    }
+    if (!des && emp.designation) {
+      des = (designations as any[]).find((d: any) => d.name === emp.designation);
+    }
     if (des) setDesignationJobResp(des.job_responsibilities || "");
-  }, [emp?.designation_id, designations]);
+  }, [emp?.designation_id, emp?.designation, designations]);
 
   const updateMutation = useMutation({
     mutationFn: (data: object) => hrApi.updateEmployee(Number(id), data),
@@ -571,9 +578,15 @@ export default function EmployeeDetailPage() {
     data.reporting_to = offerForm.reporting_to || null;
     data.work_location = offerForm.work_location || null;
     data.offer_benefits = offerForm.benefits.length > 0 ? offerForm.benefits : null;
-    // Save job responsibilities to the designation (if one is selected)
-    if (form.designation_id && designationJobResp !== undefined) {
-      designationsApi.update(Number(form.designation_id), { job_responsibilities: designationJobResp })
+    // Save job responsibilities to the designation
+    // Use designation_id if set; fall back to name-lookup for older employees where designation_id is NULL
+    const desId = form.designation_id
+      ? Number(form.designation_id)
+      : (designations as any[]).find((d: any) => d.name === form.designation)?.id ?? null;
+    if (desId && designationJobResp !== undefined) {
+      // Also patch designation_id onto the employee record if it was missing
+      if (!form.designation_id && desId) data.designation_id = desId;
+      designationsApi.update(desId, { job_responsibilities: designationJobResp })
         .then(() => refetchDesignations())
         .catch(() => alert("Failed to save job responsibilities"));
     }
