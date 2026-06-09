@@ -517,6 +517,7 @@ async def _ensure_calendar_tables():
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX ix_hr_designations_tenant (tenant_id)
         )""",
+        "ALTER TABLE hr_designations ADD COLUMN IF NOT EXISTS job_responsibilities TEXT NULL",
         "ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS designation_id INT NULL",
         "ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS employment_terms TEXT NULL",
         "ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS work_location VARCHAR(200) NULL",
