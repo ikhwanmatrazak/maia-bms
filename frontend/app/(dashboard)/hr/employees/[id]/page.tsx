@@ -425,6 +425,7 @@ export default function EmployeeDetailPage() {
       has_epf: emp.has_epf !== false,
       has_socso_eis: emp.has_socso_eis !== false,
       has_income_tax: emp.has_income_tax !== false,
+      probation_months: emp.probation_months ?? 3,
     });
     // Load employment terms: company defaults overlaid with employee-specific values
     const empTerms = (emp.employment_terms || {}) as Record<string, number>;
@@ -565,6 +566,7 @@ export default function EmployeeDetailPage() {
     data.department_id = data.department_id ? Number(data.department_id) : null;
     data.basic_salary = data.basic_salary !== "" && data.basic_salary != null ? Number(data.basic_salary) : null;
     data.children_count = data.children_count !== "" && data.children_count != null ? Number(data.children_count) : 0;
+    data.probation_months = data.probation_months != null && data.probation_months !== "" ? Number(data.probation_months) : null;
     data.user_id = data.user_id ? Number(data.user_id) : null;
     ["join_date", "confirmation_date", "contract_end_date", "date_of_birth", "phone", "ic_no", "passport_no",
      "gender", "nationality", "religion", "marital_status", "address",
@@ -752,6 +754,12 @@ export default function EmployeeDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div><label className={LABEL}>Join Date</label><input type="date" className={INPUT} value={form.join_date} onChange={e => set("join_date", e.target.value)} /></div>
                 <div><label className={LABEL}>Confirmation Date</label><input type="date" className={INPUT} value={form.confirmation_date} onChange={e => set("confirmation_date", e.target.value)} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={LABEL}>Probation Period (months)</label>
+                  <input type="number" min="0" max="24" className={INPUT} value={form.probation_months ?? 3} onChange={e => set("probation_months", e.target.value === "" ? null : Number(e.target.value))} placeholder="e.g. 3" />
+                </div>
               </div>
               {form.employment_type === "contract" && (
                 <div>

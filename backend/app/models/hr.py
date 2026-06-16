@@ -116,6 +116,7 @@ class Employee(Base):
     children_count = Column(Integer, nullable=True, default=0)
     spouse_working = Column(Boolean, nullable=True, default=False)
 
+    probation_months = Column(Integer, nullable=True, default=3)
     employment_terms = Column(Text, nullable=True)
     photo_url = Column(String(500), nullable=True)
     work_location = Column(String(200), nullable=True)

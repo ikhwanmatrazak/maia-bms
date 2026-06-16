@@ -196,6 +196,7 @@ class EmployeeCreate(BaseModel):
     has_epf: bool = True
     has_socso_eis: bool = True
     has_income_tax: bool = True
+    probation_months: Optional[int] = 3
 
 class EmployeeUpdate(EmployeeCreate):
     pass
@@ -244,6 +245,7 @@ class EmployeeResponse(BaseModel):
     has_epf: bool = True
     has_socso_eis: bool = True
     has_income_tax: bool = True
+    probation_months: Optional[int] = 3
     created_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
 
@@ -590,6 +592,7 @@ def _emp_to_response(emp: Employee) -> EmployeeResponse:
         has_epf=bool(getattr(emp, 'has_epf', True)),
         has_socso_eis=bool(getattr(emp, 'has_socso_eis', True)),
         has_income_tax=bool(getattr(emp, 'has_income_tax', True)),
+        probation_months=getattr(emp, 'probation_months', 3),
         created_at=emp.created_at,
     )
 
