@@ -866,7 +866,7 @@ export const bankApi = {
   confirmStatement: (accountId: number, file: File) => {
     const fd = new FormData();
     fd.append("file", file);
-    return api.post<{ ok: boolean; statement_id: number; imported: number }>(
+    return api.post<{ ok: boolean; statement_id: number; inserted: number; skipped: number }>(
       `/bank/accounts/${accountId}/upload/confirm`, fd,
       { headers: { "Content-Type": "multipart/form-data" } }
     ).then((r) => r.data);

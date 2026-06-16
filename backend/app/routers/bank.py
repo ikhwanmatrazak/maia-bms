@@ -953,8 +953,21 @@ async def confirm_statement(
     await db.commit()
     stmt_id = r.lastrowid
 
-    # Insert transactions
+    # Insert transactions — skip duplicates (same account + date + description + amount)
+    inserted = 0
+    skipped = 0
     for row in rows:
+        existing = await db.execute(
+            text("""
+                SELECT id FROM bank_transactions
+                WHERE account_id = :aid AND txn_date = :d AND description = :desc AND amount = :amt
+                LIMIT 1
+            """),
+            {"aid": account_id, "d": row.txn_date, "desc": row.description, "amt": row.amount},
+        )
+        if existing.fetchone():
+            skipped += 1
+            continue
         await db.execute(
             text("""
                 INSERT INTO bank_transactions
@@ -965,9 +978,10 @@ async def confirm_statement(
              "desc": row.description, "party": row.party_name,
              "amt": row.amount, "type": row.type, "note": row.note},
         )
+        inserted += 1
     await db.commit()
 
-    return {"ok": True, "statement_id": stmt_id, "imported": len(rows)}
+    return {"ok": True, "statement_id": stmt_id, "inserted": inserted, "skipped": skipped}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

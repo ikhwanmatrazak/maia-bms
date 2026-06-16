@@ -167,6 +167,7 @@ function UploadModal({ accountId, onClose }: { accountId: number; onClose: () =>
   const [preview, setPreview] = useState<ParsedRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [importResult, setImportResult] = useState<{ inserted: number; skipped: number } | null>(null);
 
   const handleFile = async (f: File) => {
     setFile(f);
@@ -187,10 +188,11 @@ function UploadModal({ accountId, onClose }: { accountId: number; onClose: () =>
     if (!file) return;
     setLoading(true);
     try {
-      await bankApi.confirmStatement(accountId, file);
+      const res = await bankApi.confirmStatement(accountId, file);
       qc.invalidateQueries({ queryKey: ["bank-txns", accountId] });
       qc.invalidateQueries({ queryKey: ["bank-accounts"] });
       qc.invalidateQueries({ queryKey: ["bank-summary", accountId] });
+      setImportResult({ inserted: res.inserted ?? 0, skipped: res.skipped ?? 0 });
       setStep("done");
     } catch (e: any) {
       setError(e?.response?.data?.detail || "Import failed.");
@@ -277,7 +279,15 @@ function UploadModal({ accountId, onClose }: { accountId: number; onClose: () =>
         {step === "done" && (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 py-8">
             <div className="text-5xl">✅</div>
-            <p className="font-semibold text-foreground">Imported successfully!</p>
+            <p className="font-semibold text-foreground">Import complete!</p>
+            {importResult && (
+              <div className="text-sm text-center space-y-1">
+                <p className="text-success-600 font-medium">{importResult.inserted} new transaction{importResult.inserted !== 1 ? "s" : ""} added</p>
+                {importResult.skipped > 0 && (
+                  <p className="text-default-400">{importResult.skipped} already existed — skipped</p>
+                )}
+              </div>
+            )}
             <button onClick={onClose} className="px-6 py-2.5 rounded-xl bg-primary text-white text-sm font-medium">Done</button>
           </div>
         )}
