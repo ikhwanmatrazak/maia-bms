@@ -556,18 +556,16 @@ export default function EmployeeDetailPage() {
     },
   });
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form) return;
     if (form.epf_no && validateEpf(form.epf_no)) { alert(`EPF No.: ${validateEpf(form.epf_no)}`); return; }
     if (form.socso_no && validateSocso(form.socso_no)) { alert(`SOCSO No.: ${validateSocso(form.socso_no)}`); return; }
     if (form.income_tax_no && validateIncomeTax(form.income_tax_no)) { alert(`Income Tax No.: ${validateIncomeTax(form.income_tax_no)}`); return; }
     const data: any = { ...form };
-    // Convert numeric fields — send null instead of empty string
     data.department_id = data.department_id ? Number(data.department_id) : null;
     data.basic_salary = data.basic_salary !== "" && data.basic_salary != null ? Number(data.basic_salary) : null;
     data.children_count = data.children_count !== "" && data.children_count != null ? Number(data.children_count) : 0;
     data.user_id = data.user_id ? Number(data.user_id) : null;
-    // Convert empty strings to null for optional string/date fields
     ["join_date", "confirmation_date", "contract_end_date", "date_of_birth", "phone", "ic_no", "passport_no",
      "gender", "nationality", "religion", "marital_status", "address",
      "emergency_contact_name", "emergency_contact_phone", "emergency_contact_relation",
@@ -578,18 +576,35 @@ export default function EmployeeDetailPage() {
     data.reporting_to = offerForm.reporting_to || null;
     data.work_location = offerForm.work_location || null;
     data.offer_benefits = offerForm.benefits.length > 0 ? offerForm.benefits : null;
-    // Save job responsibilities to the designation
-    // Use designation_id if set; fall back to name-lookup for older employees where designation_id is NULL
-    const desId = form.designation_id
-      ? Number(form.designation_id)
-      : (designations as any[]).find((d: any) => d.name === form.designation)?.id ?? null;
-    if (desId && designationJobResp !== undefined) {
-      // Also patch designation_id onto the employee record if it was missing
-      if (!form.designation_id && desId) data.designation_id = desId;
-      designationsApi.update(desId, { job_responsibilities: designationJobResp })
-        .then(() => refetchDesignations())
-        .catch(() => alert("Failed to save job responsibilities"));
+
+    // Save job responsibilities: find or create the designation row, then update it
+    if (form.designation) {
+      try {
+        let desId: number | null = form.designation_id ? Number(form.designation_id) : null;
+        // Fall back to name lookup
+        if (!desId) {
+          const existing = (designations as any[]).find((d: any) => d.name === form.designation);
+          desId = existing?.id ?? null;
+        }
+        // If still not found, create the designation row now
+        if (!desId) {
+          const created = await designationsApi.create({ name: form.designation, job_responsibilities: designationJobResp });
+          desId = created.id;
+        } else {
+          await designationsApi.update(desId, { job_responsibilities: designationJobResp });
+        }
+        // Patch designation_id onto employee so future saves use the id directly
+        if (desId) {
+          data.designation_id = desId;
+          set("designation_id", desId);
+        }
+        await refetchDesignations();
+      } catch {
+        alert("Failed to save job responsibilities");
+        return;
+      }
     }
+
     updateMutation.mutate(data);
   };
 
