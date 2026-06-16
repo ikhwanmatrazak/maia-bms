@@ -177,9 +177,15 @@ function DesignationCombobox({ value, jobResp, onChange, onJobRespChange, design
         <textarea rows={5} className={INPUT + " resize-y"} value={jobResp} placeholder={"Leading design and development of applications\nEnsuring high performance and quality\nResolving bugs and bottlenecks"}
           onChange={e => onJobRespChange(e.target.value)}
           onBlur={async () => {
+            if (!value) return;
             const des = designations.find(d => d.name === value);
             if (des) {
               try { await designationsApi.update(des.id, { job_responsibilities: jobResp }); } catch { alert("Failed to save job responsibilities"); }
+            } else {
+              try {
+                const created = await designationsApi.create({ name: value, job_responsibilities: jobResp });
+                onChange(created.name, created.id, created.job_responsibilities || "");
+              } catch { alert("Failed to save job responsibilities"); }
             }
           }}
         />
