@@ -521,6 +521,7 @@ export default function EmployeeDetailPage() {
         basic_salary: Number(form.basic_salary) || 0,
         probation_months: Number(form.probation_months) || 0,
         start_date: form.join_date,
+        contract_end_date: form.contract_end_date || null,
         // Offer-letter-only fields
         reporting_to: offerForm.reporting_to,
         work_location: offerForm.work_location,

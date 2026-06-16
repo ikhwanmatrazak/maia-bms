@@ -106,6 +106,9 @@
     <tr><td>Work Location</td><td>{{ work_location or company.address or '—' }}</td></tr>
     <tr><td>Employment Type</td><td>{{ employment_type }}</td></tr>
     <tr><td>Commencement Date</td><td>{{ start_date }}</td></tr>
+    {% if contract_end_date %}
+    <tr><td>Contract End Date</td><td>{{ contract_end_date }}</td></tr>
+    {% endif %}
     {% if probation_months %}
     <tr><td>Probation Period</td><td>{{ probation_months }} month(s)</td></tr>
     {% endif %}

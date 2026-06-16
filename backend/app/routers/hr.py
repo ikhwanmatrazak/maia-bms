@@ -926,6 +926,7 @@ class OfferLetterRequest(BaseModel):
     work_location: Optional[str] = None
     employment_type: str = "Full-Time"
     start_date: str
+    contract_end_date: Optional[str] = None
     probation_months: Optional[int] = 3
     basic_salary: float
     allowances: Optional[List[AllowanceItem]] = []
@@ -991,6 +992,7 @@ async def generate_offer_letter(
         "work_location": body.work_location,
         "employment_type": body.employment_type,
         "start_date": body.start_date,
+        "contract_end_date": body.contract_end_date,
         "probation_months": body.probation_months,
         "basic_salary": body.basic_salary,
         "allowances": body.allowances or [],
