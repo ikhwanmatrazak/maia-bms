@@ -605,9 +605,25 @@ def _parse_pdf_content(file_bytes: bytes) -> List[ParsedRow]:
                     def _cell(row: List, idx: Optional[int]) -> str:
                         return _normalise_header(row[idx]) if idx is not None and idx < len(row) else ""
 
-                    for row in table[header_row_idx + 1:]:
+                    # Pre-process: merge continuation rows (no date) into the previous row's
+                    # description. Handles PDFs where multi-line cells are split into separate rows.
+                    raw_data_rows = table[header_row_idx + 1:]
+                    merged_table_rows: List[List] = []
+                    for row in raw_data_rows:
                         if not row or all((c is None or str(c).strip() == "") for c in row):
                             continue
+                        raw_date = _cell(row, date_col)
+                        if _parse_date(raw_date):
+                            merged_table_rows.append(list(row))
+                        elif merged_table_rows and desc_col is not None:
+                            # Continuation line — append extra description text to previous row
+                            extra = _cell(row, desc_col)
+                            if extra:
+                                prev = merged_table_rows[-1]
+                                prev_desc = str(prev[desc_col] or "")
+                                prev[desc_col] = (prev_desc + " " + extra).strip()
+
+                    for row in merged_table_rows:
                         try:
                             raw_date = _cell(row, date_col)
                             parsed_date = _parse_date(raw_date)
