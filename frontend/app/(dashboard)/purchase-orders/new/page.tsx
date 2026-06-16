@@ -33,15 +33,17 @@ function NewPurchaseOrderForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fromId = searchParams.get("from");
+  const editId = searchParams.get("edit");
+  const sourceId = editId || fromId;
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
 
   const { data: taxRates = [] } = useQuery<TaxRate[]>({ queryKey: ["tax-rates"], queryFn: settingsApi.getTaxRates });
   const { data: vendors = [] } = useQuery<Vendor[]>({ queryKey: ["vendors-active"], queryFn: () => vendorsApi.list({ active_only: true }) });
 
   const { data: sourceDoc } = useQuery({
-    queryKey: ["purchase-order", fromId],
-    queryFn: () => purchaseOrdersApi.get(Number(fromId)),
-    enabled: !!fromId,
+    queryKey: ["purchase-order", sourceId],
+    queryFn: () => purchaseOrdersApi.get(Number(sourceId)),
+    enabled: !!sourceId,
   });
 
   const { register, handleSubmit, control, watch, setValue } = useForm({
@@ -60,12 +62,13 @@ function NewPurchaseOrderForm() {
   const currency = watch("currency");
 
   useEffect(() => {
-    if (!sourceDoc || !fromId || vendors.length === 0) return;
+    if (!sourceDoc || !sourceId || vendors.length === 0) return;
     setValue("currency", sourceDoc.currency);
     setValue("exchange_rate", String(sourceDoc.exchange_rate || "1"));
     setValue("discount_amount", String(sourceDoc.discount_amount || "0"));
     setValue("notes", sourceDoc.notes || "");
     setValue("terms_conditions", sourceDoc.terms_conditions || "");
+    if (editId) setValue("issue_date", sourceDoc.issue_date ? sourceDoc.issue_date.split("T")[0] : new Date().toISOString().split("T")[0]);
     setValue("items", sourceDoc.items.map((i: any) => ({
       description: i.description,
       quantity: String(i.quantity),
@@ -94,8 +97,9 @@ function NewPurchaseOrderForm() {
   }, [sourceDoc, vendors]);
 
   const mutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => purchaseOrdersApi.create(data),
-    onSuccess: (result) => router.push(`/purchase-orders/${result.id}`),
+    mutationFn: (data: Record<string, unknown>) =>
+      editId ? purchaseOrdersApi.update(Number(editId), data) : purchaseOrdersApi.create(data),
+    onSuccess: (result) => router.push(`/purchase-orders/${editId || result.id}`),
   });
 
   const onSubmit = (data: Record<string, unknown>) => {
@@ -117,19 +121,25 @@ function NewPurchaseOrderForm() {
       discount_amount: Number(data.discount_amount),
       issue_date: new Date(data.issue_date as string).toISOString(),
       expected_delivery_date: data.expected_delivery_date ? new Date(data.expected_delivery_date as string).toISOString() : null,
-      items: (data.items as Array<Record<string, any>>).map((item, i) => ({
-        description: item.description,
-        quantity: Number(item.quantity),
-        unit_price: Number(item.unit_price),
-        tax_rate_id: item.tax_rate_id ? Number(item.tax_rate_id) : null,
-        sort_order: i,
-      })),
+      items: (data.items as Array<Record<string, any>>).map((item, i) => {
+        const subLines = (item.sub_items || [])
+          .filter((s: any) => s.text?.trim())
+          .map((s: any) => `  • ${s.text.trim()}`)
+          .join("\n");
+        return {
+          description: subLines ? `${item.description}\n${subLines}` : item.description,
+          quantity: Number(item.quantity),
+          unit_price: Number(item.unit_price),
+          tax_rate_id: item.tax_rate_id ? Number(item.tax_rate_id) : null,
+          sort_order: i,
+        };
+      }),
     });
   };
 
   return (
     <div>
-      <Topbar title={fromId ? "Duplicate Purchase Order" : "New Purchase Order"} />
+      <Topbar title={editId ? "Edit Purchase Order" : fromId ? "Duplicate Purchase Order" : "New Purchase Order"} />
       <div className="p-6">
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-6">
@@ -201,11 +211,11 @@ function NewPurchaseOrderForm() {
               </CardBody>
             </Card>
 
-            {mutation.isError && <p className="text-danger text-sm">Failed to create purchase order.</p>}
+            {mutation.isError && <p className="text-danger text-sm">{editId ? "Failed to update" : "Failed to create"} purchase order.</p>}
             {!selectedVendor && vendors.length > 0 && <p className="text-warning text-sm">Please select a vendor before submitting.</p>}
             <div className="flex gap-3">
               <Button type="submit" color="primary" isLoading={mutation.isPending} isDisabled={!selectedVendor && vendors.length > 0}>
-                Create Purchase Order
+                {editId ? "Save Changes" : "Create Purchase Order"}
               </Button>
               <Button variant="flat" onPress={() => router.back()}>Cancel</Button>
             </div>

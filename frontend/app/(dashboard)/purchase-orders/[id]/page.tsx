@@ -3,8 +3,9 @@
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardBody, CardHeader, Button, Chip } from "@heroui/react";
-import { FileDown, Copy, Send, PackageCheck, Trash2 } from "lucide-react";
+import { FileDown, Copy, Send, PackageCheck, Trash2, Pencil } from "lucide-react";
 import { purchaseOrdersApi, downloadPdf } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
 import { DetailSkeleton } from "@/components/ui/PageSkeleton";
@@ -14,6 +15,7 @@ export default function PurchaseOrderDetailPage() {
   const router = useRouter();
   const id = Number(params.id);
   const queryClient = useQueryClient();
+  const isSuperAdmin = getUser()?.is_super_admin === true;
 
   const { data: po, isLoading } = useQuery({
     queryKey: ["purchase-orders", id],
@@ -58,6 +60,10 @@ export default function PurchaseOrderDetailPage() {
             <Button size="sm" color="success" variant="flat" isLoading={receiveMutation.isPending}
               onPress={() => receiveMutation.mutate()} startContent={<PackageCheck size={14} />}>Mark Received</Button>
           )}
+          {isSuperAdmin && (
+            <Button size="sm" color="secondary" variant="flat"
+              onPress={() => router.push(`/purchase-orders/new?edit=${id}`)} startContent={<Pencil size={14} />}>Edit PO</Button>
+          )}
           <Button size="sm" variant="flat"
             onPress={() => router.push(`/purchase-orders/new?from=${id}`)} startContent={<Copy size={14} />}>Duplicate</Button>
           <Button size="sm" variant="flat"
@@ -75,9 +81,6 @@ export default function PurchaseOrderDetailPage() {
             <CardBody className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-gray-500">PO Number</span><span className="font-medium">{po.po_number}</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Issue Date</span><span>{formatDate(po.issue_date)}</span></div>
-              {po.expected_delivery_date && (
-                <div className="flex justify-between"><span className="text-gray-500">Expected Delivery</span><span>{formatDate(po.expected_delivery_date)}</span></div>
-              )}
               <div className="flex justify-between"><span className="text-gray-500">Currency</span><span>{po.currency}</span></div>
             </CardBody>
           </Card>
