@@ -8,10 +8,10 @@
   <div class="company-info">
     {% if company %}
     <div class="company-name">{{ company.name }}</div>
+    {% if company.company_registration_no %}<div>Reg. No: {{ company.company_registration_no }}</div>{% endif %}
     {% if company.address %}<div class="company-address">{{ company.address }}</div>{% endif %}
     {% if company.phone %}<div>{{ company.phone }}</div>{% endif %}
     {% if company.email %}<div>{{ company.email }}</div>{% endif %}
-    {% if company.company_registration_no %}<div>Reg. No: {{ company.company_registration_no }}</div>{% endif %}
     {% if company.sst_no %}<div>SST No: {{ company.sst_no }}</div>{% endif %}
     {% endif %}
   </div>
