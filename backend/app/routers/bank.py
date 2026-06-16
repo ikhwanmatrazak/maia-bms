@@ -976,7 +976,9 @@ async def confirm_statement(
         existing = await db.execute(
             text("""
                 SELECT id FROM bank_transactions
-                WHERE account_id = :aid AND txn_date = :d AND description = :desc AND amount = :amt
+                WHERE account_id = :aid AND txn_date = :d AND amount = :amt
+                AND TRIM(REGEXP_REPLACE(description, '[[:space:]]+', ' ')) =
+                    TRIM(REGEXP_REPLACE(:desc, '[[:space:]]+', ' '))
                 LIMIT 1
             """),
             {"aid": account_id, "d": row.txn_date, "desc": row.description, "amt": row.amount},
