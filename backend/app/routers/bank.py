@@ -486,15 +486,19 @@ def _parse_csv_content(content: str) -> List[ParsedRow]:
     if not headers:
         return []
 
-    date_col   = _detect_column(headers, ["date", "transaction date", "value date"])
-    desc_col   = _detect_column(headers, ["description", "narration", "particular", "detail", "remark",
+    # Prefer "payment date" over "payment creation date" (latter has unparseable time strings)
+    _dd = _detect_column(headers, ["payment date"])
+    date_col   = _dd if _dd is not None else _detect_column(headers, ["date", "transaction date", "value date"])
+    desc_col   = _detect_column(headers, ["beneficiary name", "description", "narration", "particular", "detail", "remark",
                                           "transaction code description", "code description"])
-    debit_col  = _detect_column(headers, ["debit", "withdrawal", "dr"])
+    # Try "debit amount" specifically first to avoid matching "debit account" columns
+    _dc_specific = _detect_column(headers, ["debit amount"])
+    debit_col  = _dc_specific if _dc_specific is not None else _detect_column(headers, ["debit", "withdrawal", "dr"])
     credit_col = _detect_column(headers, ["credit", "deposit", "cr"])
-    amount_col = _detect_column(headers, ["transaction amount", "amount"]) if (debit_col is None or credit_col is None) else None
+    amount_col = _detect_column(headers, ["transaction amount", "amount"]) if (debit_col is None and credit_col is None) else None
     type_col   = _detect_type_col(headers)
-    party_col  = _detect_column(headers, ["sender name", "sender", "party", "beneficiary", "payee", "remitter"])
-    doc_col    = _detect_column(headers, ["document reference", "doc ref", "document ref"])
+    party_col  = _detect_column(headers, ["beneficiary name", "sender name", "sender", "party", "beneficiary", "payee", "remitter"])
+    doc_col    = _detect_column(headers, ["reference no", "document reference", "doc ref", "document ref"])
     cust_ref_col = _detect_column(headers, ["customer reference", "cust ref", "customer ref"])
 
     if date_col is None:
@@ -587,16 +591,20 @@ def _parse_pdf_content(file_bytes: bytes) -> List[ParsedRow]:
                     if header_row_idx is None or not headers:
                         continue
 
-                    date_col     = _detect_column(headers, ["transaction date", "date", "value date"])
-                    desc_col     = _detect_column(headers, ["transaction code description", "code description",
+                    # Prefer "payment date" over "payment creation date" (latter has unparseable time strings)
+                    _dd = _detect_column(headers, ["payment date"])
+                    date_col     = _dd if _dd is not None else _detect_column(headers, ["transaction date", "date", "value date"])
+                    desc_col     = _detect_column(headers, ["beneficiary name", "transaction code description", "code description",
                                                             "description", "narration", "particular", "detail"])
-                    debit_col    = _detect_column(headers, ["debit", "withdrawal", "dr"])
+                    # Try "debit amount" specifically first to avoid matching "debit account" columns
+                    _dc_specific = _detect_column(headers, ["debit amount"])
+                    debit_col    = _dc_specific if _dc_specific is not None else _detect_column(headers, ["debit", "withdrawal", "dr"])
                     credit_col   = _detect_column(headers, ["credit", "deposit", "cr"])
                     amount_col   = _detect_column(headers, ["transaction amount", "amount"]) \
-                                   if (debit_col is None or credit_col is None) else None
+                                   if (debit_col is None and credit_col is None) else None
                     type_col     = _detect_type_col(headers)
-                    party_col    = _detect_column(headers, ["sender name", "sender", "beneficiary", "payee", "remitter"])
-                    doc_col      = _detect_column(headers, ["document reference", "doc reference", "doc ref"])
+                    party_col    = _detect_column(headers, ["beneficiary name", "sender name", "sender", "beneficiary", "payee", "remitter"])
+                    doc_col      = _detect_column(headers, ["reference no", "document reference", "doc reference", "doc ref"])
                     cust_ref_col = _detect_column(headers, ["customer reference", "cust reference", "cust ref"])
 
                     if date_col is None:
