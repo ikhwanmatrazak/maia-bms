@@ -899,6 +899,10 @@ export const bankApi = {
   getSummary: (accountId: number, params?: { date_from?: string; date_to?: string; category_id?: number }) =>
     api.get<AccountSummary>(`/bank/accounts/${accountId}/summary`, { params }).then((r) => r.data),
 
+  // P&L across all accounts
+  getPnl: (params?: { date_from?: string; date_to?: string }) =>
+    api.get<{ monthly: { month: string; revenue: number; expenses: number; net: number }[]; total_revenue: number; total_expenses: number; total_net: number }>("/bank/pnl", { params }).then((r) => r.data),
+
   // Reconciliation helpers
   listUnpaidInvoices: (txn_id?: number) => api.get<UnpaidInvoice[]>("/bank/invoices/unpaid", { params: txn_id ? { txn_id } : {} }).then((r) => r.data),
   listUnpaidBills: () => api.get<UnpaidBill[]>("/bank/bills/unpaid").then((r) => r.data),

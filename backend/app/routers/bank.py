@@ -1578,6 +1578,51 @@ async def get_summary(
     }
 
 
+# ── P&L across all accounts ───────────────────────────────────────────────────
+
+@router.get("/pnl")
+async def get_pnl(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tid = _tenant_id(current_user)
+    where = ["(ba.tenant_id = :tid OR (:tid IS NULL AND ba.tenant_id IS NULL))"]
+    params: dict = {"tid": tid}
+    if date_from:
+        where.append("bt.txn_date >= :df")
+        params["df"] = date_from
+    if date_to:
+        where.append("bt.txn_date <= :dt")
+        params["dt"] = date_to
+
+    monthly_r = await db.execute(
+        text(f"""
+            SELECT
+                DATE_FORMAT(bt.txn_date, '%Y-%m') AS month,
+                COALESCE(SUM(CASE WHEN bt.type='credit' THEN bt.amount ELSE 0 END), 0) AS revenue,
+                COALESCE(SUM(CASE WHEN bt.type='debit'  THEN bt.amount ELSE 0 END), 0) AS expenses
+            FROM bank_transactions bt
+            JOIN bank_accounts ba ON ba.id = bt.account_id
+            WHERE {' AND '.join(where)}
+            GROUP BY month
+            ORDER BY month
+        """),
+        params,
+    )
+    monthly = [
+        {"month": r[0], "revenue": float(r[1]), "expenses": float(r[2]), "net": float(r[1]) - float(r[2])}
+        for r in monthly_r.fetchall()
+    ]
+    return {
+        "monthly": monthly,
+        "total_revenue":  sum(m["revenue"]  for m in monthly),
+        "total_expenses": sum(m["expenses"] for m in monthly),
+        "total_net":      sum(m["net"]      for m in monthly),
+    }
+
+
 # ── Invoice/Bill lookup helpers for reconciliation ───────────────────────────
 
 @router.get("/invoices/unpaid")

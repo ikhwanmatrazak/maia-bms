@@ -79,6 +79,7 @@ const navGroups = [
       { href: "/expenses", label: "Expenses", permission: "expenses" },
       { href: "/bills", label: "Bills (Payable)", permission: "bills" },
       { href: "/finance/bank", label: "Bank / Cash Flow", roles: ["admin"], permission: "finance-bank" },
+      { href: "/finance/pnl", label: "P&L Statement", roles: ["admin"], permission: "finance-bank" },
       { href: "/reports", label: "Reports", permission: "reports" },
     ],
   },
