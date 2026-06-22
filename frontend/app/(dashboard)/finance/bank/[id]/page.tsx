@@ -866,6 +866,10 @@ export default function BankDetailPage() {
   const [search, setSearch] = useState("");
   const [reportLoading, setReportLoading] = useState<"pdf" | "excel" | null>(null);
 
+  // Chart controls
+  const [chartView, setChartView] = useState<"monthly" | "yearly">("monthly");
+  const [chartYear, setChartYear] = useState<string>("all");
+
   const handleReportDownload = async (format: "pdf" | "excel") => {
     setReportLoading(format);
     const params = { date_from: dateFrom || undefined, date_to: dateTo || undefined, type: txnType || undefined, category_id: catFilter || undefined, search: search || undefined };
@@ -977,39 +981,116 @@ export default function BankDetailPage() {
         </div>
       )}
 
-      {/* Monthly chart (simple bars) */}
-      {summary && summary.monthly.length > 0 && (
-        <div className="bg-white border border-default-200 rounded-2xl p-5 shadow-sm">
-          <p className="text-sm font-semibold text-foreground mb-4">Monthly Cash Flow</p>
-          <div className="flex items-end gap-2 h-32 overflow-x-auto pb-2">
-            {summary.monthly.map((m) => {
-              const maxVal = Math.max(...summary.monthly.map((x) => Math.max(x.credit, x.debit)), 1);
-              const creditH = Math.max((m.credit / maxVal) * 100, 2);
-              const debitH = Math.max((m.debit / maxVal) * 100, 2);
-              const [year, mo] = m.month.split("-");
-              return (
-                <div key={m.month} className="flex flex-col items-center gap-1 min-w-[48px] group relative">
-                  <div className="flex items-end gap-0.5 h-28">
-                    <div className="w-4 bg-success-400 rounded-t transition-all" style={{ height: `${creditH}%` }} title={`In: ${fmt(m.credit, cur)}`} />
-                    <div className="w-4 bg-danger-400 rounded-t transition-all" style={{ height: `${debitH}%` }} title={`Out: ${fmt(m.debit, cur)}`} />
-                  </div>
-                  <span className="text-xs text-default-400 whitespace-nowrap">{MONTHS[parseInt(mo) - 1]}</span>
-                  {/* Tooltip */}
-                  <div className="absolute bottom-full mb-2 bg-default-900 text-white text-xs rounded-lg px-2 py-1.5 hidden group-hover:block whitespace-nowrap z-10 shadow-lg">
-                    <p className="text-success-300">In: {fmt(m.credit, cur)}</p>
-                    <p className="text-danger-300">Out: {fmt(m.debit, cur)}</p>
-                    <p className={m.net >= 0 ? "text-success-300" : "text-danger-300"}>Net: {fmt(m.net, cur)}</p>
-                  </div>
+      {/* Cash Flow Chart */}
+      {summary && summary.monthly.length > 0 && (() => {
+        // Derive unique years from monthly data
+        const availableYears = [...new Set(summary.monthly.map((m) => m.month.split("-")[0]))].sort();
+
+        // Monthly view: filter by selected year
+        const monthlyData = chartView === "monthly"
+          ? (chartYear === "all" ? summary.monthly : summary.monthly.filter((m) => m.month.startsWith(chartYear)))
+          : [];
+
+        // Yearly view: aggregate credit/debit per year
+        const yearlyData = chartView === "yearly"
+          ? availableYears.map((yr) => {
+              const rows = summary.monthly.filter((m) => m.month.startsWith(yr));
+              const credit = rows.reduce((s, r) => s + r.credit, 0);
+              const debit  = rows.reduce((s, r) => s + r.debit, 0);
+              return { year: yr, credit, debit, net: credit - debit };
+            })
+          : [];
+
+        const chartData = chartView === "monthly" ? monthlyData : yearlyData;
+        const maxVal = Math.max(...chartData.map((x) => Math.max(x.credit, x.debit)), 1);
+
+        return (
+          <div className="bg-white border border-default-200 rounded-2xl p-5 shadow-sm">
+            {/* Header row */}
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <p className="text-sm font-semibold text-foreground">
+                {chartView === "monthly" ? "Monthly Cash Flow" : "Yearly Cash Flow"}
+              </p>
+              <div className="flex items-center gap-2">
+                {/* Monthly / Yearly toggle */}
+                <div className="flex rounded-lg border border-default-200 overflow-hidden text-xs">
+                  <button
+                    onClick={() => setChartView("monthly")}
+                    className={`px-3 py-1.5 transition-colors ${chartView === "monthly" ? "bg-primary text-white" : "text-default-500 hover:bg-default-100"}`}
+                  >Monthly</button>
+                  <button
+                    onClick={() => setChartView("yearly")}
+                    className={`px-3 py-1.5 transition-colors ${chartView === "yearly" ? "bg-primary text-white" : "text-default-500 hover:bg-default-100"}`}
+                  >Yearly</button>
                 </div>
-              );
-            })}
+                {/* Year selector — only shown in monthly view */}
+                {chartView === "monthly" && (
+                  <select
+                    value={chartYear}
+                    onChange={(e) => setChartYear(e.target.value)}
+                    className="text-xs border border-default-200 rounded-lg px-2 py-1.5 outline-none focus:border-primary"
+                  >
+                    <option value="all">All Years</option>
+                    {availableYears.map((yr) => (
+                      <option key={yr} value={yr}>{yr}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            {/* Bars */}
+            <div className="flex items-end gap-2 h-32 overflow-x-auto pb-2">
+              {chartView === "monthly" && monthlyData.map((m) => {
+                const creditH = Math.max((m.credit / maxVal) * 100, 2);
+                const debitH  = Math.max((m.debit  / maxVal) * 100, 2);
+                const [yr, mo] = m.month.split("-");
+                return (
+                  <div key={m.month} className="flex flex-col items-center gap-1 min-w-[48px] group relative">
+                    <div className="flex items-end gap-0.5 h-28">
+                      <div className="w-4 bg-success-400 rounded-t transition-all" style={{ height: `${creditH}%` }} title={`In: ${fmt(m.credit, cur)}`} />
+                      <div className="w-4 bg-danger-400 rounded-t transition-all" style={{ height: `${debitH}%` }} title={`Out: ${fmt(m.debit, cur)}`} />
+                    </div>
+                    <span className="text-xs text-default-400 whitespace-nowrap">
+                      {MONTHS[parseInt(mo) - 1]}{chartYear === "all" ? ` '${yr.slice(2)}` : ""}
+                    </span>
+                    <div className="absolute bottom-full mb-2 bg-default-900 text-white text-xs rounded-lg px-2 py-1.5 hidden group-hover:block whitespace-nowrap z-10 shadow-lg">
+                      <p className="font-medium mb-0.5">{MONTHS[parseInt(mo) - 1]} {yr}</p>
+                      <p className="text-success-300">In: {fmt(m.credit, cur)}</p>
+                      <p className="text-danger-300">Out: {fmt(m.debit, cur)}</p>
+                      <p className={m.net >= 0 ? "text-success-300" : "text-danger-300"}>Net: {fmt(m.net, cur)}</p>
+                    </div>
+                  </div>
+                );
+              })}
+              {chartView === "yearly" && yearlyData.map((y) => {
+                const creditH = Math.max((y.credit / maxVal) * 100, 2);
+                const debitH  = Math.max((y.debit  / maxVal) * 100, 2);
+                return (
+                  <div key={y.year} className="flex flex-col items-center gap-1 min-w-[64px] group relative">
+                    <div className="flex items-end gap-1 h-28">
+                      <div className="w-6 bg-success-400 rounded-t transition-all" style={{ height: `${creditH}%` }} title={`In: ${fmt(y.credit, cur)}`} />
+                      <div className="w-6 bg-danger-400 rounded-t transition-all" style={{ height: `${debitH}%` }} title={`Out: ${fmt(y.debit, cur)}`} />
+                    </div>
+                    <span className="text-xs text-default-400 whitespace-nowrap">{y.year}</span>
+                    <div className="absolute bottom-full mb-2 bg-default-900 text-white text-xs rounded-lg px-2 py-1.5 hidden group-hover:block whitespace-nowrap z-10 shadow-lg">
+                      <p className="font-medium mb-0.5">{y.year}</p>
+                      <p className="text-success-300">In: {fmt(y.credit, cur)}</p>
+                      <p className="text-danger-300">Out: {fmt(y.debit, cur)}</p>
+                      <p className={y.net >= 0 ? "text-success-300" : "text-danger-300"}>Net: {fmt(y.net, cur)}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex gap-4 mt-2">
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-success-400" /><span className="text-xs text-default-400">Credit (In)</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-danger-400" /><span className="text-xs text-default-400">Debit (Out)</span></div>
+            </div>
           </div>
-          <div className="flex gap-4 mt-2">
-            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-success-400" /><span className="text-xs text-default-400">Credit (In)</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-danger-400" /><span className="text-xs text-default-400">Debit (Out)</span></div>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Filters */}
       <div className="bg-white border border-default-200 rounded-2xl p-4 shadow-sm">
