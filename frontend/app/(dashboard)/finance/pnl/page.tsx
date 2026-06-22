@@ -2,18 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { bankApi } from "@/lib/api";
+import { bankApi, downloadFile, downloadPdf } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
-
-async function downloadFile(url: string, filename: string, mime: string) {
-  const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new Error("Download failed");
-  const blob = await res.blob();
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([blob], { type: mime }));
-  a.download = filename;
-  a.click();
-}
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -52,7 +42,7 @@ export default function PnLPage() {
     try {
       const df = params.date_from; const dt = params.date_to;
       if (format === "pdf") {
-        await downloadFile(bankApi.pnlPdfUrl(df, dt), `pnl_${fromMonth}_${toMonth}.pdf`, "application/pdf");
+        await downloadPdf(bankApi.pnlPdfUrl(df, dt), `pnl_${fromMonth}_${toMonth}.pdf`);
       } else {
         await downloadFile(bankApi.pnlExcelUrl(df, dt), `pnl_${fromMonth}_${toMonth}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       }
