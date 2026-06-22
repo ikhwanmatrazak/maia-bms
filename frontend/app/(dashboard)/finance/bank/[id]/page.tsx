@@ -1015,11 +1015,11 @@ export default function BankDetailPage() {
                 {/* Monthly / Yearly toggle */}
                 <div className="flex rounded-lg border border-default-200 overflow-hidden text-xs">
                   <button
-                    onClick={() => setChartView("monthly")}
+                    onClick={() => { setChartView("monthly"); }}
                     className={`px-3 py-1.5 transition-colors ${chartView === "monthly" ? "bg-primary text-white" : "text-default-500 hover:bg-default-100"}`}
                   >Monthly</button>
                   <button
-                    onClick={() => setChartView("yearly")}
+                    onClick={() => { setChartView("yearly"); setChartYear("all"); setDateFrom(""); setDateTo(""); }}
                     className={`px-3 py-1.5 transition-colors ${chartView === "yearly" ? "bg-primary text-white" : "text-default-500 hover:bg-default-100"}`}
                   >Yearly</button>
                 </div>
@@ -1027,7 +1027,17 @@ export default function BankDetailPage() {
                 {chartView === "monthly" && (
                   <select
                     value={chartYear}
-                    onChange={(e) => setChartYear(e.target.value)}
+                    onChange={(e) => {
+                      const yr = e.target.value;
+                      setChartYear(yr);
+                      if (yr === "all") {
+                        setDateFrom("");
+                        setDateTo("");
+                      } else {
+                        setDateFrom(`${yr}-01-01`);
+                        setDateTo(`${yr}-12-31`);
+                      }
+                    }}
                     className="text-xs border border-default-200 rounded-lg px-2 py-1.5 outline-none focus:border-primary"
                   >
                     <option value="all">All Years</option>
