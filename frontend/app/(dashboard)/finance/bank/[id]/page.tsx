@@ -1228,6 +1228,9 @@ export default function BankDetailPage() {
                               style={{ backgroundColor: `${cat.color}35`, color: "#1f2937" }}>
                               <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }} />
                               {cat.name}
+                              {cat.cost_type === "cogs" && (
+                                <span className="ml-0.5 px-1 py-0 rounded text-[9px] font-semibold bg-orange-100 text-orange-700">COGS</span>
+                              )}
                             </span>
                           ))}
                         </div>

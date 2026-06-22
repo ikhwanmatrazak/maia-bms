@@ -63,6 +63,7 @@ class CategoryRef(BaseModel):
     id: int
     name: str
     color: str
+    cost_type: str = "opex"
 
 
 class InvoiceRef(BaseModel):
@@ -1120,14 +1121,18 @@ async def confirm_statement(
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _parse_cat_groups(ids_str: Optional[str], names_str: Optional[str], colors_str: Optional[str]) -> List[CategoryRef]:
+def _parse_cat_groups(ids_str: Optional[str], names_str: Optional[str], colors_str: Optional[str], cost_types_str: Optional[str] = None) -> List[CategoryRef]:
     if not ids_str:
         return []
     ids = [int(x) for x in ids_str.split(",") if x]
     names = names_str.split("|||") if names_str else []
     colors = colors_str.split(",") if colors_str else []
+    cost_types = cost_types_str.split(",") if cost_types_str else []
     return [
-        CategoryRef(id=ids[i], name=names[i] if i < len(names) else "", color=colors[i] if i < len(colors) else "#6366f1")
+        CategoryRef(
+            id=ids[i], name=names[i] if i < len(names) else "", color=colors[i] if i < len(colors) else "#6366f1",
+            cost_type=cost_types[i] if i < len(cost_types) else "opex",
+        )
         for i in range(len(ids))
     ]
 
@@ -1145,8 +1150,8 @@ def _parse_inv_groups(ids_str: Optional[str], numbers_str: Optional[str], client
 
 
 def _txn_out_from_row(row: tuple) -> TransactionOut:
-    cats = _parse_cat_groups(row[8], row[9], row[10])
-    invs = _parse_inv_groups(row[11], row[12], row[13])
+    cats = _parse_cat_groups(row[8], row[9], row[10], row[11])
+    invs = _parse_inv_groups(row[12], row[13], row[14])
     first_cat = cats[0] if cats else None
     first_inv = invs[0] if invs else None
     return TransactionOut(
@@ -1160,17 +1165,18 @@ def _txn_out_from_row(row: tuple) -> TransactionOut:
         invoices=invs,
         invoice_id=first_inv.id if first_inv else None,
         invoice_number=first_inv.invoice_number if first_inv else None,
-        bill_id=row[14], bill_number=row[15],
-        note=row[16], receipt_url=row[17],
+        bill_id=row[15], bill_number=row[16],
+        note=row[17], receipt_url=row[18],
     )
 
 
 _TXN_SELECT = """
     SELECT bt.id, bt.account_id, bt.statement_id, bt.txn_date, bt.description,
            bt.party_name, bt.amount, bt.type,
-           GROUP_CONCAT(DISTINCT btc.category_id ORDER BY tc.name SEPARATOR ',')      AS cat_ids,
-           GROUP_CONCAT(DISTINCT tc.name         ORDER BY tc.name SEPARATOR '|||')    AS cat_names,
-           GROUP_CONCAT(DISTINCT tc.color        ORDER BY tc.name SEPARATOR ',')      AS cat_colors,
+           GROUP_CONCAT(DISTINCT btc.category_id ORDER BY tc.name SEPARATOR ',')                    AS cat_ids,
+           GROUP_CONCAT(DISTINCT tc.name         ORDER BY tc.name SEPARATOR '|||')                 AS cat_names,
+           GROUP_CONCAT(DISTINCT tc.color        ORDER BY tc.name SEPARATOR ',')                   AS cat_colors,
+           GROUP_CONCAT(DISTINCT COALESCE(tc.cost_type,'opex') ORDER BY tc.name SEPARATOR ',')     AS cat_cost_types,
            GROUP_CONCAT(DISTINCT bti.invoice_id  ORDER BY bti.invoice_id SEPARATOR ',')         AS inv_ids,
            GROUP_CONCAT(DISTINCT inv.invoice_number ORDER BY bti.invoice_id SEPARATOR '|||')    AS inv_numbers,
            GROUP_CONCAT(DISTINCT COALESCE(ic.company_name,'') ORDER BY bti.invoice_id SEPARATOR '|||') AS inv_clients,
