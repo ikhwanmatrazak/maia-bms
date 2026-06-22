@@ -5,6 +5,16 @@ import { useQuery } from "@tanstack/react-query";
 import { bankApi } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
 
+async function downloadFile(url: string, filename: string, mime: string) {
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) throw new Error("Download failed");
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([blob], { type: mime }));
+  a.download = filename;
+  a.click();
+}
+
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function fmt(n: number) {
@@ -23,6 +33,7 @@ export default function PnLPage() {
 
   const [fromMonth, setFromMonth] = useState(defaultFrom);
   const [toMonth, setToMonth]     = useState(defaultTo);
+  const [dlLoading, setDlLoading] = useState<"pdf"|"excel"|null>(null);
 
   const params = useMemo(() => {
     const p: { date_from?: string; date_to?: string } = {};
@@ -35,6 +46,18 @@ export default function PnLPage() {
     }
     return p;
   }, [fromMonth, toMonth]);
+
+  const handleDownload = async (format: "pdf" | "excel") => {
+    setDlLoading(format);
+    try {
+      const df = params.date_from; const dt = params.date_to;
+      if (format === "pdf") {
+        await downloadFile(bankApi.pnlPdfUrl(df, dt), `pnl_${fromMonth}_${toMonth}.pdf`, "application/pdf");
+      } else {
+        await downloadFile(bankApi.pnlExcelUrl(df, dt), `pnl_${fromMonth}_${toMonth}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      }
+    } catch { alert("Download failed."); } finally { setDlLoading(null); }
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["bank-pnl", params],
@@ -66,7 +89,7 @@ export default function PnLPage() {
             <h1 className="text-lg font-semibold text-foreground">Profit &amp; Loss Statement</h1>
             <p className="text-sm text-default-400 mt-0.5">Based on bank transaction credits (revenue) and debits (expenses)</p>
           </div>
-          <div className="flex items-end gap-3">
+          <div className="flex items-end gap-3 flex-wrap">
             <div>
               <label className="text-xs text-default-500 block mb-1">From</label>
               <input
@@ -85,6 +108,26 @@ export default function PnLPage() {
                 className="text-sm border border-default-200 rounded-lg px-3 py-1.5 outline-none focus:border-primary"
               />
             </div>
+            <button
+              onClick={() => handleDownload("pdf")}
+              disabled={!!dlLoading || isLoading}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-danger-600 text-white text-sm rounded-lg hover:bg-danger-700 disabled:opacity-50"
+            >
+              {dlLoading === "pdf" ? "…" : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+              )}
+              PDF
+            </button>
+            <button
+              onClick={() => handleDownload("excel")}
+              disabled={!!dlLoading || isLoading}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-success-600 text-white text-sm rounded-lg hover:bg-success-700 disabled:opacity-50"
+            >
+              {dlLoading === "excel" ? "…" : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+              )}
+              Excel
+            </button>
           </div>
         </div>
 

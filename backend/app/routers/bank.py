@@ -1623,6 +1623,332 @@ async def get_pnl(
     }
 
 
+async def _pnl_data(db: AsyncSession, tid, date_from: Optional[str], date_to: Optional[str]) -> dict:
+    """Shared data assembly for P&L PDF and Excel."""
+    MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+
+    where_base = ["(ba.tenant_id = :tid OR (:tid IS NULL AND ba.tenant_id IS NULL))"]
+    params: dict = {"tid": tid}
+    if date_from:
+        where_base.append("bt.txn_date >= :df")
+        params["df"] = date_from
+    if date_to:
+        where_base.append("bt.txn_date <= :dt")
+        params["dt"] = date_to
+    wc = " AND ".join(where_base)
+
+    # Monthly totals
+    monthly_r = await db.execute(text(f"""
+        SELECT DATE_FORMAT(bt.txn_date,'%Y-%m') AS month,
+               COALESCE(SUM(CASE WHEN bt.type='credit' THEN bt.amount ELSE 0 END),0) AS revenue,
+               COALESCE(SUM(CASE WHEN bt.type='debit'  THEN bt.amount ELSE 0 END),0) AS expenses
+        FROM bank_transactions bt JOIN bank_accounts ba ON ba.id=bt.account_id
+        WHERE {wc} GROUP BY month ORDER BY month
+    """), params)
+    monthly = []
+    for r in monthly_r.fetchall():
+        yr, mo = r[0].split("-")
+        monthly.append({
+            "month": r[0],
+            "month_label": f"{MONTHS_SHORT[int(mo)-1]} {yr}",
+            "revenue": float(r[1]),
+            "expenses": float(r[2]),
+            "net": float(r[1]) - float(r[2]),
+        })
+
+    # Account breakdown
+    acc_r = await db.execute(text(f"""
+        SELECT ba.id, ba.name, ba.bank_name, ba.account_number,
+               COALESCE(SUM(CASE WHEN bt.type='credit' THEN bt.amount ELSE 0 END),0) AS revenue,
+               COALESCE(SUM(CASE WHEN bt.type='debit'  THEN bt.amount ELSE 0 END),0) AS expenses
+        FROM bank_transactions bt JOIN bank_accounts ba ON ba.id=bt.account_id
+        WHERE {wc} GROUP BY ba.id, ba.name, ba.bank_name, ba.account_number ORDER BY ba.name
+    """), params)
+    accounts = [
+        {"name": r[1], "bank_name": r[2] or "", "account_number": r[3] or "",
+         "revenue": float(r[4]), "expenses": float(r[5]), "net": float(r[4]) - float(r[5])}
+        for r in acc_r.fetchall()
+    ]
+
+    # Category breakdown
+    cat_r = await db.execute(text(f"""
+        SELECT tc.name, bt.type,
+               COALESCE(SUM(bt.amount),0) AS total
+        FROM bank_transactions bt JOIN bank_accounts ba ON ba.id=bt.account_id
+        LEFT JOIN bank_transaction_categories btc ON btc.transaction_id=bt.id
+        LEFT JOIN transaction_categories tc ON tc.id=btc.category_id
+        WHERE {wc} GROUP BY tc.name, bt.type ORDER BY total DESC
+    """), params)
+    cat_revenue, cat_expenses = {}, {}
+    for r in cat_r.fetchall():
+        name, txtype, total = r[0], r[1], float(r[2])
+        if txtype == "credit":
+            cat_revenue[name] = cat_revenue.get(name, 0) + total
+        else:
+            cat_expenses[name] = cat_expenses.get(name, 0) + total
+
+    # Transaction list
+    txn_r = await db.execute(text(f"""
+        SELECT bt.txn_date, bt.description, bt.party_name, bt.type, bt.amount, bt.note,
+               ba.name AS acc_name, ba.account_number,
+               GROUP_CONCAT(DISTINCT tc.name ORDER BY tc.name SEPARATOR ', ') AS cats
+        FROM bank_transactions bt JOIN bank_accounts ba ON ba.id=bt.account_id
+        LEFT JOIN bank_transaction_categories btc ON btc.transaction_id=bt.id
+        LEFT JOIN transaction_categories tc ON tc.id=btc.category_id
+        WHERE {wc}
+        GROUP BY bt.id, bt.txn_date, bt.description, bt.party_name, bt.type, bt.amount, bt.note,
+                 ba.name, ba.account_number
+        ORDER BY bt.txn_date ASC, bt.id ASC
+    """), params)
+    txns = []
+    for r in txn_r.fetchall():
+        acc_num = r[7] or ""
+        txns.append({
+            "txn_date": str(r[0]),
+            "description": r[1] or "",
+            "party_name": r[2] or "",
+            "type": r[3],
+            "amount": float(r[4]),
+            "note": r[5] or "",
+            "account_label": f"{r[6]} •••{acc_num[-4:]}" if acc_num else r[6],
+            "categories": r[8] or "",
+        })
+
+    # Company settings
+    cs = await db.execute(
+        text("SELECT * FROM company_settings WHERE (tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL)) LIMIT 1"),
+        {"tid": tid}
+    )
+    company = dict(cs.mappings().first() or {})
+
+    total_revenue  = sum(m["revenue"]  for m in monthly)
+    total_expenses = sum(m["expenses"] for m in monthly)
+
+    return {
+        "company": company,
+        "logo_data": company.get("logo_url"),
+        "monthly": monthly,
+        "accounts": accounts,
+        "cat_revenue":  [{"name": k, "total": v} for k, v in sorted(cat_revenue.items(),  key=lambda x: -x[1])],
+        "cat_expenses": [{"name": k, "total": v} for k, v in sorted(cat_expenses.items(), key=lambda x: -x[1])],
+        "txns": txns,
+        "total_revenue": total_revenue,
+        "total_expenses": total_expenses,
+        "total_net": total_revenue - total_expenses,
+        "period_label": f"{date_from or 'All'} — {date_to or 'All'}",
+        "generated_at": date.today().strftime("%d %B %Y"),
+    }
+
+
+@router.get("/pnl/pdf")
+async def pnl_pdf(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from fastapi.responses import Response
+    from jinja2 import Environment, FileSystemLoader
+    from pathlib import Path
+    import asyncio
+
+    tid = _tenant_id(current_user)
+    ctx = await _pnl_data(db, tid, date_from, date_to)
+
+    templates_dir = Path(__file__).parent.parent / "templates" / "pdf"
+    env = Environment(loader=FileSystemLoader(str(templates_dir)))
+    html = env.get_template("pnl.html").render(**ctx)
+
+    from weasyprint import HTML as WP_HTML
+    loop = asyncio.get_event_loop()
+    pdf_bytes = await loop.run_in_executor(None, lambda: WP_HTML(string=html).write_pdf())
+
+    fname = f"pnl_{date_from or 'all'}_{date_to or 'all'}.pdf"
+    return Response(content=pdf_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
+@router.get("/pnl/excel")
+async def pnl_excel(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from fastapi.responses import StreamingResponse
+    import io as _io
+
+    tid = _tenant_id(current_user)
+    ctx = await _pnl_data(db, tid, date_from, date_to)
+
+    company_name = ctx["company"].get("name", "Company")
+    monthly      = ctx["monthly"]
+    months       = [m["month_label"] for m in monthly]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "P&L Statement"
+
+    H1  = Font(bold=True, size=14)
+    H2  = Font(bold=True, size=11)
+    HDR = Font(bold=True, color="FFFFFF")
+    GRN = Font(bold=True, color="065F46")
+    RED = Font(bold=True, color="991B1B")
+    BOLD= Font(bold=True)
+    hdr_fill  = PatternFill("solid", fgColor="1A1A2E")
+    alt_fill  = PatternFill("solid", fgColor="F8F8F8")
+    sum_fill  = PatternFill("solid", fgColor="E0E7FF")
+    thin = Side(style="thin", color="CCCCCC")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    right = Alignment(horizontal="right")
+    center= Alignment(horizontal="center")
+
+    def set_row(row_data, row_num, bold=False, fill=None, num_cols=None, num_fmt="#,##0.00"):
+        for ci, val in enumerate(row_data, 1):
+            c = ws.cell(row=row_num, column=ci, value=val)
+            if bold: c.font = BOLD
+            if fill: c.fill = fill
+            if num_cols and ci in num_cols and isinstance(val, (int, float)):
+                c.number_format = num_fmt
+                c.alignment = right
+            c.border = border
+
+    row = 1
+    ws.cell(row=row, column=1, value=company_name).font = H1
+    row += 1
+    ws.cell(row=row, column=1, value="Profit & Loss Statement").font = H2
+    row += 1
+    ws.cell(row=row, column=1, value=ctx["period_label"])
+    row += 1
+    ws.cell(row=row, column=1, value=f"Generated: {ctx['generated_at']}")
+    row += 2
+
+    # Summary
+    ws.cell(row=row, column=1, value="SUMMARY").font = Font(bold=True, size=11)
+    row += 1
+    for label, val, fnt in [
+        ("Total Revenue",  ctx["total_revenue"],  GRN),
+        ("Total Expenses", ctx["total_expenses"], RED),
+        ("Net Profit",     ctx["total_net"],       GRN if ctx["total_net"] >= 0 else RED),
+    ]:
+        ws.cell(row=row, column=1, value=label).font = BOLD
+        c = ws.cell(row=row, column=2, value=val)
+        c.number_format = "#,##0.00"
+        c.alignment = right
+        c.font = fnt
+        row += 1
+    row += 1
+
+    # Monthly breakdown
+    ws.cell(row=row, column=1, value="MONTHLY BREAKDOWN").font = Font(bold=True, size=11)
+    row += 1
+    hdr_row = [""] + months + ["Total"]
+    for ci, v in enumerate(hdr_row, 1):
+        c = ws.cell(row=row, column=ci, value=v)
+        c.font = HDR; c.fill = hdr_fill; c.alignment = center if ci > 1 else Alignment()
+    row += 1
+    num_cols = set(range(2, len(months) + 3))
+    for label, key, fnt in [("Revenue", "revenue", GRN), ("Expenses", "expenses", RED), ("Net Profit", "net", None)]:
+        vals = [m[key] for m in monthly]
+        total = sum(vals)
+        row_data = [label] + vals + [total]
+        set_row(row_data, row, bold=(key=="net"), fill=sum_fill if key=="net" else None, num_cols=num_cols)
+        for ci in range(2, len(months) + 3):
+            c = ws.cell(row=row, column=ci)
+            if key == "net":
+                c.font = GRN if (c.value or 0) >= 0 else RED
+            else:
+                c.font = fnt
+        row += 1
+    row += 1
+
+    # Account breakdown
+    if ctx["accounts"]:
+        ws.cell(row=row, column=1, value="BY BANK ACCOUNT").font = Font(bold=True, size=11)
+        row += 1
+        for ci, h in enumerate(["Account", "Bank", "Revenue", "Expenses", "Net"], 1):
+            c = ws.cell(row=row, column=ci, value=h)
+            c.font = HDR; c.fill = hdr_fill
+            if ci > 2: c.alignment = right
+        row += 1
+        for i, a in enumerate(ctx["accounts"]):
+            num = a["account_number"]
+            fill = alt_fill if i % 2 == 1 else None
+            row_data = [a["name"], f"{a['bank_name']} •••{num[-4:] if num else ''}", a["revenue"], a["expenses"], a["net"]]
+            set_row(row_data, row, fill=fill, num_cols={3, 4, 5})
+            for ci, key in [(3, a["revenue"]), (4, a["expenses"]), (5, a["net"])]:
+                ws.cell(row=row, column=ci).font = GRN if (key >= 0 and ci != 4) else RED
+            row += 1
+        row += 1
+
+    # Category breakdowns
+    for section_label, cat_list, total_key, fnt in [
+        ("REVENUE BY CATEGORY", ctx["cat_revenue"], "total_revenue", GRN),
+        ("EXPENSES BY CATEGORY", ctx["cat_expenses"], "total_expenses", RED),
+    ]:
+        if not cat_list:
+            continue
+        ws.cell(row=row, column=1, value=section_label).font = Font(bold=True, size=11)
+        row += 1
+        for ci, h in enumerate(["Category", "Amount (MYR)", "% of Total"], 1):
+            c = ws.cell(row=row, column=ci, value=h)
+            c.font = HDR; c.fill = hdr_fill
+            if ci > 1: c.alignment = right
+        row += 1
+        section_total = ctx[total_key]
+        for i, c_item in enumerate(cat_list):
+            fill = alt_fill if i % 2 == 1 else None
+            pct = round(c_item["total"] / section_total * 100, 1) if section_total else 0
+            set_row([c_item["name"] or "Uncategorized", c_item["total"], pct / 100], row, fill=fill, num_cols={2})
+            ws.cell(row=row, column=2).font = fnt
+            ws.cell(row=row, column=3).number_format = "0.0%"
+            ws.cell(row=row, column=3).alignment = right
+            row += 1
+        set_row(["TOTAL", section_total, 1.0], row, bold=True, fill=sum_fill, num_cols={2})
+        ws.cell(row=row, column=3).number_format = "0.0%"
+        ws.cell(row=row, column=3).alignment = right
+        row += 2
+
+    # Transaction list
+    if ctx["txns"]:
+        ws.cell(row=row, column=1, value=f"TRANSACTION LIST ({len(ctx['txns'])} transactions)").font = Font(bold=True, size=11)
+        row += 1
+        txn_hdrs = ["Date", "Description", "Party", "Account", "Category", "Note", "Revenue (MYR)", "Expenses (MYR)"]
+        for ci, h in enumerate(txn_hdrs, 1):
+            c = ws.cell(row=row, column=ci, value=h)
+            c.font = HDR; c.fill = hdr_fill
+            if ci >= 7: c.alignment = right
+        row += 1
+        for i, t in enumerate(ctx["txns"]):
+            fill = alt_fill if i % 2 == 1 else None
+            rev = t["amount"] if t["type"] == "credit" else None
+            exp = t["amount"] if t["type"] == "debit"  else None
+            set_row([t["txn_date"], t["description"], t["party_name"], t["account_label"],
+                     t["categories"], t["note"], rev, exp], row, fill=fill, num_cols={7, 8})
+            if rev: ws.cell(row=row, column=7).font = GRN
+            if exp: ws.cell(row=row, column=8).font = RED
+            row += 1
+        set_row(["", "", "", "", "", "TOTAL", ctx["total_revenue"], ctx["total_expenses"]], row, bold=True, fill=sum_fill, num_cols={7, 8})
+
+    # Column widths
+    col_widths = {1: 28, 2: 40, 3: 28, 4: 24, 5: 22, 6: 22, 7: 18, 8: 18}
+    for ci, w in col_widths.items():
+        ws.column_dimensions[get_column_letter(ci)].width = w
+    # Dynamic widths for monthly columns
+    for ci in range(2, len(months) + 3):
+        ws.column_dimensions[get_column_letter(ci)].width = 16
+
+    buf = _io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = f"pnl_{date_from or 'all'}_{date_to or 'all'}.xlsx"
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
 # ── Invoice/Bill lookup helpers for reconciliation ───────────────────────────
 
 @router.get("/invoices/unpaid")

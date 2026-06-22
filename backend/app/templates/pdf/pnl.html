@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #1a1a2e; background: #fff; }
+  .page { padding: 28px 32px; }
+
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a2e; padding-bottom: 14px; margin-bottom: 18px; }
+  .company-info h1 { font-size: 15pt; font-weight: 700; color: #1a1a2e; margin-bottom: 2px; }
+  .company-info p { font-size: 8pt; color: #555; line-height: 1.5; }
+  .logo-block img { max-height: 60px; max-width: 140px; object-fit: contain; }
+
+  .title-block { text-align: center; margin-bottom: 18px; }
+  .title-block h2 { font-size: 13pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .title-block .period { font-size: 9.5pt; color: #444; margin-top: 3px; }
+  .title-block .generated { font-size: 8pt; color: #888; margin-top: 2px; }
+
+  .balance-row { display: flex; gap: 0; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; margin-bottom: 20px; }
+  .bal-cell { flex: 1; padding: 10px 14px; }
+  .bal-cell + .bal-cell { border-left: 1px solid #ccc; }
+  .bal-cell .label { font-size: 7.5pt; color: #666; text-transform: uppercase; letter-spacing: 0.3px; }
+  .bal-cell .value { font-size: 12pt; font-weight: 700; margin-top: 2px; }
+  .green { color: #065f46; }
+  .red { color: #991b1b; }
+
+  .section-title { font-size: 10pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #1a1a2e; border-left: 3px solid #1a1a2e; padding-left: 8px; margin-bottom: 10px; margin-top: 22px; }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: 6px; font-size: 8.5pt; }
+  thead th { background: #1a1a2e; color: #fff; padding: 6px 8px; text-align: left; font-size: 8pt; }
+  thead th.num { text-align: right; }
+  tbody tr { border-bottom: 1px solid #e5e5e5; }
+  tbody tr:nth-child(even) { background: #f8f8f8; }
+  tbody td { padding: 5px 8px; vertical-align: top; }
+  tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tfoot td { padding: 6px 8px; font-weight: 700; border-top: 2px solid #1a1a2e; font-size: 9pt; }
+  tfoot td.num { text-align: right; }
+  .cr { color: #065f46; }
+  .dr { color: #991b1b; }
+  .net-pos { color: #065f46; font-weight: 600; }
+  .net-neg { color: #991b1b; font-weight: 600; }
+  .subtotal td { background: #f0f4ff; font-weight: 600; border-top: 1px solid #c7d2fe; }
+
+  .doc-footer { margin-top: 24px; text-align: center; font-size: 7.5pt; color: #999; border-top: 1px solid #eee; padding-top: 8px; }
+  @page { size: A4 landscape; margin: 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="company-info">
+      <h1>{{ company.get('name', 'Company') }}</h1>
+      {% if company.get('address') %}<p>{{ company['address'] }}</p>{% endif %}
+      {% if company.get('phone') %}<p>Tel: {{ company['phone'] }}</p>{% endif %}
+      {% if company.get('email') %}<p>{{ company['email'] }}</p>{% endif %}
+    </div>
+    {% if logo_data %}
+    <div class="logo-block"><img src="{{ logo_data }}" alt="Logo" /></div>
+    {% endif %}
+  </div>
+
+  <!-- Title -->
+  <div class="title-block">
+    <h2>Profit &amp; Loss Statement</h2>
+    <div class="period">{{ period_label }}</div>
+    <div class="generated">Generated {{ generated_at }}</div>
+  </div>
+
+  <!-- Summary banner -->
+  <div class="balance-row">
+    <div class="bal-cell">
+      <div class="label">Total Revenue</div>
+      <div class="value green">MYR {{ '{:,.2f}'.format(total_revenue) }}</div>
+    </div>
+    <div class="bal-cell">
+      <div class="label">Total Expenses</div>
+      <div class="value red">MYR {{ '{:,.2f}'.format(total_expenses) }}</div>
+    </div>
+    <div class="bal-cell">
+      <div class="label">Net Profit</div>
+      <div class="value {% if total_net >= 0 %}green{% else %}red{% endif %}">MYR {{ '{:,.2f}'.format(total_net) }}</div>
+    </div>
+  </div>
+
+  <!-- Monthly P&L -->
+  <div class="section-title">Monthly Breakdown</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:120px">Month</th>
+        <th class="num">Revenue (MYR)</th>
+        <th class="num">Expenses (MYR)</th>
+        <th class="num">Net Profit (MYR)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in monthly %}
+      <tr>
+        <td>{{ m.month_label }}</td>
+        <td class="num cr">{{ '{:,.2f}'.format(m.revenue) }}</td>
+        <td class="num dr">{{ '{:,.2f}'.format(m.expenses) }}</td>
+        <td class="num {% if m.net >= 0 %}net-pos{% else %}net-neg{% endif %}">{{ '{:,.2f}'.format(m.net) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td>TOTAL</td>
+        <td class="num cr">MYR {{ '{:,.2f}'.format(total_revenue) }}</td>
+        <td class="num dr">MYR {{ '{:,.2f}'.format(total_expenses) }}</td>
+        <td class="num {% if total_net >= 0 %}net-pos{% else %}net-neg{% endif %}">MYR {{ '{:,.2f}'.format(total_net) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- Account Breakdown -->
+  {% if accounts %}
+  <div class="section-title">By Bank Account</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Account</th>
+        <th>Bank</th>
+        <th class="num">Revenue (MYR)</th>
+        <th class="num">Expenses (MYR)</th>
+        <th class="num">Net (MYR)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in accounts %}
+      <tr>
+        <td>{{ a.name }}</td>
+        <td>{{ a.bank_name }} •••{{ a.account_number[-4:] if a.account_number else '' }}</td>
+        <td class="num cr">{{ '{:,.2f}'.format(a.revenue) }}</td>
+        <td class="num dr">{{ '{:,.2f}'.format(a.expenses) }}</td>
+        <td class="num {% if a.net >= 0 %}net-pos{% else %}net-neg{% endif %}">{{ '{:,.2f}'.format(a.net) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- Category Breakdown — Revenue -->
+  {% if cat_revenue %}
+  <div class="section-title">Revenue by Category</div>
+  <table>
+    <thead>
+      <tr><th>Category</th><th class="num">Amount (MYR)</th><th class="num">% of Revenue</th></tr>
+    </thead>
+    <tbody>
+      {% for c in cat_revenue %}
+      <tr>
+        <td>{{ c.name or 'Uncategorized' }}</td>
+        <td class="num cr">{{ '{:,.2f}'.format(c.total) }}</td>
+        <td class="num">{{ '{:.1f}'.format(c.total / total_revenue * 100 if total_revenue else 0) }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot><tr><td>TOTAL</td><td class="num cr">MYR {{ '{:,.2f}'.format(total_revenue) }}</td><td class="num">100%</td></tr></tfoot>
+  </table>
+  {% endif %}
+
+  <!-- Category Breakdown — Expenses -->
+  {% if cat_expenses %}
+  <div class="section-title">Expenses by Category</div>
+  <table>
+    <thead>
+      <tr><th>Category</th><th class="num">Amount (MYR)</th><th class="num">% of Expenses</th></tr>
+    </thead>
+    <tbody>
+      {% for c in cat_expenses %}
+      <tr>
+        <td>{{ c.name or 'Uncategorized' }}</td>
+        <td class="num dr">{{ '{:,.2f}'.format(c.total) }}</td>
+        <td class="num">{{ '{:.1f}'.format(c.total / total_expenses * 100 if total_expenses else 0) }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot><tr><td>TOTAL</td><td class="num dr">MYR {{ '{:,.2f}'.format(total_expenses) }}</td><td class="num">100%</td></tr></tfoot>
+  </table>
+  {% endif %}
+
+  <!-- Transaction List -->
+  {% if txns %}
+  <div class="section-title">Transaction Details ({{ txns|length }} transactions)</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:72px">Date</th>
+        <th>Description</th>
+        <th>Party</th>
+        <th>Account</th>
+        <th>Category</th>
+        <th class="num">Revenue (MYR)</th>
+        <th class="num">Expenses (MYR)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in txns %}
+      <tr>
+        <td style="white-space:nowrap">{{ t.txn_date }}</td>
+        <td>{{ t.description[:60] }}</td>
+        <td>{{ (t.party_name or '')[:30] }}</td>
+        <td>{{ t.account_label }}</td>
+        <td>{{ t.categories }}</td>
+        <td class="num cr">{% if t.type == 'credit' %}{{ '{:,.2f}'.format(t.amount) }}{% endif %}</td>
+        <td class="num dr">{% if t.type == 'debit' %}{{ '{:,.2f}'.format(t.amount) }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="5">TOTAL</td>
+        <td class="num cr">MYR {{ '{:,.2f}'.format(total_revenue) }}</td>
+        <td class="num dr">MYR {{ '{:,.2f}'.format(total_expenses) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+  {% endif %}
+
+  <div class="doc-footer">
+    {{ company.get('name','') }} &bull; P&amp;L Statement &bull; {{ period_label }} &bull; Generated {{ generated_at }}
+  </div>
+</div>
+</body>
+</html>
