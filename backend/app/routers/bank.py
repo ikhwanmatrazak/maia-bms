@@ -1787,159 +1787,150 @@ async def pnl_excel(
     company_name = ctx["company"].get("name", "Company")
     monthly      = ctx["monthly"]
     months       = [m["month_label"] for m in monthly]
+    n_months     = len(months)
+    total_col    = n_months + 2   # 1-based: label col=1, months=2..n+1, total=n+2
 
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "P&L Statement"
 
-    H1  = Font(bold=True, size=14)
-    H2  = Font(bold=True, size=11)
-    HDR = Font(bold=True, color="FFFFFF")
-    GRN = Font(bold=True, color="065F46")
-    RED = Font(bold=True, color="991B1B")
-    BOLD= Font(bold=True)
-    hdr_fill  = PatternFill("solid", fgColor="1A1A2E")
-    alt_fill  = PatternFill("solid", fgColor="F8F8F8")
-    sum_fill  = PatternFill("solid", fgColor="E0E7FF")
-    thin = Side(style="thin", color="CCCCCC")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    right = Alignment(horizontal="right")
-    center= Alignment(horizontal="center")
+    HDR_FONT  = Font(bold=True, color="FFFFFF", size=9)
+    BOLD_FONT = Font(bold=True, size=9)
+    GRN_FONT  = Font(bold=True, color="065F46", size=9)
+    RED_FONT  = Font(bold=True, color="991B1B", size=9)
+    NORM_FONT = Font(size=9)
+    GRN_N     = Font(color="065F46", size=9)
+    RED_N     = Font(color="991B1B", size=9)
+    GREY_N    = Font(color="9CA3AF", size=9)
 
-    def set_row(row_data, row_num, bold=False, fill=None, num_cols=None, num_fmt="#,##0.00"):
-        for ci, val in enumerate(row_data, 1):
-            c = ws.cell(row=row_num, column=ci, value=val)
-            if bold: c.font = BOLD
-            if fill: c.fill = fill
-            if num_cols and ci in num_cols and isinstance(val, (int, float)):
-                c.number_format = num_fmt
-                c.alignment = right
-            c.border = border
+    hdr_fill   = PatternFill("solid", fgColor="1A1A2E")
+    green_fill = PatternFill("solid", fgColor="4ADE80")
+    gross_fill = PatternFill("solid", fgColor="F0FDF4")
+    pbt_fill   = PatternFill("solid", fgColor="EFF6FF")
+    alt_fill   = PatternFill("solid", fgColor="F9FAFB")
 
+    thin = Side(style="thin", color="D1D5DB")
+    bdr  = Border(left=thin, right=thin, top=thin, bottom=thin)
+    thick_top = Border(left=thin, right=thin, top=Side(style="medium", color="1A1A2E"), bottom=thin)
+
+    right  = Alignment(horizontal="right")
+    center = Alignment(horizontal="center")
+    left   = Alignment(horizontal="left")
+
+    # ── Header block ──────────────────────────────────────────────
     row = 1
-    ws.cell(row=row, column=1, value=company_name).font = H1
+    ws.cell(row=row, column=1, value=company_name).font = Font(bold=True, size=14)
     row += 1
-    ws.cell(row=row, column=1, value="Profit & Loss Statement").font = H2
+    ws.cell(row=row, column=1, value="Profit & Loss Statement").font = Font(bold=True, size=11)
     row += 1
-    ws.cell(row=row, column=1, value=ctx["period_label"])
+    ws.cell(row=row, column=1, value=ctx["period_label"]).font = NORM_FONT
     row += 1
-    ws.cell(row=row, column=1, value=f"Generated: {ctx['generated_at']}")
+    ws.cell(row=row, column=1, value=f"Generated: {ctx['generated_at']}").font = Font(size=8, color="888888")
     row += 2
 
-    # Summary
-    ws.cell(row=row, column=1, value="SUMMARY").font = Font(bold=True, size=11)
-    row += 1
-    for label, val, fnt in [
-        ("Total Revenue",  ctx["total_revenue"],  GRN),
-        ("Total Expenses", ctx["total_expenses"], RED),
-        ("Net Profit",     ctx["total_net"],       GRN if ctx["total_net"] >= 0 else RED),
-    ]:
-        ws.cell(row=row, column=1, value=label).font = BOLD
-        c = ws.cell(row=row, column=2, value=val)
-        c.number_format = "#,##0.00"
-        c.alignment = right
-        c.font = fnt
-        row += 1
+    # ── Column headers row (dark) ─────────────────────────────────
+    hdr_row_num = row
+    for ci, label in enumerate(["Year (MYR)"] + months + ["YTD Total"], 1):
+        c = ws.cell(row=row, column=ci, value=label)
+        c.font = HDR_FONT; c.fill = hdr_fill; c.border = bdr
+        c.alignment = center if ci > 1 else left
     row += 1
 
-    # Monthly breakdown
-    ws.cell(row=row, column=1, value="MONTHLY BREAKDOWN").font = Font(bold=True, size=11)
-    row += 1
-    hdr_row = [""] + months + ["Total"]
-    for ci, v in enumerate(hdr_row, 1):
-        c = ws.cell(row=row, column=ci, value=v)
-        c.font = HDR; c.fill = hdr_fill; c.alignment = center if ci > 1 else Alignment()
-    row += 1
-    num_cols = set(range(2, len(months) + 3))
-    for label, key, fnt in [("Revenue", "revenue", GRN), ("Expenses", "expenses", RED), ("Net Profit", "net", None)]:
-        vals = [m[key] for m in monthly]
-        total = sum(vals)
-        row_data = [label] + vals + [total]
-        set_row(row_data, row, bold=(key=="net"), fill=sum_fill if key=="net" else None, num_cols=num_cols)
-        for ci in range(2, len(months) + 3):
+    # ── P&L rows ──────────────────────────────────────────────────
+    def write_pnl_row(label, values, total_val, bold=False, fill=None, val_font=None, zero_dash=True, border_top=False):
+        nonlocal row
+        c0 = ws.cell(row=row, column=1, value=label)
+        c0.font = BOLD_FONT if bold else NORM_FONT
+        c0.border = thick_top if border_top else bdr
+        if fill: c0.fill = fill
+        for ci, val in enumerate(values, 2):
             c = ws.cell(row=row, column=ci)
-            if key == "net":
-                c.font = GRN if (c.value or 0) >= 0 else RED
+            c.border = thick_top if border_top else bdr
+            if fill: c.fill = fill
+            if val is None or val == 0:
+                if zero_dash:
+                    c.value = "-"; c.font = GREY_N; c.alignment = center
+                else:
+                    c.value = 0; c.number_format = "#,##0.00"; c.alignment = right; c.font = GREY_N
             else:
-                c.font = fnt
+                c.value = val; c.number_format = "#,##0.00"; c.alignment = right
+                if val_font:
+                    c.font = val_font(val) if callable(val_font) else val_font
+                elif bold:
+                    c.font = GRN_FONT if val >= 0 else RED_FONT
+                else:
+                    c.font = GRN_N if val >= 0 else RED_N
+        # Total col
+        ct = ws.cell(row=row, column=total_col)
+        ct.border = thick_top if border_top else bdr
+        if fill: ct.fill = fill
+        if total_val is None or total_val == 0:
+            ct.value = "-"; ct.font = GREY_N; ct.alignment = center
+        else:
+            ct.value = total_val; ct.number_format = "#,##0.00"; ct.alignment = right
+            if val_font:
+                ct.font = val_font(total_val) if callable(val_font) else val_font
+            elif bold:
+                ct.font = GRN_FONT if total_val >= 0 else RED_FONT
+            else:
+                ct.font = GRN_N if total_val >= 0 else RED_N
         row += 1
+
+    rev_vals  = [m["revenue"]  for m in monthly]
+    exp_vals  = [m["expenses"] for m in monthly]
+    net_vals  = [m["net"]      for m in monthly]
+    zero_vals = [None] * n_months
+
+    write_pnl_row("Revenue",                   rev_vals,  ctx["total_revenue"],  bold=True,  val_font=GRN_FONT)
+    write_pnl_row("COGS",                      zero_vals, None,                  bold=True)
+    write_pnl_row("Gross Margin",              rev_vals,  ctx["total_revenue"],  bold=True,  fill=gross_fill, val_font=GRN_FONT)
+    write_pnl_row("Operating Expenses",        exp_vals,  ctx["total_expenses"], bold=True,  val_font=RED_FONT)
+    write_pnl_row("Profit / Loss Before Tax",  net_vals,  ctx["total_net"],      bold=True,  fill=pbt_fill)
+    write_pnl_row("Taxation",                  zero_vals, None,                  bold=True)
+    write_pnl_row("Profit / Loss after Tax",   net_vals,  ctx["total_net"],      bold=True,  fill=pbt_fill, border_top=True)
+
     row += 1
 
-    # Account breakdown
-    if ctx["accounts"]:
-        ws.cell(row=row, column=1, value="BY BANK ACCOUNT").font = Font(bold=True, size=11)
-        row += 1
-        for ci, h in enumerate(["Account", "Bank", "Revenue", "Expenses", "Net"], 1):
-            c = ws.cell(row=row, column=ci, value=h)
-            c.font = HDR; c.fill = hdr_fill
-            if ci > 2: c.alignment = right
-        row += 1
-        for i, a in enumerate(ctx["accounts"]):
-            num = a["account_number"]
-            fill = alt_fill if i % 2 == 1 else None
-            row_data = [a["name"], f"{a['bank_name']} •••{num[-4:] if num else ''}", a["revenue"], a["expenses"], a["net"]]
-            set_row(row_data, row, fill=fill, num_cols={3, 4, 5})
-            for ci, key in [(3, a["revenue"]), (4, a["expenses"]), (5, a["net"])]:
-                ws.cell(row=row, column=ci).font = GRN if (key >= 0 and ci != 4) else RED
-            row += 1
-        row += 1
-
-    # Category breakdowns
-    for section_label, cat_list, total_key, fnt in [
-        ("REVENUE BY CATEGORY", ctx["cat_revenue"], "total_revenue", GRN),
-        ("EXPENSES BY CATEGORY", ctx["cat_expenses"], "total_expenses", RED),
-    ]:
-        if not cat_list:
-            continue
-        ws.cell(row=row, column=1, value=section_label).font = Font(bold=True, size=11)
-        row += 1
-        for ci, h in enumerate(["Category", "Amount (MYR)", "% of Total"], 1):
-            c = ws.cell(row=row, column=ci, value=h)
-            c.font = HDR; c.fill = hdr_fill
-            if ci > 1: c.alignment = right
-        row += 1
-        section_total = ctx[total_key]
-        for i, c_item in enumerate(cat_list):
-            fill = alt_fill if i % 2 == 1 else None
-            pct = round(c_item["total"] / section_total * 100, 1) if section_total else 0
-            set_row([c_item["name"] or "Uncategorized", c_item["total"], pct / 100], row, fill=fill, num_cols={2})
-            ws.cell(row=row, column=2).font = fnt
-            ws.cell(row=row, column=3).number_format = "0.0%"
-            ws.cell(row=row, column=3).alignment = right
-            row += 1
-        set_row(["TOTAL", section_total, 1.0], row, bold=True, fill=sum_fill, num_cols={2})
-        ws.cell(row=row, column=3).number_format = "0.0%"
-        ws.cell(row=row, column=3).alignment = right
-        row += 2
-
-    # Transaction list
+    # ── Transaction list ──────────────────────────────────────────
     if ctx["txns"]:
-        ws.cell(row=row, column=1, value=f"TRANSACTION LIST ({len(ctx['txns'])} transactions)").font = Font(bold=True, size=11)
+        ws.cell(row=row, column=1, value=f"TRANSACTIONS ({len(ctx['txns'])})").font = Font(bold=True, size=10)
         row += 1
-        txn_hdrs = ["Date", "Description", "Party", "Account", "Category", "Note", "Revenue (MYR)", "Expenses (MYR)"]
-        for ci, h in enumerate(txn_hdrs, 1):
+        for ci, h in enumerate(["Date", "Description", "Credit (MYR)", "Debit (MYR)"], 1):
             c = ws.cell(row=row, column=ci, value=h)
-            c.font = HDR; c.fill = hdr_fill
-            if ci >= 7: c.alignment = right
+            c.font = HDR_FONT; c.fill = hdr_fill; c.border = bdr
+            if ci >= 3: c.alignment = right
         row += 1
         for i, t in enumerate(ctx["txns"]):
             fill = alt_fill if i % 2 == 1 else None
             rev = t["amount"] if t["type"] == "credit" else None
             exp = t["amount"] if t["type"] == "debit"  else None
-            set_row([t["txn_date"], t["description"], t["party_name"], t["account_label"],
-                     t["categories"], t["note"], rev, exp], row, fill=fill, num_cols={7, 8})
-            if rev: ws.cell(row=row, column=7).font = GRN
-            if exp: ws.cell(row=row, column=8).font = RED
+            for ci, (val, fnt, num) in enumerate([
+                (t["txn_date"],    NORM_FONT, False),
+                (t["description"], NORM_FONT, False),
+                (rev,              GRN_N,     True),
+                (exp,              RED_N,     True),
+            ], 1):
+                c = ws.cell(row=row, column=ci, value=val)
+                c.font = fnt; c.border = bdr
+                if fill: c.fill = fill
+                if num and val is not None:
+                    c.number_format = "#,##0.00"; c.alignment = right
             row += 1
-        set_row(["", "", "", "", "", "TOTAL", ctx["total_revenue"], ctx["total_expenses"]], row, bold=True, fill=sum_fill, num_cols={7, 8})
+        # Total row
+        for ci, (val, fnt) in enumerate([
+            ("", NORM_FONT), ("TOTAL", BOLD_FONT),
+            (ctx["total_revenue"],  GRN_FONT),
+            (ctx["total_expenses"], RED_FONT),
+        ], 1):
+            c = ws.cell(row=row, column=ci, value=val)
+            c.font = fnt; c.border = thick_top
+            if ci >= 3: c.number_format = "#,##0.00"; c.alignment = right
 
-    # Column widths
-    col_widths = {1: 28, 2: 40, 3: 28, 4: 24, 5: 22, 6: 22, 7: 18, 8: 18}
-    for ci, w in col_widths.items():
-        ws.column_dimensions[get_column_letter(ci)].width = w
-    # Dynamic widths for monthly columns
-    for ci in range(2, len(months) + 3):
-        ws.column_dimensions[get_column_letter(ci)].width = 16
+    # ── Column widths ─────────────────────────────────────────────
+    ws.column_dimensions["A"].width = 26
+    for ci in range(2, total_col + 1):
+        ws.column_dimensions[get_column_letter(ci)].width = 15
+    ws.column_dimensions["B"].width = 40  # Description in txn section
 
     buf = _io.BytesIO()
     wb.save(buf)
