@@ -751,16 +751,16 @@ function EditDrawer({
 function CategoryModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const { data: categories = [] } = useQuery({ queryKey: ["bank-cats"], queryFn: bankApi.listCategories });
-  const [form, setForm] = useState({ name: "", type: "expense" as "income" | "expense", color: "#6366f1" });
+  const [form, setForm] = useState({ name: "", type: "expense" as "income" | "expense", color: "#6366f1", cost_type: "opex" as "opex" | "cogs" });
   const [editId, setEditId] = useState<number | null>(null);
 
   const createMut = useMutation({
     mutationFn: bankApi.createCategory,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bank-cats"] }); setForm({ name: "", type: "expense", color: "#6366f1" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bank-cats"] }); setForm({ name: "", type: "expense", color: "#6366f1", cost_type: "opex" }); },
   });
   const updateMut = useMutation({
     mutationFn: ({ id, d }: { id: number; d: typeof form }) => bankApi.updateCategory(id, d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bank-cats"] }); setEditId(null); setForm({ name: "", type: "expense", color: "#6366f1" }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["bank-cats"] }); setEditId(null); setForm({ name: "", type: "expense", color: "#6366f1", cost_type: "opex" }); },
   });
   const deleteMut = useMutation({
     mutationFn: bankApi.deleteCategory,
@@ -769,7 +769,7 @@ function CategoryModal({ onClose }: { onClose: () => void }) {
 
   const openEdit = (c: TxnCategory) => {
     setEditId(c.id);
-    setForm({ name: c.name, type: c.type as "income" | "expense", color: c.color });
+    setForm({ name: c.name, type: c.type as "income" | "expense", color: c.color, cost_type: (c.cost_type ?? "opex") as "opex" | "cogs" });
   };
 
   const handleSubmit = () => {
@@ -803,9 +803,30 @@ function CategoryModal({ onClose }: { onClose: () => void }) {
             <input type="color" value={form.color} onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
               className="w-10 h-10 rounded-lg border border-default-200 cursor-pointer p-0.5" />
           </div>
+          {form.type === "expense" && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-default-500">P&amp;L Classification:</span>
+              {(["opex", "cogs"] as const).map((ct) => (
+                <button
+                  key={ct}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, cost_type: ct }))}
+                  className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                    form.cost_type === ct
+                      ? ct === "cogs"
+                        ? "bg-orange-100 border-orange-400 text-orange-700 font-semibold"
+                        : "bg-blue-100 border-blue-400 text-blue-700 font-semibold"
+                      : "border-default-200 text-default-400"
+                  }`}
+                >
+                  {ct === "cogs" ? "COGS" : "Operating Expense"}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2">
             {editId && (
-              <button onClick={() => { setEditId(null); setForm({ name: "", type: "expense", color: "#6366f1" }); }}
+              <button onClick={() => { setEditId(null); setForm({ name: "", type: "expense", color: "#6366f1", cost_type: "opex" }); }}
                 className="px-3 py-1.5 text-xs border border-default-200 rounded-lg">Cancel</button>
             )}
             <button onClick={handleSubmit} disabled={!form.name}
@@ -828,6 +849,9 @@ function CategoryModal({ onClose }: { onClose: () => void }) {
                     <div key={c.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-default-50 group">
                       <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
                       <span className="flex-1 text-sm text-foreground">{c.name}</span>
+                      {c.type === "expense" && c.cost_type === "cogs" && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">COGS</span>
+                      )}
                       <button onClick={() => openEdit(c)}
                         className="text-xs text-default-400 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity">Edit</button>
                       <button onClick={() => deleteMut.mutate(c.id)}

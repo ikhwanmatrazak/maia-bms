@@ -46,8 +46,9 @@ class AccountOut(BaseModel):
 
 class CategoryCreate(BaseModel):
     name: str
-    type: str = "expense"  # income | expense
+    type: str = "expense"   # income | expense
     color: str = "#6366f1"
+    cost_type: str = "opex" # opex | cogs
 
 
 class CategoryOut(BaseModel):
@@ -55,6 +56,7 @@ class CategoryOut(BaseModel):
     name: str
     type: str
     color: str
+    cost_type: str = "opex"
 
 
 class CategoryRef(BaseModel):
@@ -833,10 +835,10 @@ async def list_categories(
 ):
     tid = _tenant_id(current_user)
     r = await db.execute(
-        text("SELECT id, name, type, color FROM transaction_categories WHERE tenant_id = :tid ORDER BY type, name"),
+        text("SELECT id, name, type, color, COALESCE(cost_type,'opex') FROM transaction_categories WHERE tenant_id = :tid ORDER BY type, name"),
         {"tid": tid},
     )
-    return [CategoryOut(id=row[0], name=row[1], type=row[2], color=row[3]) for row in r.fetchall()]
+    return [CategoryOut(id=row[0], name=row[1], type=row[2], color=row[3], cost_type=row[4]) for row in r.fetchall()]
 
 
 @router.post("/categories", response_model=CategoryOut)
@@ -847,12 +849,12 @@ async def create_category(
 ):
     tid = _tenant_id(current_user)
     r = await db.execute(
-        text("INSERT INTO transaction_categories (tenant_id, name, type, color) VALUES (:tid, :name, :type, :color)"),
-        {"tid": tid, "name": payload.name, "type": payload.type, "color": payload.color},
+        text("INSERT INTO transaction_categories (tenant_id, name, type, color, cost_type) VALUES (:tid, :name, :type, :color, :cost_type)"),
+        {"tid": tid, "name": payload.name, "type": payload.type, "color": payload.color, "cost_type": payload.cost_type},
     )
     await db.commit()
     cat_id = r.lastrowid
-    return CategoryOut(id=cat_id, name=payload.name, type=payload.type, color=payload.color)
+    return CategoryOut(id=cat_id, name=payload.name, type=payload.type, color=payload.color, cost_type=payload.cost_type)
 
 
 @router.put("/categories/{cat_id}", response_model=CategoryOut)
@@ -870,11 +872,11 @@ async def update_category(
     if not check.fetchone():
         raise HTTPException(status_code=404, detail="Category not found")
     await db.execute(
-        text("UPDATE transaction_categories SET name=:name, type=:type, color=:color WHERE id=:id"),
-        {"name": payload.name, "type": payload.type, "color": payload.color, "id": cat_id},
+        text("UPDATE transaction_categories SET name=:name, type=:type, color=:color, cost_type=:cost_type WHERE id=:id"),
+        {"name": payload.name, "type": payload.type, "color": payload.color, "cost_type": payload.cost_type, "id": cat_id},
     )
     await db.commit()
-    return CategoryOut(id=cat_id, name=payload.name, type=payload.type, color=payload.color)
+    return CategoryOut(id=cat_id, name=payload.name, type=payload.type, color=payload.color, cost_type=payload.cost_type)
 
 
 @router.delete("/categories/{cat_id}")
@@ -1637,23 +1639,33 @@ async def _pnl_data(db: AsyncSession, tid, date_from: Optional[str], date_to: Op
         params["dt"] = date_to
     wc = " AND ".join(where_base)
 
-    # Monthly totals
+    # Monthly totals — split debits into COGS (cost_type='cogs') vs OpEx
     monthly_r = await db.execute(text(f"""
         SELECT DATE_FORMAT(bt.txn_date,'%Y-%m') AS month,
                COALESCE(SUM(CASE WHEN bt.type='credit' THEN bt.amount ELSE 0 END),0) AS revenue,
-               COALESCE(SUM(CASE WHEN bt.type='debit'  THEN bt.amount ELSE 0 END),0) AS expenses
+               COALESCE(SUM(CASE WHEN bt.type='debit' AND COALESCE(tc.cost_type,'opex')='cogs' THEN bt.amount ELSE 0 END),0) AS cogs,
+               COALESCE(SUM(CASE WHEN bt.type='debit' AND COALESCE(tc.cost_type,'opex')='opex' THEN bt.amount ELSE 0 END),0) AS opex
         FROM bank_transactions bt JOIN bank_accounts ba ON ba.id=bt.account_id
+        LEFT JOIN bank_transaction_categories btc ON btc.transaction_id=bt.id
+        LEFT JOIN transaction_categories tc ON tc.id=btc.category_id
         WHERE {wc} GROUP BY month ORDER BY month
     """), params)
     monthly = []
     for r in monthly_r.fetchall():
         yr, mo = r[0].split("-")
+        revenue  = float(r[1])
+        cogs     = float(r[2])
+        opex     = float(r[3])
+        expenses = cogs + opex
         monthly.append({
             "month": r[0],
             "month_label": f"{MONTHS_SHORT[int(mo)-1]} {yr}",
-            "revenue": float(r[1]),
-            "expenses": float(r[2]),
-            "net": float(r[1]) - float(r[2]),
+            "revenue":  revenue,
+            "cogs":     cogs,
+            "opex":     opex,
+            "expenses": expenses,
+            "gross":    revenue - cogs,
+            "net":      revenue - expenses,
         })
 
     # Account breakdown
@@ -1722,7 +1734,10 @@ async def _pnl_data(db: AsyncSession, tid, date_from: Optional[str], date_to: Op
     company = dict(cs.mappings().first() or {})
 
     total_revenue  = sum(m["revenue"]  for m in monthly)
+    total_cogs     = sum(m["cogs"]     for m in monthly)
+    total_opex     = sum(m["opex"]     for m in monthly)
     total_expenses = sum(m["expenses"] for m in monthly)
+    total_gross    = total_revenue - total_cogs
 
     return {
         "company": company,
@@ -1732,9 +1747,12 @@ async def _pnl_data(db: AsyncSession, tid, date_from: Optional[str], date_to: Op
         "cat_revenue":  [{"name": k, "total": v} for k, v in sorted(cat_revenue.items(),  key=lambda x: -x[1])],
         "cat_expenses": [{"name": k, "total": v} for k, v in sorted(cat_expenses.items(), key=lambda x: -x[1])],
         "txns": txns,
-        "total_revenue": total_revenue,
+        "total_revenue":  total_revenue,
+        "total_cogs":     total_cogs,
+        "total_opex":     total_opex,
         "total_expenses": total_expenses,
-        "total_net": total_revenue - total_expenses,
+        "total_gross":    total_gross,
+        "total_net":      total_revenue - total_expenses,
         "period_label": f"{date_from or 'All'} — {date_to or 'All'}",
         "generated_at": date.today().strftime("%d %B %Y"),
     }
@@ -1876,18 +1894,20 @@ async def pnl_excel(
                 ct.font = GRN_N if total_val >= 0 else RED_N
         row += 1
 
-    rev_vals  = [m["revenue"]  for m in monthly]
-    exp_vals  = [m["expenses"] for m in monthly]
-    net_vals  = [m["net"]      for m in monthly]
-    zero_vals = [None] * n_months
+    rev_vals   = [m["revenue"]  for m in monthly]
+    cogs_vals  = [m["cogs"]     for m in monthly]
+    gross_vals = [m["gross"]    for m in monthly]
+    opex_vals  = [m["opex"]     for m in monthly]
+    net_vals   = [m["net"]      for m in monthly]
+    zero_vals  = [None] * n_months
 
-    write_pnl_row("Revenue",                   rev_vals,  ctx["total_revenue"],  bold=True,  val_font=GRN_FONT)
-    write_pnl_row("COGS",                      zero_vals, None,                  bold=True)
-    write_pnl_row("Gross Margin",              rev_vals,  ctx["total_revenue"],  bold=True,  fill=gross_fill, val_font=GRN_FONT)
-    write_pnl_row("Operating Expenses",        exp_vals,  ctx["total_expenses"], bold=True,  val_font=RED_FONT)
-    write_pnl_row("Profit / Loss Before Tax",  net_vals,  ctx["total_net"],      bold=True,  fill=pbt_fill)
-    write_pnl_row("Taxation",                  zero_vals, None,                  bold=True)
-    write_pnl_row("Profit / Loss after Tax",   net_vals,  ctx["total_net"],      bold=True,  fill=pbt_fill, border_top=True)
+    write_pnl_row("Revenue",                   rev_vals,   ctx["total_revenue"],  bold=True, val_font=GRN_FONT)
+    write_pnl_row("COGS",                      cogs_vals,  ctx["total_cogs"],     bold=True, val_font=RED_FONT)
+    write_pnl_row("Gross Margin",              gross_vals, ctx["total_gross"],    bold=True, fill=gross_fill, val_font=GRN_FONT)
+    write_pnl_row("Operating Expenses",        opex_vals,  ctx["total_opex"],     bold=True, val_font=RED_FONT)
+    write_pnl_row("Profit / Loss Before Tax",  net_vals,   ctx["total_net"],      bold=True, fill=pbt_fill)
+    write_pnl_row("Taxation",                  zero_vals,  None,                  bold=True)
+    write_pnl_row("Profit / Loss after Tax",   net_vals,   ctx["total_net"],      bold=True, fill=pbt_fill, border_top=True)
 
     row += 1
 

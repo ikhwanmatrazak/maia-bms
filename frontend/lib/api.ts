@@ -756,6 +756,7 @@ export interface TxnCategory {
   name: string;
   type: "income" | "expense";
   color: string;
+  cost_type: "opex" | "cogs";
 }
 
 export interface BankTransaction {

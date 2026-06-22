@@ -108,31 +108,37 @@
       <!-- COGS -->
       <tr class="row-main">
         <td>COGS</td>
-        {% for m in monthly %}<td class="num zero">-</td>{% endfor %}
-        <td class="num zero">-</td>
+        {% for m in monthly %}
+        <td class="num {% if m.cogs > 0 %}neg{% else %}zero{% endif %}">
+          {% if m.cogs != 0 %}{{ '{:,.2f}'.format(m.cogs) }}{% else %}-{% endif %}
+        </td>
+        {% endfor %}
+        <td class="num {% if total_cogs > 0 %}neg{% else %}zero{% endif %}">
+          {% if total_cogs != 0 %}{{ '{:,.2f}'.format(total_cogs) }}{% else %}-{% endif %}
+        </td>
       </tr>
       <!-- Gross Margin -->
       <tr class="row-gross row-main">
         <td>Gross Margin</td>
         {% for m in monthly %}
-        <td class="num {% if m.revenue > 0 %}pos{% elif m.revenue < 0 %}neg{% else %}zero{% endif %}">
-          {% if m.revenue != 0 %}{{ '{:,.2f}'.format(m.revenue) }}{% else %}-{% endif %}
+        <td class="num {% if m.gross > 0 %}pos{% elif m.gross < 0 %}neg{% else %}zero{% endif %}">
+          {% if m.gross != 0 %}{{ '{:,.2f}'.format(m.gross) }}{% else %}-{% endif %}
         </td>
         {% endfor %}
-        <td class="num {% if total_revenue > 0 %}pos{% elif total_revenue < 0 %}neg{% else %}zero{% endif %}">
-          {% if total_revenue != 0 %}{{ '{:,.2f}'.format(total_revenue) }}{% else %}-{% endif %}
+        <td class="num {% if total_gross > 0 %}pos{% elif total_gross < 0 %}neg{% else %}zero{% endif %}">
+          {% if total_gross != 0 %}{{ '{:,.2f}'.format(total_gross) }}{% else %}-{% endif %}
         </td>
       </tr>
       <!-- Operating Expenses -->
       <tr class="row-main">
         <td>Operating Expenses</td>
         {% for m in monthly %}
-        <td class="num {% if m.expenses > 0 %}neg{% else %}zero{% endif %}">
-          {% if m.expenses != 0 %}{{ '{:,.2f}'.format(m.expenses) }}{% else %}-{% endif %}
+        <td class="num {% if m.opex > 0 %}neg{% else %}zero{% endif %}">
+          {% if m.opex != 0 %}{{ '{:,.2f}'.format(m.opex) }}{% else %}-{% endif %}
         </td>
         {% endfor %}
-        <td class="num {% if total_expenses > 0 %}neg{% else %}zero{% endif %}">
-          {% if total_expenses != 0 %}{{ '{:,.2f}'.format(total_expenses) }}{% else %}-{% endif %}
+        <td class="num {% if total_opex > 0 %}neg{% else %}zero{% endif %}">
+          {% if total_opex != 0 %}{{ '{:,.2f}'.format(total_opex) }}{% else %}-{% endif %}
         </td>
       </tr>
       <!-- PBT -->

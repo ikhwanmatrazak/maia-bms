@@ -56,14 +56,20 @@ export default function PnLPage() {
 
   const monthly = data?.monthly ?? [];
 
-  const rows = [
-    { key: "revenue",  label: "Revenue (Credits)",  color: "text-success-600", getter: (m: typeof monthly[0]) => m.revenue  },
-    { key: "expenses", label: "Expenses (Debits)",   color: "text-danger-600",  getter: (m: typeof monthly[0]) => m.expenses },
-    { key: "net",      label: "Net Profit",           color: "",                 getter: (m: typeof monthly[0]) => m.net      },
+  type MonthRow = typeof monthly[0];
+  const rows: { key: string; label: string; colorFn: (v: number) => string; getter: (m: MonthRow) => number; highlight?: string }[] = [
+    { key: "revenue",  label: "Revenue",                   colorFn: () => "text-success-600",                               getter: (m) => m.revenue  },
+    { key: "cogs",     label: "COGS",                       colorFn: (v) => v > 0 ? "text-danger-600" : "text-default-300", getter: (m) => m.cogs     },
+    { key: "gross",    label: "Gross Margin",               colorFn: (v) => v >= 0 ? "text-success-600" : "text-danger-600", getter: (m) => m.gross,   highlight: "bg-green-50" },
+    { key: "opex",     label: "Operating Expenses",         colorFn: (v) => v > 0 ? "text-danger-600" : "text-default-300", getter: (m) => m.opex     },
+    { key: "net",      label: "Profit / Loss Before Tax",   colorFn: (v) => v >= 0 ? "text-success-600" : "text-danger-600", getter: (m) => m.net,     highlight: "bg-blue-50" },
   ];
 
   const totals = {
     revenue:  data?.total_revenue  ?? 0,
+    cogs:     data?.total_cogs     ?? 0,
+    gross:    data?.total_gross    ?? 0,
+    opex:     data?.total_opex     ?? 0,
     expenses: data?.total_expenses ?? 0,
     net:      data?.total_net      ?? 0,
   };
@@ -122,11 +128,12 @@ export default function PnLPage() {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {[
-            { label: "Total Revenue",  value: totals.revenue,  color: "text-success-600" },
-            { label: "Total Expenses", value: totals.expenses, color: "text-danger-600"  },
-            { label: "Net Profit",     value: totals.net,      color: totals.net >= 0 ? "text-success-600" : "text-danger-600" },
+            { label: "Total Revenue",   value: totals.revenue,  color: "text-success-600" },
+            { label: "COGS",            value: totals.cogs,     color: totals.cogs > 0 ? "text-danger-600" : "text-default-400" },
+            { label: "Gross Margin",    value: totals.gross,    color: totals.gross >= 0 ? "text-success-600" : "text-danger-600" },
+            { label: "Net Profit/Loss", value: totals.net,      color: totals.net >= 0 ? "text-success-600" : "text-danger-600" },
           ].map((c) => (
             <div key={c.label} className="bg-white border border-default-200 rounded-2xl p-5 shadow-sm">
               <p className="text-xs text-default-400 mb-1">{c.label}</p>
@@ -160,33 +167,26 @@ export default function PnLPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, ri) => {
-                    const total = row.getter({ month: "", revenue: totals.revenue, expenses: totals.expenses, net: totals.net });
-                    const isNetRow = row.key === "net";
+                  {rows.map((row) => {
+                    const total = totals[row.key as keyof typeof totals] ?? 0;
+                    const isHighlight = !!row.highlight;
                     return (
                       <tr
                         key={row.key}
-                        className={`border-b border-default-100 ${isNetRow ? "bg-default-50 font-semibold" : "hover:bg-default-50"}`}
+                        className={`border-b border-default-100 ${isHighlight ? `${row.highlight} font-semibold` : "hover:bg-default-50"}`}
                       >
-                        <td className={`px-5 py-3.5 sticky left-0 ${isNetRow ? "bg-default-50" : "bg-white"} ${row.color || (isNetRow ? (total >= 0 ? "text-success-600" : "text-danger-600") : "")}`}>
+                        <td className={`px-5 py-3.5 sticky left-0 font-medium ${isHighlight ? row.highlight : "bg-white"} ${row.colorFn(total)}`}>
                           {row.label}
                         </td>
                         {monthly.map((m) => {
                           const val = row.getter(m);
-                          const color = row.key === "net"
-                            ? (val >= 0 ? "text-success-600" : "text-danger-600")
-                            : row.color;
                           return (
-                            <td key={m.month} className={`text-right px-4 py-3.5 whitespace-nowrap ${color}`}>
+                            <td key={m.month} className={`text-right px-4 py-3.5 whitespace-nowrap ${row.colorFn(val)}`}>
                               {fmt(val)}
                             </td>
                           );
                         })}
-                        <td className={`text-right px-5 py-3.5 whitespace-nowrap bg-default-50 font-semibold ${
-                          row.key === "net"
-                            ? (total >= 0 ? "text-success-600" : "text-danger-600")
-                            : row.color
-                        }`}>
+                        <td className={`text-right px-5 py-3.5 whitespace-nowrap font-semibold ${isHighlight ? row.highlight : "bg-default-50"} ${row.colorFn(total)}`}>
                           {fmt(total)}
                         </td>
                       </tr>

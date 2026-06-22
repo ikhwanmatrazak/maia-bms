@@ -684,6 +684,13 @@ async def _ensure_bank_tables():
                 await conn.execute(text(stmt))
             except Exception as e:
                 logger.warning(f"_ensure_bank_tables stmt skipped: {e}")
+        # Add cost_type column if missing (migration)
+        try:
+            await conn.execute(text(
+                "ALTER TABLE transaction_categories ADD COLUMN cost_type VARCHAR(10) NOT NULL DEFAULT 'opex'"
+            ))
+        except Exception:
+            pass
     logger.info("bank tables ensured")
 
 
