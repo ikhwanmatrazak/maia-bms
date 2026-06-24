@@ -854,7 +854,7 @@ async def list_designations(
 ):
     tid = get_effective_tenant_id(current_user)
     rows = (await db.execute(
-        text("SELECT * FROM hr_designations WHERE tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL) ORDER BY name"),
+        text("SELECT * FROM hr_designations WHERE tenant_id=:tid OR tenant_id IS NULL ORDER BY name"),
         {"tid": tid}
     )).mappings().all()
     return [dict(r) for r in rows]
