@@ -2072,20 +2072,29 @@ async def _cashflow_data(db: AsyncSession, date_from: str, date_to: str, tid: Op
     if tid is not None:
         params["tid"] = tid
 
-    # Opening balance = sum of account opening balances + all transactions before date_from
-    r = await db.execute(
+    # Opening balance = sum of account opening balances + net of all transactions before date_from
+    # Note: these are two separate queries to avoid SUM(opening_balance) being multiplied by
+    # the number of transaction rows when joined.
+    tenant_acct_filter = "WHERE tenant_id = :tid" if tid is not None else ""
+    ob_r = await db.execute(
+        text(f"SELECT COALESCE(SUM(opening_balance), 0) FROM bank_accounts {tenant_acct_filter}"),
+        {"tid": tid} if tid is not None else {},
+    )
+    base_ob = float(ob_r.scalar() or 0)
+
+    pre_r = await db.execute(
         text(f"""
             SELECT
-                COALESCE(SUM(ba.opening_balance), 0) +
-                COALESCE(SUM(CASE WHEN bt.txn_date < :d_from AND bt.type = 'credit' THEN bt.amount ELSE 0 END), 0) -
-                COALESCE(SUM(CASE WHEN bt.txn_date < :d_from AND bt.type = 'debit'  THEN bt.amount ELSE 0 END), 0)
-            FROM bank_accounts ba
-            LEFT JOIN bank_transactions bt ON bt.account_id = ba.id
-            WHERE 1=1 {tenant_filter}
+                COALESCE(SUM(CASE WHEN bt.type = 'credit' THEN bt.amount ELSE 0 END), 0) -
+                COALESCE(SUM(CASE WHEN bt.type = 'debit'  THEN bt.amount ELSE 0 END), 0)
+            FROM bank_transactions bt
+            JOIN bank_accounts ba ON ba.id = bt.account_id
+            WHERE bt.txn_date < :d_from {tenant_filter}
         """),
         params,
     )
-    opening_balance = float(r.scalar() or 0)
+    pre_net = float(pre_r.scalar() or 0)
+    opening_balance = base_ob + pre_net
 
     # All transactions in range
     r = await db.execute(
