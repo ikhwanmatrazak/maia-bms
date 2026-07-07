@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import {
-  bankApi, BankTransaction, TxnCategory, ParsedRow,
+  bankApi, BankTransaction, BankStatement, TxnCategory, ParsedRow,
   UnpaidInvoice, UnpaidBill, downloadPdf, downloadFile,
 } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
@@ -192,6 +192,7 @@ function UploadModal({ accountId, onClose }: { accountId: number; onClose: () =>
       qc.invalidateQueries({ queryKey: ["bank-txns", accountId] });
       qc.invalidateQueries({ queryKey: ["bank-accounts"] });
       qc.invalidateQueries({ queryKey: ["bank-summary", accountId] });
+      qc.invalidateQueries({ queryKey: ["bank-statements", accountId] });
       setImportResult({ inserted: res.inserted ?? 0, skipped: res.skipped ?? 0 });
       setStep("done");
     } catch (e: any) {
@@ -959,6 +960,22 @@ export default function BankDetailPage() {
   const { data: unpaidInvoices = [] } = useQuery({ queryKey: ["bank-unpaid-inv"], queryFn: bankApi.listUnpaidInvoices });
   const { data: unpaidBills = [] } = useQuery({ queryKey: ["bank-unpaid-bills"], queryFn: bankApi.listUnpaidBills });
 
+  const { data: statements = [] } = useQuery({
+    queryKey: ["bank-statements", accountId],
+    queryFn: () => bankApi.listStatements(accountId),
+    enabled: !!accountId,
+  });
+
+  const deleteStmtMut = useMutation({
+    mutationFn: (stmtId: number) => bankApi.deleteStatement(accountId, stmtId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bank-statements", accountId] });
+      qc.invalidateQueries({ queryKey: ["bank-txns", accountId] });
+      qc.invalidateQueries({ queryKey: ["bank-summary", accountId] });
+      qc.invalidateQueries({ queryKey: ["bank-summary-all", accountId] });
+    },
+  });
+
   const deleteMut = useMutation({
     mutationFn: bankApi.deleteTransaction,
     onSuccess: () => {
@@ -1328,6 +1345,66 @@ export default function BankDetailPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Uploaded Statements */}
+      {statements.length > 0 && (
+        <div className="bg-white border border-default-200 rounded-2xl p-5 shadow-sm">
+          <p className="text-sm font-semibold text-foreground mb-4">Uploaded Statements</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-default-200">
+                <tr>
+                  <th className="text-left pb-2 text-xs font-medium text-default-500">Period</th>
+                  <th className="text-left pb-2 text-xs font-medium text-default-500">File</th>
+                  <th className="text-right pb-2 text-xs font-medium text-default-500">Transactions</th>
+                  <th className="text-right pb-2 text-xs font-medium text-default-500">Uploaded</th>
+                  <th className="pb-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-default-100">
+                {statements.map((stmt) => {
+                  const displayName = stmt.filename
+                    .replace(/\s*-\s*\d{14}(\.\w+)?$/, "")
+                    .replace(/\.\w+$/, "");
+                  const period = stmt.period_start && stmt.period_end
+                    ? stmt.period_start.slice(0, 7) === stmt.period_end.slice(0, 7)
+                      ? new Date(stmt.period_start + "T00:00:00").toLocaleDateString("en-MY", { month: "short", year: "numeric" })
+                      : `${new Date(stmt.period_start + "T00:00:00").toLocaleDateString("en-MY", { month: "short", year: "numeric" })} – ${new Date(stmt.period_end + "T00:00:00").toLocaleDateString("en-MY", { month: "short", year: "numeric" })}`
+                    : "—";
+                  const uploadedAt = new Date(stmt.created_at).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
+                  return (
+                    <tr key={stmt.id} className="group">
+                      <td className="py-2.5 pr-4 text-default-600 whitespace-nowrap text-xs">{period}</td>
+                      <td className="py-2.5 pr-4 text-foreground text-xs max-w-xs truncate">
+                        {stmt.file_url ? (
+                          <a href={`${STATIC_BASE}${stmt.file_url}`} target="_blank" rel="noreferrer"
+                            className="hover:text-primary hover:underline" title={stmt.filename}>
+                            {displayName}
+                          </a>
+                        ) : displayName}
+                      </td>
+                      <td className="py-2.5 pr-4 text-right text-xs text-default-500">{stmt.tx_count}</td>
+                      <td className="py-2.5 pr-4 text-right text-xs text-default-400 whitespace-nowrap">{uploadedAt}</td>
+                      <td className="py-2.5 text-right">
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete "${displayName}"?\n\nThis will permanently remove ${stmt.tx_count} transactions.`))
+                              deleteStmtMut.mutate(stmt.id);
+                          }}
+                          disabled={deleteStmtMut.isPending}
+                          className="text-xs text-danger-500 hover:text-danger-700 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

@@ -792,6 +792,18 @@ export interface ParsedRow {
   note: string | null;
 }
 
+export interface BankStatement {
+  id: number;
+  filename: string;
+  file_url: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  status: "processing" | "done" | "failed";
+  row_count: number;
+  created_at: string;
+  tx_count: number;
+}
+
 export interface MonthlySummary {
   month: string;
   credit: number;
@@ -872,6 +884,10 @@ export const bankApi = {
       { headers: { "Content-Type": "multipart/form-data" } }
     ).then((r) => r.data);
   },
+  listStatements: (accountId: number) =>
+    api.get<BankStatement[]>(`/bank/accounts/${accountId}/statements`).then((r) => r.data),
+  deleteStatement: (accountId: number, statementId: number) =>
+    api.delete(`/bank/accounts/${accountId}/statements/${statementId}`).then((r) => r.data),
 
   // Transactions
   listTransactions: (accountId: number, params?: {

@@ -1119,6 +1119,54 @@ async def confirm_statement(
     return {"ok": True, "statement_id": stmt_id, "inserted": inserted, "skipped": skipped}
 
 
+@router.get("/accounts/{account_id}/statements")
+async def list_statements(
+    account_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tid = _tenant_id(current_user)
+    await _get_account(db, account_id, tid)
+
+    r = await db.execute(
+        text("""
+            SELECT bs.id, bs.filename, bs.file_url, bs.period_start, bs.period_end,
+                   bs.status, bs.row_count, bs.created_at,
+                   COUNT(bt.id) AS tx_count
+            FROM bank_statements bs
+            LEFT JOIN bank_transactions bt ON bt.statement_id = bs.id
+            WHERE bs.account_id = :aid
+            GROUP BY bs.id
+            ORDER BY bs.created_at DESC
+        """),
+        {"aid": account_id},
+    )
+    rows = r.mappings().all()
+    return [dict(row) for row in rows]
+
+
+@router.delete("/accounts/{account_id}/statements/{statement_id}")
+async def delete_statement(
+    account_id: int,
+    statement_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tid = _tenant_id(current_user)
+    await _get_account(db, account_id, tid)
+
+    await db.execute(
+        text("DELETE FROM bank_transactions WHERE statement_id = :sid AND account_id = :aid"),
+        {"sid": statement_id, "aid": account_id},
+    )
+    await db.execute(
+        text("DELETE FROM bank_statements WHERE id = :sid AND account_id = :aid"),
+        {"sid": statement_id, "aid": account_id},
+    )
+    await db.commit()
+    return {"ok": True}
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _parse_cat_groups(ids_str: Optional[str], names_str: Optional[str], colors_str: Optional[str], cost_types_str: Optional[str] = None) -> List[CategoryRef]:
