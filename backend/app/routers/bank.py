@@ -1137,7 +1137,7 @@ async def list_statements(
             LEFT JOIN bank_transactions bt ON bt.statement_id = bs.id
             WHERE bs.account_id = :aid
             GROUP BY bs.id
-            ORDER BY bs.created_at DESC
+            ORDER BY bs.period_start DESC, bs.created_at DESC
         """),
         {"aid": account_id},
     )
