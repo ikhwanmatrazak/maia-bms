@@ -944,6 +944,17 @@ export default function BankDetailPage() {
     enabled: !!accountId,
   });
 
+  // Unfiltered summary just for year list
+  const { data: summaryAll } = useQuery({
+    queryKey: ["bank-summary-all", accountId],
+    queryFn: () => bankApi.getSummary(accountId, {}),
+    enabled: !!accountId,
+  });
+  const availableYears = useMemo(() => {
+    if (!summaryAll?.monthly) return [] as string[];
+    return [...new Set(summaryAll.monthly.map((m) => m.month.split("-")[0]))].sort().reverse() as string[];
+  }, [summaryAll]);
+
   const { data: categories = [] } = useQuery({ queryKey: ["bank-cats"], queryFn: bankApi.listCategories });
   const { data: unpaidInvoices = [] } = useQuery({ queryKey: ["bank-unpaid-inv"], queryFn: bankApi.listUnpaidInvoices });
   const { data: unpaidBills = [] } = useQuery({ queryKey: ["bank-unpaid-bills"], queryFn: bankApi.listUnpaidBills });
@@ -987,6 +998,34 @@ export default function BankDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* Year selector */}
+      {availableYears.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-default-400 font-medium">Year:</span>
+          {(["all", ...availableYears] as string[]).map((yr) => {
+            const isActive = yr === "all"
+              ? !dateFrom && !dateTo
+              : dateFrom === `${yr}-01-01` && dateTo === `${yr}-12-31`;
+            return (
+              <button
+                key={yr}
+                onClick={() => {
+                  if (yr === "all") { setDateFrom(""); setDateTo(""); }
+                  else { setDateFrom(`${yr}-01-01`); setDateTo(`${yr}-12-31`); }
+                }}
+                className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                  isActive
+                    ? "bg-primary text-white border-primary font-semibold"
+                    : "border-default-200 text-default-500 hover:border-primary hover:text-primary"
+                }`}
+              >
+                {yr === "all" ? "All Time" : yr}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Summary cards */}
       {summary && (
