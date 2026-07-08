@@ -614,6 +614,9 @@ function EditDrawer({
   const [note, setNote] = useState(txn.note ?? "");
   const [receiptUrl, setReceiptUrl] = useState<string | null>(txn.receipt_url);
   const [uploading, setUploading] = useState(false);
+  const invFileRef = useRef<HTMLInputElement>(null);
+  const [invImporting, setInvImporting] = useState(false);
+  const [invImportError, setInvImportError] = useState("");
 
   const mut = useMutation({
     mutationFn: () => bankApi.updateTransaction(txn.id, {
@@ -740,12 +743,45 @@ function EditDrawer({
         {/* Link to invoice (for credits) */}
         {txn.type === "credit" && (
           <div>
-            <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-2">
-              Link to Invoice <span className="text-success-600 font-normal">(marks as Paid)</span>
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-medium text-default-500 uppercase tracking-wider">
+                Link to Invoice <span className="text-success-600 font-normal">(marks as Paid)</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => invFileRef.current?.click()}
+                disabled={invImporting}
+                className="text-xs text-primary hover:underline disabled:opacity-50"
+              >
+                {invImporting ? "Importing…" : "+ Import PDF"}
+              </button>
+              <input
+                ref={invFileRef}
+                type="file"
+                accept=".pdf"
+                className="hidden"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  setInvImporting(true);
+                  setInvImportError("");
+                  try {
+                    const res = await invoicesApi.uploadPdf(f);
+                    setInvIds(prev => prev.includes(res.invoice_id) ? prev : [...prev, res.invoice_id]);
+                    qc.invalidateQueries({ queryKey: ["bank-unpaid-inv", txn.id] });
+                  } catch (err: any) {
+                    setInvImportError(err?.response?.data?.detail || "Failed to import PDF.");
+                  } finally {
+                    setInvImporting(false);
+                    e.target.value = "";
+                  }
+                }}
+              />
+            </div>
+            {invImportError && <p className="text-xs text-danger-500 mb-2">{invImportError}</p>}
             <div className="border border-default-200 rounded-lg overflow-hidden divide-y divide-default-100 max-h-44 overflow-y-auto">
               {filteredInvoices.length === 0 ? (
-                <p className="text-xs text-default-400 p-2">No invoices available.</p>
+                <p className="text-xs text-default-400 p-2">No invoices available. Use "+ Import PDF" to create one.</p>
               ) : filteredInvoices.map((inv) => (
                 <label key={inv.id} className="flex items-center gap-2 px-3 py-2 hover:bg-default-50 cursor-pointer">
                   <input
