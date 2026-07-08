@@ -639,39 +639,75 @@ function EditDrawer({
           )}
         </div>
 
-        {/* Link to invoice (for credits) */}
+        {/* Link to invoice + doc upload (for credits) */}
         {txn.type === "credit" && (
-          <div>
-            <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-2">
-              Link to Invoice <span className="text-success-600 font-normal">(marks as Paid)</span>
-            </label>
-            <div className="border border-default-200 rounded-lg overflow-hidden divide-y divide-default-100 max-h-44 overflow-y-auto">
-              {filteredInvoices.length === 0 ? (
-                <p className="text-xs text-default-400 p-2">No invoices available. Use "+ Import PDF" to create one.</p>
-              ) : filteredInvoices.map((inv) => (
-                <label key={inv.id} className="flex items-center gap-2 px-3 py-2 hover:bg-default-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={invIds.includes(inv.id)}
-                    onChange={(e) => setInvIds(prev => e.target.checked ? [...prev, inv.id] : prev.filter(id => id !== inv.id))}
-                    className="accent-primary"
-                  />
-                  <span className="text-sm text-foreground flex-1 min-w-0">
-                    <span className="font-medium">{inv.invoice_number}</span>
-                    <span className="text-default-400"> — {inv.client_name} [{inv.status ?? ""}] ({fmt(inv.total)})</span>
-                  </span>
-                  {invIds.includes(inv.id) && (
-                    <button
-                      type="button"
-                      onClick={async (e) => { e.stopPropagation(); const { getAccessToken } = await import("@/lib/auth"); const r = await fetch(`/api/v1/invoices/${inv.id}/pdf`, { headers: { Authorization: `Bearer ${getAccessToken()}` } }); const blob = await r.blob(); window.open(URL.createObjectURL(blob), "_blank"); }}
-                      className="text-xs text-primary hover:underline shrink-0">
-                      View
-                    </button>
-                  )}
-                </label>
-              ))}
+          <>
+            <div>
+              <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-2">
+                Link to Invoice <span className="text-success-600 font-normal">(marks as Paid)</span>
+              </label>
+              <div className="border border-default-200 rounded-lg overflow-hidden divide-y divide-default-100 max-h-44 overflow-y-auto">
+                {filteredInvoices.length === 0 ? (
+                  <p className="text-xs text-default-400 p-2">No invoices available.</p>
+                ) : filteredInvoices.map((inv) => (
+                  <label key={inv.id} className="flex items-center gap-2 px-3 py-2 hover:bg-default-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={invIds.includes(inv.id)}
+                      onChange={(e) => setInvIds(prev => e.target.checked ? [...prev, inv.id] : prev.filter(id => id !== inv.id))}
+                      className="accent-primary"
+                    />
+                    <span className="text-sm text-foreground flex-1 min-w-0">
+                      <span className="font-medium">{inv.invoice_number}</span>
+                      <span className="text-default-400"> — {inv.client_name} [{inv.status ?? ""}] ({fmt(inv.total)})</span>
+                    </span>
+                    {invIds.includes(inv.id) && (
+                      <button
+                        type="button"
+                        onClick={async (e) => { e.stopPropagation(); const { getAccessToken } = await import("@/lib/auth"); const r = await fetch(`/api/v1/invoices/${inv.id}/pdf`, { headers: { Authorization: `Bearer ${getAccessToken()}` } }); const blob = await r.blob(); window.open(URL.createObjectURL(blob), "_blank"); }}
+                        className="text-xs text-primary hover:underline shrink-0">
+                        View
+                      </button>
+                    )}
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
+
+            <div>
+              <label className="text-xs font-medium text-default-500 uppercase tracking-wider block mb-1">
+                Attached Document <span className="text-default-400 font-normal">(invoice / reference)</span>
+              </label>
+              <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleReceiptUpload} />
+              {receiptUrl ? (
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`${STATIC_BASE}${receiptUrl}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 text-sm text-primary font-medium hover:underline truncate"
+                  >
+                    📎 View Document
+                  </a>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploading}
+                    className="text-xs text-default-400 hover:text-default-600 px-2 py-1 border border-default-200 rounded-lg"
+                  >
+                    Replace
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                  className="w-full py-2 border-2 border-dashed border-default-200 rounded-lg text-sm text-default-400 hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+                >
+                  {uploading ? "Uploading…" : "↑ Upload Invoice / Document"}
+                </button>
+              )}
+            </div>
+          </>
         )}
 
         {/* Link to bill + receipt upload (for debits) */}
