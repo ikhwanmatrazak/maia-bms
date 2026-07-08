@@ -800,6 +800,13 @@ export interface ParsedRow {
   note: string | null;
 }
 
+export interface InvoiceDoc {
+  id: number;
+  filename: string;
+  file_url: string;
+  created_at: string;
+}
+
 export interface BankStatement {
   id: number;
   filename: string;
@@ -896,6 +903,17 @@ export const bankApi = {
     api.get<BankStatement[]>(`/bank/accounts/${accountId}/statements`).then((r) => r.data),
   deleteStatement: (accountId: number, statementId: number) =>
     api.delete(`/bank/accounts/${accountId}/statements/${statementId}`).then((r) => r.data),
+  listInvoiceDocs: (accountId: number) =>
+    api.get<InvoiceDoc[]>(`/bank/accounts/${accountId}/invoice-docs`).then((r) => r.data),
+  uploadInvoiceDoc: (accountId: number, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api.post<InvoiceDoc>(`/bank/accounts/${accountId}/invoice-docs`, fd,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    ).then((r) => r.data);
+  },
+  deleteInvoiceDoc: (accountId: number, docId: number) =>
+    api.delete(`/bank/accounts/${accountId}/invoice-docs/${docId}`).then((r) => r.data),
 
   // Transactions
   listTransactions: (accountId: number, params?: {

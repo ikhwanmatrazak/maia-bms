@@ -1167,6 +1167,81 @@ async def delete_statement(
     return {"ok": True}
 
 
+# ── Invoice document storage (reference PDFs) ─────────────────────────────────
+
+@router.get("/accounts/{account_id}/invoice-docs")
+async def list_invoice_docs(
+    account_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tid = _tenant_id(current_user)
+    await _get_account(db, account_id, tid)
+    r = await db.execute(
+        text("SELECT id, filename, file_url, created_at FROM bank_invoice_docs WHERE account_id = :aid ORDER BY created_at DESC"),
+        {"aid": account_id},
+    )
+    return [dict(row) for row in r.mappings().all()]
+
+
+@router.post("/accounts/{account_id}/invoice-docs", status_code=201)
+async def upload_invoice_doc(
+    account_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tid = _tenant_id(current_user)
+    await _get_account(db, account_id, tid)
+
+    content = await file.read()
+    filename = file.filename or "invoice.pdf"
+    upload_dir = os.environ.get("UPLOAD_DIR", "uploads")
+    dest_dir = f"{upload_dir}/invoice_docs"
+    os.makedirs(dest_dir, exist_ok=True)
+    safe_name = f"{account_id}_{secrets.token_hex(6)}_{filename}"
+    with open(f"{dest_dir}/{safe_name}", "wb") as f:
+        f.write(content)
+    file_url = f"/uploads/invoice_docs/{safe_name}"
+
+    r = await db.execute(
+        text("INSERT INTO bank_invoice_docs (account_id, tenant_id, filename, file_url) VALUES (:aid, :tid, :fname, :furl)"),
+        {"aid": account_id, "tid": tid, "fname": filename, "furl": file_url},
+    )
+    await db.commit()
+    doc_id = r.lastrowid
+    return {"id": doc_id, "filename": filename, "file_url": file_url}
+
+
+@router.delete("/accounts/{account_id}/invoice-docs/{doc_id}")
+async def delete_invoice_doc(
+    account_id: int,
+    doc_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tid = _tenant_id(current_user)
+    await _get_account(db, account_id, tid)
+
+    r = await db.execute(
+        text("SELECT file_url FROM bank_invoice_docs WHERE id = :id AND account_id = :aid"),
+        {"id": doc_id, "aid": account_id},
+    )
+    row = r.fetchone()
+    if row:
+        upload_dir = os.environ.get("UPLOAD_DIR", "uploads")
+        try:
+            os.remove(os.path.join(upload_dir, row[0].lstrip("/uploads/")))
+        except OSError:
+            pass
+    await db.execute(
+        text("DELETE FROM bank_invoice_docs WHERE id = :id AND account_id = :aid"),
+        {"id": doc_id, "aid": account_id},
+    )
+    await db.commit()
+    return {"ok": True}
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _parse_cat_groups(ids_str: Optional[str], names_str: Optional[str], colors_str: Optional[str], cost_types_str: Optional[str] = None) -> List[CategoryRef]:

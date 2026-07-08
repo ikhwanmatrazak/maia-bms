@@ -674,6 +674,16 @@ async def _ensure_bank_tables():
         # one-time migration: seed from legacy single invoice_id column
         """INSERT IGNORE INTO bank_transaction_invoices (transaction_id, invoice_id)
            SELECT id, invoice_id FROM bank_transactions WHERE invoice_id IS NOT NULL""",
+        """CREATE TABLE IF NOT EXISTS bank_invoice_docs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            account_id INT NOT NULL,
+            tenant_id INT NULL,
+            filename VARCHAR(500) NOT NULL,
+            file_url VARCHAR(500) NOT NULL,
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            INDEX ix_bank_invoice_docs_account_id (account_id),
+            FOREIGN KEY (account_id) REFERENCES bank_accounts(id) ON DELETE CASCADE
+        )""",
         "ALTER TABLE hr_leave_types ADD COLUMN IF NOT EXISTS applicable_gender VARCHAR(10) NULL DEFAULT NULL",
         "UPDATE hr_leave_types SET applicable_gender = 'female' WHERE LOWER(name) LIKE '%maternity%' AND applicable_gender IS NULL",
         "UPDATE hr_leave_types SET applicable_gender = 'male' WHERE LOWER(name) LIKE '%paternity%' AND applicable_gender IS NULL",
