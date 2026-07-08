@@ -313,7 +313,8 @@ async def upload_invoice_pdf(
         q = q.where(Client.tenant_id == tid)
     client_r = await db.execute(q.limit(1))
     client = client_r.scalar_one_or_none()
-    if not client:
+    client_was_created = client is None
+    if client_was_created:
         client = Client(company_name=client_name, tenant_id=tid, created_by=current_user.id)
         db.add(client)
         await db.flush()
@@ -383,7 +384,7 @@ async def upload_invoice_pdf(
         "client_name": inv.client.company_name if inv.client else client_name,
         "total": float(inv.total),
         "items_count": len(raw_items),
-        "client_created": client_r.scalar_one_or_none() is None,
+        "client_created": client_was_created,
     }
 
 
