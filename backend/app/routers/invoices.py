@@ -175,7 +175,6 @@ def _parse_invoice_pdf(file_bytes: bytes) -> dict:
     if bill_to_m:
         result["client_name"] = bill_to_m.group(1).strip()
     else:
-        # Fallback: look for "To:" at start of a line
         to_m = re.search(r"^To\s*[:\-]\s*([^\n]+)", full_text, re.IGNORECASE | re.MULTILINE)
         if to_m:
             result["client_name"] = to_m.group(1).strip()
@@ -219,14 +218,15 @@ def _parse_invoice_pdf(file_bytes: bytes) -> dict:
     if notes_m:
         result["notes"] = notes_m.group(1).strip()[:500]
 
-    # ── Line items from tables ─────────────────────────────────────────────────
+    # ── Shared skip set ───────────────────────────────────────────────────────
     SKIP_LABELS = {
         "total", "subtotal", "sub-total", "grand total", "amount due",
         "tax", "gst", "sst", "vat", "discount", "balance due", "no", "#",
         "item", "description", "qty", "quantity", "unit price", "amount",
-        "rate", "price",
+        "rate", "price", "unit (rm)", "amount (rm)",
     }
 
+    # ── Table extraction ──────────────────────────────────────────────────────
     for table in tables:
         if not table or len(table) < 2:
             continue
@@ -236,18 +236,21 @@ def _parse_invoice_pdf(file_bytes: bytes) -> dict:
             (i for i, h in enumerate(headers) if any(k in h for k in ("desc", "item", "particular", "service", "product", "detail"))),
             None,
         )
-        qty_col = next((i for i, h in enumerate(headers) if h in ("qty", "quantity")), None)
+        qty_col = next((i for i, h in enumerate(headers) if re.match(r"^qty$|^quantity$", h)), None)
+        # price_col: "unit (rm)" contains "unit" — exclude "amount" to avoid overlap
         price_col = next(
-            (i for i, h in enumerate(headers) if any(k in h for k in ("unit price", "rate", "unit", "price/unit"))),
+            (i for i, h in enumerate(headers) if any(k in h for k in ("unit price", "unit", "rate", "price/unit")) and "amount" not in h),
             None,
         )
         amount_col = next(
-            (i for i, h in enumerate(headers) if any(k in h for k in ("amount", "total", "subtotal"))),
+            (i for i, h in enumerate(headers) if "amount" in h and i != price_col),
             None,
         )
 
         if desc_col is None:
             continue
+
+        pending_section = ""  # accumulate section-header rows (description-only, no price)
 
         for row in table[1:]:
             if not row or len(row) <= desc_col:
@@ -256,39 +259,106 @@ def _parse_invoice_pdf(file_bytes: bytes) -> dict:
             if not desc or desc.lower() in SKIP_LABELS:
                 continue
 
-            qty = 1.0
-            unit_price = 0.0
+            # Determine whether this row has numeric pricing values
+            def _cell(col):
+                return row[col] if col is not None and col < len(row) else None
 
-            if qty_col is not None and qty_col < len(row) and row[qty_col]:
-                qty = _clean_amount(row[qty_col]) or 1.0
+            raw_qty    = _clean_amount(_cell(qty_col))
+            raw_price  = _clean_amount(_cell(price_col))
+            raw_amount = _clean_amount(_cell(amount_col))
 
-            if price_col is not None and price_col < len(row) and row[price_col]:
-                unit_price = _clean_amount(row[price_col]) or 0.0
-            elif amount_col is not None and amount_col < len(row) and row[amount_col]:
-                amt = _clean_amount(row[amount_col]) or 0.0
-                unit_price = amt / qty if qty else amt
+            is_priced = raw_price is not None or raw_amount is not None
+
+            if not is_priced:
+                # Section header row — save description for prefixing next item
+                # Strip bullet characters pdfplumber may include in multi-line cells
+                clean = re.sub(r"[•\-\*]\s*", "", desc).strip()
+                pending_section = clean
+                continue
+
+            qty = raw_qty or 1.0
+            if raw_price is not None:
+                unit_price = raw_price
+            elif raw_amount is not None:
+                unit_price = raw_amount / qty if qty else raw_amount
+            else:
+                unit_price = 0.0
+
+            # Combine section header with description (e.g. "ALI.AI License — 8K Sessions")
+            full_desc = f"{pending_section} — {desc}" if pending_section else desc
+            pending_section = ""
 
             result["items"].append({
-                "description": desc,
+                "description": full_desc,
                 "quantity": round(qty, 4),
                 "unit_price": round(unit_price, 2),
             })
 
-    # ── Fallback: single-item from total amount in text ───────────────────────
-    if not result["items"]:
-        total_m = re.search(
-            r"(?:Grand\s+Total|Amount\s+Due|Total\s+Due|TOTAL)\s*[:\-]?\s*(?:MYR|RM|USD|SGD)?\s*([\d,]+\.?\d*)",
-            full_text, re.IGNORECASE,
-        )
-        if total_m:
-            amt = _clean_amount(total_m.group(1)) or 0.0
+        # If we only had a section header and no priced rows, add it as a 0-price item
+        if pending_section and not result["items"]:
             result["items"].append({
-                "description": "Service (imported from PDF — please edit)",
+                "description": pending_section,
                 "quantity": 1.0,
-                "unit_price": amt,
+                "unit_price": 0.0,
             })
 
+    # ── Text-based fallback: lines starting with QTY DESCRIPTION UNIT AMOUNT ──
+    if not result["items"]:
+        for line in full_text.splitlines():
+            line = line.strip()
+            # Match: number  description text  number  number
+            m = re.match(r"^(\d+(?:\.\d+)?)\s+(.+?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s*$", line)
+            if m:
+                desc = m.group(2).strip()
+                if desc.lower() in SKIP_LABELS:
+                    continue
+                qty = float(m.group(1))
+                unit_price = _clean_amount(m.group(3)) or 0.0
+                result["items"].append({
+                    "description": desc,
+                    "quantity": qty,
+                    "unit_price": unit_price,
+                })
+
+    # ── Last-resort: extract total amount and create single item ──────────────
+    if not result["items"]:
+        for pattern in [
+            r"Amount\s+[Dd]ue\s*\n?\s*(?:MYR|RM|USD|SGD)?\s*([\d,]+\.\d{2})",
+            r"Grand\s+Total\s*[:\-]?\s*\n?\s*(?:MYR|RM|USD|SGD)?\s*([\d,]+\.\d{2})",
+            r"Total\s+[Dd]ue\s*[:\-]?\s*\n?\s*(?:MYR|RM|USD|SGD)?\s*([\d,]+\.\d{2})",
+            r"(?:MYR|RM)\s*([\d,]+\.\d{2})\s*$",
+        ]:
+            m = re.search(pattern, full_text, re.IGNORECASE | re.MULTILINE)
+            if m:
+                amt = _clean_amount(m.group(1)) or 0.0
+                if amt > 0:
+                    result["items"].append({
+                        "description": "Service (imported from PDF — please edit)",
+                        "quantity": 1.0,
+                        "unit_price": amt,
+                    })
+                    break
+
     return result
+
+
+@router.post("/debug-pdf")
+async def debug_invoice_pdf(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Return raw pdfplumber extraction + parsed result for debugging."""
+    content = await file.read()
+    full_text = ""
+    tables: list = []
+    with pdfplumber.open(io.BytesIO(content)) as pdf:
+        for page in pdf.pages:
+            full_text += (page.extract_text() or "") + "\n"
+            for tbl in (page.extract_tables() or []):
+                if tbl:
+                    tables.append(tbl)
+    parsed = _parse_invoice_pdf(content)
+    return {"text": full_text[:4000], "tables": tables[:5], "parsed": parsed}
 
 
 @router.post("/upload-pdf", status_code=status.HTTP_201_CREATED)
