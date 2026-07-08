@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
@@ -7,7 +7,9 @@ from typing import List, Optional
 from decimal import Decimal
 from pydantic import BaseModel
 import io
-from datetime import datetime, timezone
+import re
+import pdfplumber
+from datetime import datetime, timezone, date as date_type
 
 from app.database import get_db
 from app.models.client import Client
@@ -93,6 +95,296 @@ async def _generate_invoice_number(db: AsyncSession, tenant_id=None) -> str:
     count_result = await db.execute(select(func.count(Invoice.id)))
     count = (count_result.scalar() or 0) + 1
     return f"{prefix}-{year}-{count:04d}"
+
+
+def _parse_inv_date(raw: Optional[str]) -> Optional[datetime]:
+    """Try to parse a date string from an invoice PDF into a datetime."""
+    if not raw:
+        return None
+    raw = raw.strip()
+    formats = [
+        "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y",
+        "%Y-%m-%d", "%Y/%m/%d",
+        "%d %B %Y", "%d %b %Y",
+        "%B %d, %Y", "%b %d, %Y",
+        "%d/%m/%y", "%d-%m-%y",
+    ]
+    for fmt in formats:
+        try:
+            return datetime.strptime(raw, fmt).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    # Try extracting digits as a last resort
+    digits = re.sub(r"[^\d]", " ", raw).split()
+    if len(digits) == 3:
+        d, m, y = digits
+        if len(y) == 2:
+            y = "20" + y
+        try:
+            return datetime(int(y), int(m), int(d), tzinfo=timezone.utc)
+        except Exception:
+            pass
+    return None
+
+
+def _clean_amount(s: str) -> Optional[float]:
+    """Strip currency symbols and commas, return float."""
+    if not s:
+        return None
+    cleaned = re.sub(r"[^\d\.\-]", "", str(s).replace(",", ""))
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _parse_invoice_pdf(file_bytes: bytes) -> dict:
+    """Extract invoice fields from PDF using pdfplumber."""
+    full_text = ""
+    tables: list = []
+
+    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        for page in pdf.pages:
+            full_text += (page.extract_text() or "") + "\n"
+            for tbl in (page.extract_tables() or []):
+                if tbl:
+                    tables.append(tbl)
+
+    result: dict = {
+        "client_name": None,
+        "original_invoice_number": None,
+        "issue_date": None,
+        "due_date": None,
+        "currency": "MYR",
+        "items": [],
+        "notes": None,
+        "discount_amount": 0.0,
+    }
+
+    # ── Currency ──────────────────────────────────────────────────────────────
+    if re.search(r"\bUSD\b", full_text):
+        result["currency"] = "USD"
+    elif re.search(r"\bSGD\b", full_text):
+        result["currency"] = "SGD"
+
+    # ── Client name (Bill To / To / Kepada) ──────────────────────────────────
+    bill_to_m = re.search(
+        r"(?:Bill\s+To|Billed\s+To|Kepada|BILL\s+TO)\s*[:\-]?\s*\n([^\n]+)",
+        full_text, re.IGNORECASE,
+    )
+    if bill_to_m:
+        result["client_name"] = bill_to_m.group(1).strip()
+    else:
+        # Fallback: look for "To:" at start of a line
+        to_m = re.search(r"^To\s*[:\-]\s*([^\n]+)", full_text, re.IGNORECASE | re.MULTILINE)
+        if to_m:
+            result["client_name"] = to_m.group(1).strip()
+
+    # ── Original invoice number ────────────────────────────────────────────────
+    inv_m = re.search(
+        r"(?:Invoice\s*(?:No\.?|No|#|Number|Num)?|Inv\.?\s*(?:No\.?|#)?)\s*[:\-]?\s*([A-Z0-9][\w\-\/]+)",
+        full_text, re.IGNORECASE,
+    )
+    if inv_m:
+        result["original_invoice_number"] = inv_m.group(1).strip()
+
+    # ── Dates ─────────────────────────────────────────────────────────────────
+    date_pattern = r"(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}|\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}|\d{1,2}\s+\w+\s+\d{4})"
+    issue_m = re.search(
+        rf"(?:Invoice\s+Date|Date\s+of\s+Invoice|Issue\s+Date|Date)\s*[:\-]?\s*{date_pattern}",
+        full_text, re.IGNORECASE,
+    )
+    if issue_m:
+        result["issue_date"] = issue_m.group(1)
+    due_m = re.search(
+        rf"(?:Due\s+Date|Payment\s+Due|Pay\s+By|Tarikh\s+Bayaran)\s*[:\-]?\s*{date_pattern}",
+        full_text, re.IGNORECASE,
+    )
+    if due_m:
+        result["due_date"] = due_m.group(1)
+
+    # ── Discount ──────────────────────────────────────────────────────────────
+    disc_m = re.search(
+        r"Discount\s*[:\-]?\s*(?:MYR|RM|USD|SGD)?\s*([\d,]+\.?\d*)",
+        full_text, re.IGNORECASE,
+    )
+    if disc_m:
+        result["discount_amount"] = _clean_amount(disc_m.group(1)) or 0.0
+
+    # ── Notes ─────────────────────────────────────────────────────────────────
+    notes_m = re.search(
+        r"(?:Notes?|Remarks?|Additional\s+Info)\s*[:\-]?\s*\n(.+?)(?:\n\n|\Z)",
+        full_text, re.IGNORECASE | re.DOTALL,
+    )
+    if notes_m:
+        result["notes"] = notes_m.group(1).strip()[:500]
+
+    # ── Line items from tables ─────────────────────────────────────────────────
+    SKIP_LABELS = {
+        "total", "subtotal", "sub-total", "grand total", "amount due",
+        "tax", "gst", "sst", "vat", "discount", "balance due", "no", "#",
+        "item", "description", "qty", "quantity", "unit price", "amount",
+        "rate", "price",
+    }
+
+    for table in tables:
+        if not table or len(table) < 2:
+            continue
+        headers = [str(h or "").lower().strip() for h in table[0]]
+
+        desc_col = next(
+            (i for i, h in enumerate(headers) if any(k in h for k in ("desc", "item", "particular", "service", "product", "detail"))),
+            None,
+        )
+        qty_col = next((i for i, h in enumerate(headers) if h in ("qty", "quantity")), None)
+        price_col = next(
+            (i for i, h in enumerate(headers) if any(k in h for k in ("unit price", "rate", "unit", "price/unit"))),
+            None,
+        )
+        amount_col = next(
+            (i for i, h in enumerate(headers) if any(k in h for k in ("amount", "total", "subtotal"))),
+            None,
+        )
+
+        if desc_col is None:
+            continue
+
+        for row in table[1:]:
+            if not row or len(row) <= desc_col:
+                continue
+            desc = str(row[desc_col] or "").strip()
+            if not desc or desc.lower() in SKIP_LABELS:
+                continue
+
+            qty = 1.0
+            unit_price = 0.0
+
+            if qty_col is not None and qty_col < len(row) and row[qty_col]:
+                qty = _clean_amount(row[qty_col]) or 1.0
+
+            if price_col is not None and price_col < len(row) and row[price_col]:
+                unit_price = _clean_amount(row[price_col]) or 0.0
+            elif amount_col is not None and amount_col < len(row) and row[amount_col]:
+                amt = _clean_amount(row[amount_col]) or 0.0
+                unit_price = amt / qty if qty else amt
+
+            result["items"].append({
+                "description": desc,
+                "quantity": round(qty, 4),
+                "unit_price": round(unit_price, 2),
+            })
+
+    # ── Fallback: single-item from total amount in text ───────────────────────
+    if not result["items"]:
+        total_m = re.search(
+            r"(?:Grand\s+Total|Amount\s+Due|Total\s+Due|TOTAL)\s*[:\-]?\s*(?:MYR|RM|USD|SGD)?\s*([\d,]+\.?\d*)",
+            full_text, re.IGNORECASE,
+        )
+        if total_m:
+            amt = _clean_amount(total_m.group(1)) or 0.0
+            result["items"].append({
+                "description": "Service (imported from PDF — please edit)",
+                "quantity": 1.0,
+                "unit_price": amt,
+            })
+
+    return result
+
+
+@router.post("/upload-pdf", status_code=status.HTTP_201_CREATED)
+async def upload_invoice_pdf(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Parse an invoice PDF and create a draft invoice in the system."""
+    content = await file.read()
+    try:
+        parsed = _parse_invoice_pdf(content)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Could not parse PDF: {e}")
+
+    tid = current_user.tenant_id
+
+    # ── Find or create client ─────────────────────────────────────────────────
+    client_name = (parsed.get("client_name") or "").strip() or "Unknown Client"
+    q = select(Client).where(Client.company_name.ilike(f"%{client_name}%"))
+    if tid is not None:
+        q = q.where(Client.tenant_id == tid)
+    client_r = await db.execute(q.limit(1))
+    client = client_r.scalar_one_or_none()
+    if not client:
+        client = Client(company_name=client_name, tenant_id=tid, created_by=current_user.id)
+        db.add(client)
+        await db.flush()
+
+    # ── Dates ─────────────────────────────────────────────────────────────────
+    issue_dt = _parse_inv_date(parsed.get("issue_date")) or datetime.now(timezone.utc)
+    due_dt = _parse_inv_date(parsed.get("due_date"))
+
+    # ── Notes — preserve original invoice number ───────────────────────────────
+    note_parts = []
+    if parsed.get("original_invoice_number"):
+        note_parts.append(f"Original Ref: {parsed['original_invoice_number']}")
+    if parsed.get("notes"):
+        note_parts.append(parsed["notes"])
+    notes_str = "\n".join(note_parts) or None
+
+    # ── Create invoice ────────────────────────────────────────────────────────
+    number = await _generate_invoice_number(db, tid)
+    invoice = Invoice(
+        invoice_number=number,
+        client_id=client.id,
+        currency=parsed.get("currency", "MYR"),
+        exchange_rate=Decimal("1.0"),
+        issue_date=issue_dt,
+        due_date=due_dt,
+        discount_amount=Decimal(str(parsed.get("discount_amount", 0))),
+        notes=notes_str,
+        created_by=current_user.id,
+        tenant_id=tid,
+    )
+    db.add(invoice)
+    await db.flush()
+
+    # ── Line items ────────────────────────────────────────────────────────────
+    raw_items = parsed.get("items") or [{"description": "Service (imported from PDF)", "quantity": 1.0, "unit_price": 0.0}]
+    items_data = []
+    for i, item in enumerate(raw_items):
+        qty = Decimal(str(item.get("quantity", 1) or 1))
+        price = Decimal(str(item.get("unit_price", 0) or 0))
+        calcs = calculate_line_total(qty, price, None)
+        items_data.append({"subtotal": calcs["subtotal"], "tax_amount": calcs["tax_amount"]})
+        db.add(InvoiceItem(
+            invoice_id=invoice.id,
+            description=item.get("description", "Service"),
+            quantity=qty,
+            unit_price=price,
+            tax_amount=calcs["tax_amount"],
+            line_total=calcs["line_total"],
+            sort_order=i,
+        ))
+
+    totals = calculate_document_totals(items_data, Decimal(str(parsed.get("discount_amount", 0))))
+    invoice.subtotal = totals["subtotal"]
+    invoice.tax_total = totals["tax_total"]
+    invoice.total = totals["total"]
+    invoice.balance_due = totals["total"]
+
+    await db.commit()
+
+    inv_r = await db.execute(
+        select(Invoice).options(selectinload(Invoice.client)).where(Invoice.id == invoice.id)
+    )
+    inv = inv_r.scalar_one()
+    return {
+        "invoice_id": inv.id,
+        "invoice_number": inv.invoice_number,
+        "client_name": inv.client.company_name if inv.client else client_name,
+        "total": float(inv.total),
+        "items_count": len(raw_items),
+        "client_created": client_r.scalar_one_or_none() is None,
+    }
 
 
 @router.get("", response_model=List[InvoiceResponse])

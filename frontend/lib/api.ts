@@ -206,6 +206,14 @@ export const invoicesApi = {
   getPdfUrl: (id: number, style?: string) => `${API_URL}/invoices/${id}/pdf${style ? `?style=${style}` : ""}`,
   summary: (month?: string) => api.get("/invoices/summary", { params: month ? { month } : {} }).then((r) => r.data),
   getEmailTracking: (id: number) => api.get(`/invoices/${id}/email-tracking`).then((r) => r.data),
+  uploadPdf: (file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api.post<{ invoice_id: number; invoice_number: string; client_name: string; total: number; items_count: number }>(
+      "/invoices/upload-pdf", fd,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    ).then((r) => r.data);
+  },
   createPaymentLink: (id: number) => api.post(`/gateway/billplz/bill/${id}`).then((r) => r.data),
 };
 

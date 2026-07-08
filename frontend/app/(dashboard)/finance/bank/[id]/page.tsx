@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import {
-  bankApi, BankTransaction, BankStatement, TxnCategory, ParsedRow,
+  bankApi, invoicesApi, BankTransaction, BankStatement, TxnCategory, ParsedRow,
   UnpaidInvoice, UnpaidBill, downloadPdf, downloadFile,
 } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
@@ -156,6 +156,105 @@ function ReceiptUploadCell({ txn }: { txn: BankTransaction }) {
 }
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+// ── Import Invoice PDF modal ──────────────────────────────────────────────────
+
+function ImportInvoiceModal({ onClose }: { onClose: () => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<{ invoice_id: number; invoice_number: string; client_name: string; total: number; items_count: number } | null>(null);
+
+  const handleUpload = async () => {
+    if (!file) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await invoicesApi.uploadPdf(file);
+      setResult(res);
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || "Failed to parse PDF. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-foreground">Import Invoice PDF</h2>
+          <button onClick={onClose} className="text-default-400 hover:text-default-600 text-xl leading-none">&times;</button>
+        </div>
+
+        {!result ? (
+          <>
+            <p className="text-xs text-default-400">Upload an invoice PDF to automatically create a draft invoice in the system. Client will be created if not found.</p>
+
+            <div
+              className="border-2 border-dashed border-default-200 rounded-xl p-6 text-center cursor-pointer hover:border-primary transition-colors"
+              onClick={() => fileRef.current?.click()}
+            >
+              {file ? (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">{file.name}</p>
+                  <p className="text-xs text-default-400">{(file.size / 1024).toFixed(1)} KB</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <svg className="w-8 h-8 text-default-300 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-sm text-default-500">Click to select invoice PDF</p>
+                </div>
+              )}
+            </div>
+            <input ref={fileRef} type="file" accept=".pdf" className="hidden"
+              onChange={(e) => { setFile(e.target.files?.[0] ?? null); setError(""); }} />
+
+            {error && <p className="text-xs text-danger-500 bg-danger-50 rounded-lg p-2">{error}</p>}
+
+            <div className="flex gap-2">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-default-200 text-sm font-medium text-default-600">Cancel</button>
+              <button
+                onClick={handleUpload}
+                disabled={!file || loading}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+              >
+                {loading ? <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : "Import & Create Draft"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-success-50 border border-success-200 rounded-xl p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-success-600 text-lg">✓</span>
+                <p className="text-sm font-semibold text-success-700">Invoice Created as Draft</p>
+              </div>
+              <div className="text-xs space-y-1 text-default-600">
+                <p><span className="text-default-400">Invoice No:</span> <span className="font-medium">{result.invoice_number}</span></p>
+                <p><span className="text-default-400">Client:</span> <span className="font-medium">{result.client_name}</span></p>
+                <p><span className="text-default-400">Total:</span> <span className="font-medium">MYR {result.total.toLocaleString("en-MY", { minimumFractionDigits: 2 })}</span></p>
+                <p><span className="text-default-400">Line Items:</span> <span className="font-medium">{result.items_count}</span></p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-default-200 text-sm font-medium">Close</button>
+              <a
+                href={`/invoices/${result.invoice_id}`}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium text-center hover:bg-primary/90"
+              >
+                View Invoice
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Upload modal ──────────────────────────────────────────────────────────────
 
@@ -879,6 +978,7 @@ export default function BankDetailPage() {
 
   const [showUpload, setShowUpload] = useState(false);
   const [showAddTxn, setShowAddTxn] = useState(false);
+  const [showImportInv, setShowImportInv] = useState(false);
   const [editingTxn, setEditingTxn] = useState<BankTransaction | null>(null);
   const [drawerTxn, setDrawerTxn] = useState<BankTransaction | null>(null);
   const [showCats, setShowCats] = useState(false);
@@ -1008,6 +1108,10 @@ export default function BankDetailPage() {
           <button onClick={() => setShowAddTxn(true)}
             className="px-3 py-1.5 rounded-xl border border-default-200 text-xs font-medium text-default-600 hover:bg-default-50">
             + Add Manual
+          </button>
+          <button onClick={() => setShowImportInv(true)}
+            className="px-3 py-1.5 rounded-xl border border-default-200 text-xs font-medium text-default-600 hover:bg-default-50">
+            Import Invoice PDF
           </button>
           <button onClick={() => setShowUpload(true)}
             className="px-4 py-1.5 rounded-xl bg-primary text-white text-xs font-medium hover:bg-primary/90">
@@ -1410,6 +1514,7 @@ export default function BankDetailPage() {
       )}
 
       {/* Modals */}
+      {showImportInv && <ImportInvoiceModal onClose={() => setShowImportInv(false)} />}
       {showUpload && <UploadModal accountId={accountId} onClose={() => setShowUpload(false)} />}
       {showAddTxn && (
         <TxnModal accountId={accountId} editing={null} categories={categories} onClose={() => setShowAddTxn(false)} />
