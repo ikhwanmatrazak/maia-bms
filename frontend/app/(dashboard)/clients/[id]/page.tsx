@@ -675,7 +675,11 @@ export default function ClientDetailPage() {
           <ModalFooter>
             <Button variant="flat" onPress={() => setEditModal(false)}>Cancel</Button>
             <Button color="primary" isLoading={updateMutation.isPending}
-              onPress={() => updateMutation.mutate(editForm)}>Save Changes</Button>
+              onPress={() => {
+                const payload = { ...editForm } as any;
+                if (!payload.pic_employee_id) payload.pic_employee_id = null;
+                updateMutation.mutate(payload);
+              }}>Save Changes</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
