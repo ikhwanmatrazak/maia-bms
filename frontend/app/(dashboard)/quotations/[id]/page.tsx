@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardBody, CardHeader, Button, Chip, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input } from "@heroui/react";
 import { quotationsApi, settingsApi, downloadPdf } from "@/lib/api";
 import { formatDate, formatCurrency, statusColor } from "@/lib/utils";
+import { getUser } from "@/lib/auth";
 import { Topbar } from "@/components/ui/Topbar";
 import { DetailSkeleton } from "@/components/ui/PageSkeleton";
 
@@ -13,6 +14,7 @@ export default function QuotationDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = Number(params.id);
+  const isSuperAdmin = getUser()?.is_super_admin === true;
   const queryClient = useQueryClient();
   const [emailModal, setEmailModal] = useState(false);
   const [emailTo, setEmailTo] = useState("");
@@ -85,6 +87,11 @@ export default function QuotationDetailPage() {
             <Button size="sm" variant="flat" onPress={() => router.push(`/quotations/new?from=${id}`)}>
               Duplicate
             </Button>
+            {isSuperAdmin && (
+              <Button size="sm" color="warning" variant="flat" onPress={() => router.push(`/quotations/new?edit=${id}`)}>
+                Edit Quotation
+              </Button>
+            )}
             <Button size="sm" variant="flat" onPress={() => { setTemplateName(q.quotation_number); setTemplateSaved(false); setTemplateModal(true); }}>
               Save as Template
             </Button>

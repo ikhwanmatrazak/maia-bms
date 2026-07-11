@@ -25,6 +25,9 @@ function NewQuotationForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fromId = searchParams.get("from");
+  const editId = searchParams.get("edit");   // super-admin edit mode
+  const sourceId = editId || fromId;
+  const isEdit = !!editId;
 
   const { data: clients = [] } = useQuery<Client[]>({ queryKey: ["clients"], queryFn: () => clientsApi.list() });
   const { data: taxRates = [] } = useQuery<TaxRate[]>({ queryKey: ["tax-rates"], queryFn: settingsApi.getTaxRates });
@@ -32,9 +35,9 @@ function NewQuotationForm() {
   const { data: companySettings } = useQuery<CompanySettings>({ queryKey: ["settings", "company"], queryFn: settingsApi.getCompany });
 
   const { data: sourceDoc } = useQuery({
-    queryKey: ["quotation", fromId],
-    queryFn: () => quotationsApi.get(Number(fromId)),
-    enabled: !!fromId,
+    queryKey: ["quotation", sourceId],
+    queryFn: () => quotationsApi.get(Number(sourceId)),
+    enabled: !!sourceId,
   });
 
   const quotationTemplates = templates.filter((t) => t.type === "quotation");
@@ -94,7 +97,7 @@ function NewQuotationForm() {
   }, [companySettings]);
 
   useEffect(() => {
-    if (!defaultApplied.current && defaultTemplate && !fromId) {
+    if (!defaultApplied.current && defaultTemplate && !sourceId) {
       defaultApplied.current = true;
       setValue("template_id", String(defaultTemplate.id));
       if (defaultTemplate.items.length > 0) {
@@ -118,7 +121,7 @@ function NewQuotationForm() {
   }, [defaultTemplate]);
 
   useEffect(() => {
-    if (!sourceDoc || !fromId) return;
+    if (!sourceDoc || !sourceId) return;
     setValue("client_id", String(sourceDoc.client_id));
     setValue("currency", sourceDoc.currency);
     setValue("exchange_rate", String(sourceDoc.exchange_rate || "1"));
@@ -126,6 +129,13 @@ function NewQuotationForm() {
     setValue("notes", sourceDoc.notes || "");
     setValue("terms_conditions", sourceDoc.terms_conditions || "");
     setValue("payment_terms", sourceDoc.payment_terms || "");
+    setValue("subject", sourceDoc.subject || "");
+    if (sourceDoc.template_id) setValue("template_id", String(sourceDoc.template_id));
+    // For edit mode, preserve original dates; for duplicate, keep today
+    if (isEdit) {
+      if (sourceDoc.issue_date) setValue("issue_date", sourceDoc.issue_date.split("T")[0]);
+      if (sourceDoc.expiry_date) setValue("expiry_date", sourceDoc.expiry_date.split("T")[0]);
+    }
     setValue("items", sourceDoc.items.map((i: any) => {
       const lines = (i.description as string).split("\n");
       return {
@@ -138,10 +148,17 @@ function NewQuotationForm() {
     }));
   }, [sourceDoc]);
 
-  const mutation = useMutation({
+  const createMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => quotationsApi.create(data),
     onSuccess: (result) => router.push(`/quotations/${result.id}`),
   });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: Record<string, unknown>) => quotationsApi.update(Number(editId), data),
+    onSuccess: () => router.push(`/quotations/${editId}`),
+  });
+
+  const mutation = isEdit ? updateMutation : createMutation;
 
   const onSubmit = (data: Record<string, unknown>) => {
     mutation.mutate({
@@ -167,10 +184,19 @@ function NewQuotationForm() {
     });
   };
 
+  const pageTitle = isEdit
+    ? `Edit Quotation${sourceDoc ? " — " + sourceDoc.quotation_number : ""}`
+    : fromId ? "Duplicate Quotation" : "New Quotation";
+
   return (
     <div>
-      <Topbar title={fromId ? "Duplicate Quotation" : "New Quotation"} />
+      <Topbar title={pageTitle} />
       <div className="p-6">
+        {isEdit && (
+          <div className="mb-4 px-4 py-2.5 bg-warning-50 border border-warning-200 rounded-xl text-sm text-warning-700 font-medium">
+            ⚠ Super Admin Edit Mode — changes will overwrite this quotation directly.
+          </div>
+        )}
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-6">
             <Card>
@@ -232,9 +258,9 @@ function NewQuotationForm() {
               </CardBody>
             </Card>
 
-            {mutation.isError && <p className="text-danger text-sm">Failed to create quotation.</p>}
+            {mutation.isError && <p className="text-danger text-sm">{isEdit ? "Failed to update quotation." : "Failed to create quotation."}</p>}
             <div className="flex gap-3">
-              <Button type="submit" color="primary" isLoading={mutation.isPending}>Create Quotation</Button>
+              <Button type="submit" color="primary" isLoading={mutation.isPending}>{isEdit ? "Save Changes" : "Create Quotation"}</Button>
               <Button variant="flat" onPress={() => router.back()}>Cancel</Button>
             </div>
           </div>
