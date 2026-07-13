@@ -204,7 +204,8 @@ export const invoicesApi = {
   generateReceipt: (id: number) => api.post(`/invoices/${id}/generate-receipt`).then((r) => r.data),
   getPayments: (id: number) => api.get(`/invoices/${id}/payments`).then((r) => r.data),
   getPdfUrl: (id: number, style?: string) => `${API_URL}/invoices/${id}/pdf${style ? `?style=${style}` : ""}`,
-  summary: (month?: string) => api.get("/invoices/summary", { params: month ? { month } : {} }).then((r) => r.data),
+  summary: (params?: { month?: string; date_from?: string; date_to?: string; status?: string; search?: string }) =>
+    api.get("/invoices/summary", { params: params ?? {} }).then((r) => r.data),
   getEmailTracking: (id: number) => api.get(`/invoices/${id}/email-tracking`).then((r) => r.data),
   uploadPdf: (file: File) => {
     const fd = new FormData();

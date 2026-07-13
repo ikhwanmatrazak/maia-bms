@@ -464,6 +464,8 @@ async def list_invoices(
     client_id: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
     month: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
     user_id: Optional[int] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
@@ -477,7 +479,14 @@ async def list_invoices(
         query = query.where(Invoice.created_by == current_user.id)
     elif user_id:
         query = query.where(Invoice.created_by == user_id)
-    if month:
+    if date_from or date_to:
+        if date_from:
+            from_dt = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            query = query.where(Invoice.issue_date >= from_dt)
+        if date_to:
+            to_dt = datetime.strptime(date_to, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+            query = query.where(Invoice.issue_date <= to_dt)
+    elif month:
         start, end = _month_range_inv(month)
         query = query.where(Invoice.issue_date >= start, Invoice.issue_date < end)
     if status:
@@ -572,12 +581,33 @@ def _month_range_inv(month):
 @router.get("/summary")
 async def invoices_summary_route(
     month: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    start, end = _month_range_inv(month)
-    q = select(Invoice).where(Invoice.issue_date >= start, Invoice.issue_date < end, Invoice.is_deleted != True)
+    q = select(Invoice).where(Invoice.is_deleted != True)
     q = apply_tenant_filter(q, Invoice, current_user)
+    if date_from or date_to:
+        if date_from:
+            from_dt = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            q = q.where(Invoice.issue_date >= from_dt)
+        if date_to:
+            to_dt = datetime.strptime(date_to, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
+            q = q.where(Invoice.issue_date <= to_dt)
+    elif month:
+        start, end = _month_range_inv(month)
+        q = q.where(Invoice.issue_date >= start, Invoice.issue_date < end)
+    if status:
+        q = q.where(Invoice.status == status)
+    if search:
+        client_ids_sq = select(Client.id).where(Client.company_name.ilike(f"%{search}%")).scalar_subquery()
+        q = q.where(
+            Invoice.invoice_number.ilike(f"%{search}%") |
+            Invoice.client_id.in_(client_ids_sq)
+        )
     result = await db.execute(q)
     rows = result.scalars().all()
     by_status = {}

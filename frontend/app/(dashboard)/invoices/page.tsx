@@ -18,7 +18,6 @@ import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
 const STATUSES: InvoiceStatus[] = ["draft", "sent", "partial", "paid", "overdue", "cancelled"];
 const PAGE_SIZE = 10;
-const thisMonth = new Date().toISOString().slice(0, 7);
 
 interface BulkResult {
   invoice_number: string;
@@ -32,7 +31,8 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "">("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [month, setMonth] = useState(thisMonth);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkModal, setBulkModal] = useState(false);
   const [bulkResults, setBulkResults] = useState<BulkResult[]>([]);
@@ -41,21 +41,32 @@ export default function InvoicesPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const dateParams = {
+    ...(dateFrom ? { date_from: dateFrom } : {}),
+    ...(dateTo ? { date_to: dateTo } : {}),
+  };
+
   const { data: summary } = useQuery({
-    queryKey: ["invoices-summary", month],
-    queryFn: () => invoicesApi.summary(month),
+    queryKey: ["invoices-summary", dateFrom, dateTo, statusFilter, search],
+    queryFn: () => invoicesApi.summary({
+      ...dateParams,
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(search ? { search } : {}),
+    }),
   });
 
   const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
-    queryKey: ["invoices", statusFilter, search, page, month],
+    queryKey: ["invoices", statusFilter, search, page, dateFrom, dateTo],
     queryFn: () => invoicesApi.list({
       ...(statusFilter ? { status: statusFilter } : {}),
       ...(search ? { search } : {}),
-      month,
+      ...dateParams,
       skip: (page - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
     }),
   });
+
+  const totalPages = Math.max(1, Math.ceil((summary?.count ?? 0) / PAGE_SIZE));
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -146,53 +157,20 @@ export default function InvoicesPage() {
     <div>
       <Topbar title="Invoices" />
       <div className="p-6">
-        {/* Summary Bar */}
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
-          <Input
-            type="month"
-            size="sm"
-            className="w-40"
-            variant="bordered"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-          />
-          {summary && (
-            <>
-              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-default-100 text-sm">
-                <span className="text-default-500">Billed</span>
-                <span className="font-semibold ml-1">{formatCurrency(summary.total_billed, "MYR")}</span>
-              </div>
-              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-success-50 text-sm">
-                <span className="text-success-600">Paid</span>
-                <span className="font-semibold ml-1 text-success-700">{formatCurrency(summary.total_paid, "MYR")}</span>
-              </div>
-              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-warning-50 text-sm">
-                <span className="text-warning-600">Outstanding</span>
-                <span className="font-semibold ml-1 text-warning-700">{formatCurrency(summary.total_outstanding, "MYR")}</span>
-              </div>
-              <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-default-100 text-sm">
-                <span className="text-default-500">{summary.count} invoices</span>
-              </div>
-              {summary.by_status && Object.entries(summary.by_status).filter(([, v]) => (v as number) > 0).map(([s, v]) => (
-                <Chip key={s} size="sm" color={statusColor(s)} variant="flat" className="capitalize">{s}: {v as number}</Chip>
-              ))}
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+        {/* Filter bar */}
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
           <div className="flex gap-2 flex-wrap items-center">
             <Input
               placeholder="Search by number or client..."
               size="sm"
-              className="w-56"
+              className="w-52"
               variant="bordered"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             />
             <Select
-              placeholder="Filter by status"
-              className="w-44"
+              placeholder="All statuses"
+              className="w-40"
               size="sm"
               selectedKeys={statusFilter ? [statusFilter] : []}
               onSelectionChange={(keys) => { setStatusFilter(Array.from(keys)[0] as InvoiceStatus | ""); setPage(1); }}
@@ -201,6 +179,38 @@ export default function InvoicesPage() {
                 <SelectItem key={s} className="capitalize">{s}</SelectItem>
               ))}
             </Select>
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="date"
+                size="sm"
+                className="w-36"
+                variant="bordered"
+                label="From"
+                labelPlacement="outside-left"
+                value={dateFrom}
+                onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+              />
+              <span className="text-default-400 text-sm">–</span>
+              <Input
+                type="date"
+                size="sm"
+                className="w-36"
+                variant="bordered"
+                label="To"
+                labelPlacement="outside-left"
+                value={dateTo}
+                onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+              />
+              {(dateFrom || dateTo) && (
+                <button
+                  onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+                  className="text-xs text-default-400 hover:text-danger px-1"
+                  title="Clear date filter"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
             {selectedIds.size > 0 && (
               <Button size="sm" color="primary" variant="flat" startContent={<Mail size={14} />} onPress={handleBulkSend}>
                 Send Email ({selectedIds.size} selected)
@@ -211,6 +221,30 @@ export default function InvoicesPage() {
             + New Invoice
           </Button>
         </div>
+
+        {/* Summary bar */}
+        {summary && (
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-default-100 text-sm">
+              <span className="text-default-500">Billed</span>
+              <span className="font-semibold ml-1">{formatCurrency(summary.total_billed, "MYR")}</span>
+            </div>
+            <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-success-50 text-sm">
+              <span className="text-success-600">Paid</span>
+              <span className="font-semibold ml-1 text-success-700">{formatCurrency(summary.total_paid, "MYR")}</span>
+            </div>
+            <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-warning-50 text-sm">
+              <span className="text-warning-600">Outstanding</span>
+              <span className="font-semibold ml-1 text-warning-700">{formatCurrency(summary.total_outstanding, "MYR")}</span>
+            </div>
+            <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-default-100 text-sm">
+              <span className="text-default-500">{summary.count} invoice{summary.count !== 1 ? "s" : ""}</span>
+            </div>
+            {summary.by_status && Object.entries(summary.by_status).filter(([, v]) => (v as number) > 0).map(([s, v]) => (
+              <Chip key={s} size="sm" color={statusColor(s)} variant="flat" className="capitalize">{s}: {v as number}</Chip>
+            ))}
+          </div>
+        )}
 
         <div className="overflow-x-auto -mx-1">
         <Table aria-label="Invoices" isLoading={isLoading}>
@@ -283,14 +317,21 @@ export default function InvoicesPage() {
         </Table>
         </div>
 
-        <div className="flex justify-center mt-4">
-          <Pagination
-            total={page + (invoices.length >= PAGE_SIZE ? 1 : 0)}
-            page={page}
-            onChange={setPage}
-            size="sm"
-            showControls
-          />
+        <div className="flex items-center justify-between mt-4 flex-wrap gap-2">
+          <p className="text-xs text-default-400">
+            {summary?.count
+              ? `Showing ${Math.min((page - 1) * PAGE_SIZE + 1, summary.count)}–${Math.min(page * PAGE_SIZE, summary.count)} of ${summary.count}`
+              : "No invoices found"}
+          </p>
+          {totalPages > 1 && (
+            <Pagination
+              total={totalPages}
+              page={page}
+              onChange={setPage}
+              size="sm"
+              showControls
+            />
+          )}
         </div>
       </div>
 

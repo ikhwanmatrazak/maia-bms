@@ -96,7 +96,7 @@ function SalesDashboard({ userName }: { userName: string }) {
   const trendQueries = useQueries({
     queries: last6.map((m) => ({
       queryKey: ["invoices", "summary", m],
-      queryFn: () => invoicesApi.summary(m),
+      queryFn: () => invoicesApi.summary({ month: m }),
     })),
   });
 
