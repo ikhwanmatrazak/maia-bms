@@ -92,9 +92,29 @@ async def _generate_invoice_number(db: AsyncSession, tenant_id=None) -> str:
         settings = result.scalar_one_or_none()
     prefix = (settings.invoice_prefix if settings else None) or "INV"
     year = datetime.now().year
-    count_result = await db.execute(select(func.count(Invoice.id)))
-    count = (count_result.scalar() or 0) + 1
-    return f"{prefix}-{year}-{count:04d}"
+    pattern = f"{prefix}-{year}-%"
+    max_result = await db.execute(
+        select(Invoice.invoice_number)
+        .where(Invoice.invoice_number.like(pattern))
+        .order_by(Invoice.invoice_number.desc())
+        .limit(1)
+    )
+    last = max_result.scalar_one_or_none()
+    if last:
+        try:
+            last_seq = int(last.split("-")[-1])
+        except (ValueError, IndexError):
+            last_seq = 0
+    else:
+        last_seq = 0
+    # Find next available number (skip any that already exist)
+    candidate = last_seq + 1
+    while True:
+        number = f"{prefix}-{year}-{candidate:04d}"
+        exists = await db.execute(select(Invoice.id).where(Invoice.invoice_number == number).limit(1))
+        if exists.scalar_one_or_none() is None:
+            return number
+        candidate += 1
 
 
 def _parse_inv_date(raw: Optional[str]) -> Optional[datetime]:
