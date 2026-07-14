@@ -42,7 +42,7 @@ export function BugReportButton() {
       {/* Floating button */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg transition-all hover:shadow-xl"
+        className="fixed bottom-6 left-6 z-40 flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg transition-all hover:shadow-xl"
         title="Report a bug"
       >
         <Bug size={16} />
