@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
   Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
   Button, Chip, Select, SelectItem, Input, Checkbox, Pagination,
@@ -55,7 +55,7 @@ export default function InvoicesPage() {
     }),
   });
 
-  const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
+  const { data: invoices = [], isLoading, isFetching } = useQuery<Invoice[]>({
     queryKey: ["invoices", statusFilter, search, page, dateFrom, dateTo],
     queryFn: () => invoicesApi.list({
       ...(statusFilter ? { status: statusFilter } : {}),
@@ -64,6 +64,7 @@ export default function InvoicesPage() {
       skip: (page - 1) * PAGE_SIZE,
       limit: PAGE_SIZE,
     }),
+    placeholderData: keepPreviousData,
   });
 
   const totalPages = Math.max(1, Math.ceil((summary?.count ?? 0) / PAGE_SIZE));
@@ -179,25 +180,19 @@ export default function InvoicesPage() {
                 <SelectItem key={s} className="capitalize">{s}</SelectItem>
               ))}
             </Select>
-            <div className="flex items-center gap-1.5">
-              <Input
+            <div className="flex items-center gap-1.5 text-sm">
+              <span className="text-default-500 shrink-0">From</span>
+              <input
                 type="date"
-                size="sm"
-                className="w-36"
-                variant="bordered"
-                label="From"
-                labelPlacement="outside-left"
+                className="border border-default-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-primary bg-white dark:bg-default-100 dark:border-default-200"
                 value={dateFrom}
                 onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
               />
-              <span className="text-default-400 text-sm">–</span>
-              <Input
+              <span className="text-default-400 shrink-0">–</span>
+              <span className="text-default-500 shrink-0">To</span>
+              <input
                 type="date"
-                size="sm"
-                className="w-36"
-                variant="bordered"
-                label="To"
-                labelPlacement="outside-left"
+                className="border border-default-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-primary bg-white dark:bg-default-100 dark:border-default-200"
                 value={dateTo}
                 onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
               />
