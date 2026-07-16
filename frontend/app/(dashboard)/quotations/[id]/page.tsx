@@ -47,6 +47,7 @@ export default function QuotationDetailPage() {
   const convertMutation = useMutation({
     mutationFn: () => quotationsApi.convert(id),
     onSuccess: (data) => router.push(`/invoices/${data.invoice_id}`),
+    onError: (e: any) => alert(e?.response?.data?.detail || "Failed to convert quotation to invoice."),
   });
 
   const openEmailModal = () => {

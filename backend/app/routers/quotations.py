@@ -434,17 +434,35 @@ async def convert_to_invoice(
     eff_tenant = get_effective_tenant_id(current_user)
     if eff_tenant is not None and quotation.tenant_id != eff_tenant:
         raise HTTPException(status_code=403, detail="Access denied")
-    if quotation.status not in (QuotationStatus.sent, QuotationStatus.accepted):
-        raise HTTPException(status_code=400, detail="Only sent or accepted quotations can be converted")
+    if quotation.status == QuotationStatus.rejected:
+        raise HTTPException(status_code=400, detail="Rejected quotations cannot be converted")
 
-    # Generate invoice number
+    # Generate invoice number (find max existing + skip taken numbers)
     settings_result = await db.execute(select(CompanySettings).where(CompanySettings.tenant_id == quotation.tenant_id).limit(1))
     settings = settings_result.scalar_one_or_none()
-    prefix = settings.invoice_prefix if settings else "INV"
+    prefix = (settings.invoice_prefix if settings else None) or "INV"
     year = datetime.now().year
-    count_result = await db.execute(select(func.count(Invoice.id)))
-    count = (count_result.scalar() or 0) + 1
-    invoice_number = f"{prefix}-{year}-{count:04d}"
+    pattern = f"{prefix}-{year}-%"
+    max_result = await db.execute(
+        select(Invoice.invoice_number)
+        .where(Invoice.invoice_number.like(pattern))
+        .order_by(Invoice.invoice_number.desc())
+        .limit(1)
+    )
+    last = max_result.scalar_one_or_none()
+    last_seq = 0
+    if last:
+        try:
+            last_seq = int(last.split("-")[-1])
+        except (ValueError, IndexError):
+            last_seq = 0
+    candidate = last_seq + 1
+    while True:
+        invoice_number = f"{prefix}-{year}-{candidate:04d}"
+        exists = await db.execute(select(Invoice.id).where(Invoice.invoice_number == invoice_number).limit(1))
+        if exists.scalar_one_or_none() is None:
+            break
+        candidate += 1
 
     from app.config import get_settings
     app_settings = get_settings()
