@@ -262,6 +262,10 @@ export const remindersApi = {
   create: (data: object) => api.post("/reminders", data).then((r) => r.data),
   update: (id: number, data: object) => api.put(`/reminders/${id}`, data).then((r) => r.data),
   complete: (id: number) => api.post(`/reminders/${id}/complete`).then((r) => r.data),
+  delete: (id: number) => api.delete(`/reminders/${id}`).then((r) => r.data),
+  listNotifications: (params?: object) => api.get("/reminders/notifications", { params }).then((r) => r.data),
+  markRead: (id: number) => api.post(`/reminders/notifications/${id}/read`).then((r) => r.data),
+  markAllRead: () => api.post("/reminders/notifications/read-all").then((r) => r.data),
 };
 
 export const analyticsApi = {

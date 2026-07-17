@@ -65,10 +65,20 @@ export function Topbar({ title }: { title?: string }) {
 
   useEffect(() => setMounted(true), []);
 
-  const { data: reminders = [] } = useQuery({
-    queryKey: ["reminders", "overdue"],
-    queryFn: () => remindersApi.list({ filter: "overdue" }),
+  const { data: notifications = [] } = useQuery<any[]>({
+    queryKey: ["reminder-notifications"],
+    queryFn: () => remindersApi.listNotifications({ unread_only: true }),
     refetchInterval: 5 * 60 * 1000,
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: (id: number) => remindersApi.markRead(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["reminder-notifications"] }),
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: () => remindersApi.markAllRead(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["reminder-notifications"] }),
   });
 
   const { data: me } = useQuery({
@@ -122,7 +132,7 @@ export function Topbar({ title }: { title?: string }) {
     updateMutation.mutate(payload);
   };
 
-  const overdueCount = reminders.length;
+  const overdueCount = notifications.length;
   const initials = (displayUser?.name ?? "U").split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
 
   const ROLE_LABEL: Record<string, string> = {
@@ -261,44 +271,74 @@ export function Topbar({ title }: { title?: string }) {
                 )}
               </button>
             </PopoverTrigger>
-            <PopoverContent className="p-0 w-80">
+            <PopoverContent className="p-0 w-96">
               <div className="px-4 py-3 border-b flex items-center justify-between">
-                <span className="font-semibold text-sm">Notifications</span>
-                {overdueCount > 0 && <span className="text-xs text-danger font-medium">{overdueCount} overdue</span>}
+                <span className="font-semibold text-sm">Reminders</span>
+                {overdueCount > 0 && (
+                  <button
+                    className="text-xs text-gray-400 hover:text-gray-600"
+                    onClick={() => markAllReadMutation.mutate()}
+                  >
+                    Mark all read
+                  </button>
+                )}
               </div>
-              <div className="max-h-72 overflow-y-auto">
+              <div className="max-h-80 overflow-y-auto">
                 {overdueCount === 0 ? (
                   <div className="flex flex-col items-center py-8 text-gray-400">
                     <Check size={22} className="text-success mb-2" />
                     <p className="text-sm">All caught up!</p>
                   </div>
                 ) : (
-                  reminders.slice(0, 10).map((r: any) => (
-                    <div key={r.id} className="px-4 py-3 border-b last:border-0 hover:bg-gray-50">
+                  notifications.slice(0, 10).map((n: any) => (
+                    <div key={n.id} className="px-4 py-3 border-b last:border-0 bg-white hover:bg-gray-50">
                       <div className="flex items-start gap-2">
-                        <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${
-                          r.priority === "high" ? "bg-danger" : r.priority === "medium" ? "bg-warning" : "bg-gray-300"
-                        }`} />
+                        <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 bg-warning" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{r.title}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">Due {formatDate(r.due_date)}</p>
+                          <p className="text-sm font-semibold text-gray-900">{n.title}</p>
+                          {n.client_name && (
+                            <p className="text-xs text-primary mt-0.5">{n.client_name}</p>
+                          )}
+                          {n.body && (
+                            <p className="text-xs text-gray-400 mt-0.5 truncate">{n.body}</p>
+                          )}
+                          <p className="text-[11px] text-gray-300 mt-1">
+                            {new Date(n.fired_at).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
+                          </p>
+                          {n.action_type === "create_invoice" && (
+                            <button
+                              className="mt-2 text-xs font-semibold text-white bg-primary hover:bg-primary/90 px-3 py-1 rounded-lg transition-colors"
+                              onClick={() => {
+                                markReadMutation.mutate(n.id);
+                                setNotifOpen(false);
+                                const q = n.client_id ? `?client_id=${n.client_id}` : "";
+                                router.push(`/invoices/new${q}`);
+                              }}
+                            >
+                              Create Invoice →
+                            </button>
+                          )}
                         </div>
-                        <span className={`text-[11px] font-medium capitalize shrink-0 ${
-                          r.priority === "high" ? "text-danger" : r.priority === "medium" ? "text-warning" : "text-gray-400"
-                        }`}>{r.priority}</span>
+                        <button
+                          className="text-gray-300 hover:text-gray-500 shrink-0 mt-0.5"
+                          onClick={() => markReadMutation.mutate(n.id)}
+                          title="Dismiss"
+                        >
+                          ×
+                        </button>
                       </div>
                     </div>
                   ))
                 )}
               </div>
-              {overdueCount > 0 && (
-                <div className="px-4 py-2.5 border-t text-center">
-                  <button className="text-xs text-primary font-medium hover:underline"
-                    onClick={() => { setNotifOpen(false); router.push("/reminders"); }}>
-                    View all reminders →
-                  </button>
-                </div>
-              )}
+              <div className="px-4 py-2.5 border-t bg-gray-50 text-center">
+                <button
+                  className="text-xs text-primary font-semibold hover:underline"
+                  onClick={() => { setNotifOpen(false); router.push("/reminders"); }}
+                >
+                  Manage reminders →
+                </button>
+              </div>
             </PopoverContent>
           </Popover>
 

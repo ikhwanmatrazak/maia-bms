@@ -786,6 +786,43 @@ async def _ensure_user_claims_table():
     logger.info("user_claims table ensured")
 
 
+async def _ensure_reminder_tables():
+    from app.database import engine
+    from sqlalchemy import text
+    stmts = [
+        "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS recurrence_type ENUM('one_time','monthly','weekly','quarterly','yearly') NOT NULL DEFAULT 'one_time'",
+        "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS day_of_month INT NULL",
+        "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS day_of_week INT NULL",
+        "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS action_type ENUM('reminder','create_invoice') NOT NULL DEFAULT 'reminder'",
+        "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS next_fire_at DATE NULL",
+        "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1",
+        """CREATE TABLE IF NOT EXISTS reminder_notifications (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            reminder_id INT NULL,
+            tenant_id INT NULL,
+            user_id INT NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            body TEXT NULL,
+            client_id INT NULL,
+            client_name VARCHAR(255) NULL,
+            action_type VARCHAR(50) NOT NULL DEFAULT 'reminder',
+            is_read TINYINT(1) NOT NULL DEFAULT 0,
+            email_sent TINYINT(1) NOT NULL DEFAULT 0,
+            fired_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX ix_rn_user_id (user_id),
+            INDEX ix_rn_is_read (is_read),
+            FOREIGN KEY (reminder_id) REFERENCES reminders(id) ON DELETE CASCADE
+        )""",
+    ]
+    async with engine.begin() as conn:
+        for stmt in stmts:
+            try:
+                await conn.execute(text(stmt))
+            except Exception as e:
+                logger.warning(f"_ensure_reminder_tables skipped: {e}")
+    logger.info("Reminder tables ensured")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await _ensure_logo_columns()
@@ -797,6 +834,7 @@ async def lifespan(app: FastAPI):
     await _ensure_bug_reports_table()
     await _ensure_name_card_column()
     await _ensure_bank_tables()
+    await _ensure_reminder_tables()
     await init_db()
     upload_dir = app_settings.upload_dir
     os.makedirs(f"{upload_dir}/payment_proofs", exist_ok=True)
@@ -814,10 +852,12 @@ async def lifespan(app: FastAPI):
     # Start background reminder tasks
     reminder_task = asyncio.create_task(projects.reminder_loop())
     calendar_reminder_task = asyncio.create_task(calendar.calendar_reminder_loop())
+    reminder_daily_task = asyncio.create_task(reminders.reminder_daily_loop())
     logger.info("MAIA BMS started successfully")
     yield
     reminder_task.cancel()
     calendar_reminder_task.cancel()
+    reminder_daily_task.cancel()
     logger.info("MAIA BMS shutting down")
 
 
