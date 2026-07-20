@@ -127,6 +127,7 @@ const navGroups = [
       { href: "/hr/attendance", label: "Attendance", roles: ["admin", "manager"], permission: "hr-attendance" },
       { href: "/hr/payroll", label: "Payroll", roles: ["admin", "manager"], permission: "hr-payroll" },
       { href: "/hr/performance", label: "Performance", roles: ["admin", "manager"], permission: "hr-performance" },
+      { href: "/hr/claims", label: "Claims", roles: ["admin", "manager"], permission: "hr-claims" },
     ],
   },
   {
