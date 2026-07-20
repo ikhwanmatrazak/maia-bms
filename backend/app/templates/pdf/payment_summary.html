@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 10pt; color: #1a1a2e; background: #fff; }
+  .page { padding: 28px 32px; }
+
+  /* Header */
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a2e; padding-bottom: 14px; margin-bottom: 18px; }
+  .company-info h1 { font-size: 15pt; font-weight: 700; color: #1a1a2e; margin-bottom: 2px; }
+  .company-info p { font-size: 8pt; color: #555; line-height: 1.5; }
+  .logo-block { text-align: right; }
+  .logo-block img { max-height: 60px; max-width: 140px; object-fit: contain; }
+
+  /* Title */
+  .title-block { text-align: center; margin-bottom: 20px; }
+  .title-block h2 { font-size: 13pt; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #1a1a2e; }
+  .title-block .subtitle { font-size: 9pt; color: #666; margin-top: 3px; }
+
+  /* Employee section */
+  .employee-block { border: 1px solid #d0d0d0; border-radius: 4px; margin-bottom: 22px; page-break-inside: avoid; }
+  .emp-header { background: #1a1a2e; color: #fff; padding: 9px 14px; border-radius: 3px 3px 0 0; display: flex; justify-content: space-between; align-items: center; }
+  .emp-header .emp-name { font-size: 11pt; font-weight: 700; }
+  .emp-header .emp-period { font-size: 9pt; opacity: 0.85; }
+
+  .emp-details { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-bottom: 1px solid #d0d0d0; }
+  .detail-col { padding: 10px 14px; }
+  .detail-col + .detail-col { border-left: 1px solid #e8e8e8; }
+  .detail-label { font-size: 7.5pt; font-weight: 700; text-transform: uppercase; color: #888; margin-bottom: 2px; letter-spacing: 0.4px; }
+  .detail-value { font-size: 9pt; color: #1a1a2e; }
+  .bank-highlight { font-weight: 700; color: #1a1a2e; font-size: 10pt; }
+
+  /* Claims table */
+  table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+  th { background: #f5f5f5; padding: 7px 10px; text-align: left; font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: #555; border-bottom: 1px solid #d0d0d0; }
+  th.right { text-align: right; }
+  td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; color: #333; vertical-align: top; }
+  td.right { text-align: right; }
+  tr:last-child td { border-bottom: none; }
+
+  /* Total row */
+  .total-row td { background: #f9f9f9; font-weight: 700; font-size: 9pt; border-top: 1.5px solid #1a1a2e; }
+
+  /* Grand total */
+  .grand-total { margin-top: 18px; border: 2px solid #1a1a2e; border-radius: 4px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+  .grand-total .label { font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .grand-total .amount { font-size: 14pt; font-weight: 700; color: #1a1a2e; }
+
+  /* Footer */
+  .footer { margin-top: 28px; border-top: 1px solid #ddd; padding-top: 10px; display: flex; justify-content: space-between; font-size: 7.5pt; color: #888; }
+
+  /* Signature block */
+  .sig-block { margin-top: 30px; display: flex; justify-content: space-between; gap: 20px; }
+  .sig-item { flex: 1; border-top: 1px solid #999; padding-top: 6px; font-size: 8pt; color: #555; text-align: center; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Company Header -->
+  <div class="header">
+    <div class="company-info">
+      <h1>{{ company.name or "Company" }}</h1>
+      {% if company.address %}<p>{{ company.address }}</p>{% endif %}
+      {% if company.phone %}<p>Tel: {{ company.phone }}</p>{% endif %}
+      {% if company.email %}<p>{{ company.email }}</p>{% endif %}
+    </div>
+    {% if logo_data %}
+    <div class="logo-block"><img src="{{ logo_data }}" alt="Logo" /></div>
+    {% endif %}
+  </div>
+
+  <!-- Title -->
+  <div class="title-block">
+    <h2>Payment Summary — Claims</h2>
+    <div class="subtitle">Generated: {{ generated_at }} &nbsp;|&nbsp; {{ employees|length }} employee(s) &nbsp;|&nbsp; {{ total_employees_count }} claim(s)</div>
+  </div>
+
+  <!-- One block per employee -->
+  {% for item in employees %}
+  <div class="employee-block">
+    <div class="emp-header">
+      <span class="emp-name">{{ item.employee.full_name or item.submitted_by_name or "—" }}</span>
+      <span class="emp-period">{{ item.month_name }} {{ item.year }}</span>
+    </div>
+    <div class="emp-details">
+      <div class="detail-col">
+        <div class="detail-label">Designation</div>
+        <div class="detail-value">{{ item.employee.designation or "—" }}</div>
+      </div>
+      <div class="detail-col">
+        <div class="detail-label">Department</div>
+        <div class="detail-value">{{ item.employee.dept_name or "—" }}</div>
+      </div>
+      <div class="detail-col">
+        <div class="detail-label">Bank</div>
+        <div class="detail-value bank-highlight">{{ item.employee.bank_name or "—" }}</div>
+      </div>
+      <div class="detail-col">
+        <div class="detail-label">Account Number</div>
+        <div class="detail-value bank-highlight">{{ item.employee.bank_account_no or "—" }}</div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:80px">Date</th>
+          <th style="width:100px">Type</th>
+          <th>Description / Remark</th>
+          <th class="right" style="width:90px">Amount (RM)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in item.claims %}
+        <tr>
+          <td>{{ c.claim_date }}</td>
+          <td>{{ c.claim_type }}</td>
+          <td>{{ c.description or c.title or "—" }}</td>
+          <td class="right">{{ "%.2f"|format(c.amount) }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+          <td colspan="3" class="right">TOTAL</td>
+          <td class="right">RM {{ "%.2f"|format(item.total_amount) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+
+  <!-- Grand Total -->
+  <div class="grand-total">
+    <span class="label">Grand Total Payable</span>
+    <span class="amount">RM {{ "%.2f"|format(grand_total) }}</span>
+  </div>
+
+  <!-- Signature -->
+  <div class="sig-block">
+    <div class="sig-item">Prepared by</div>
+    <div class="sig-item">Checked by</div>
+    <div class="sig-item">Approved by</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>{{ company.name or "" }} — Confidential</span>
+    <span>{{ generated_at }}</span>
+  </div>
+
+</div>
+</body>
+</html>

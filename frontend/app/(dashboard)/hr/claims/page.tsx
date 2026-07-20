@@ -45,6 +45,8 @@ export default function HRClaimsPage() {
   // Monthly Claims state
   const [rejectMonthlyId, setRejectMonthlyId] = useState<number | null>(null);
   const [rejectMonthlyReason, setRejectMonthlyReason] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // Create claim on behalf state
   const [createModal, setCreateModal] = useState(false);
@@ -113,6 +115,40 @@ export default function HRClaimsPage() {
     mutationFn: ({ id, reason }: { id: number; reason: string }) => userClaimsApi.rejectMonthly(id, reason),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-monthly-claims-all"] }); setRejectMonthlyId(null); setRejectMonthlyReason(""); },
   });
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === monthlyClaims.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(monthlyClaims.map(m => m.id)));
+    }
+  };
+
+  const handleDownloadPaymentSummary = async () => {
+    if (selectedIds.size === 0) return;
+    setDownloadingPdf(true);
+    try {
+      const blob = await userClaimsApi.paymentSummaryPdf(Array.from(selectedIds));
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Payment_Summary_${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   const pendingCount = claims.filter((c: any) => c.status === "pending").length;
   const totalApproved = claims.filter((c: any) => c.status === "approved").reduce((s: number, c: any) => s + Number(c.amount), 0);
@@ -235,68 +271,103 @@ export default function HRClaimsPage() {
           </>
         ) : (
           /* Monthly Claims Table */
-          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-            {monthlyClaims.length === 0 ? (
-              <div className="py-12 text-center text-sm text-gray-400">No monthly claims found</div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Employee</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Period</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Claims</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Total (RM)</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Status</th>
-                    <th className="px-4 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monthlyClaims.map((m) => (
-                    <tr key={m.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium">{m.submitted_by_name || "—"}</td>
-                      <td className="px-4 py-3 font-semibold">{MONTHS[(m.month ?? 1) - 1]} {m.year}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{m.claim_count}</td>
-                      <td className="px-4 py-3 text-right font-semibold">{fmt(m.total_amount)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[m.status] || "bg-gray-100 text-gray-600"}`}>
-                          {m.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-2">
-                          {m.status === "submitted" && (
-                            <>
-                              <button
-                                onClick={() => approveMonthlyMutation.mutate(m.id)}
-                                className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50"
-                                title="Approve"
-                              >
-                                <Check size={14} />
-                              </button>
-                              <button
-                                onClick={() => setRejectMonthlyId(m.id)}
-                                className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50"
-                                title="Reject"
-                              >
-                                <X size={14} />
-                              </button>
-                            </>
-                          )}
-                          <button
-                            onClick={() => downloadPdf(userClaimsApi.monthlyPdfUrl(m.id), `claims-${m.year}-${String(m.month).padStart(2, "0")}.pdf`)}
-                            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded border border-gray-200 hover:bg-gray-50"
-                            title="Download PDF"
-                          >
-                            <Download size={12} /> PDF
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <>
+            {selectedIds.size > 0 && (
+              <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
+                <span className="text-sm text-blue-700 font-medium">{selectedIds.size} selected</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSelectedIds(new Set())} className="text-xs text-blue-500 hover:text-blue-700">Clear</button>
+                  <button
+                    onClick={handleDownloadPaymentSummary}
+                    disabled={downloadingPdf}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    <Download size={14} />
+                    {downloadingPdf ? "Generating..." : "Download Payment Summary"}
+                  </button>
+                </div>
+              </div>
             )}
-          </div>
+
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              {monthlyClaims.length === 0 ? (
+                <div className="py-12 text-center text-sm text-gray-400">No monthly claims found</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50">
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          className="rounded"
+                          checked={selectedIds.size === monthlyClaims.length && monthlyClaims.length > 0}
+                          onChange={toggleSelectAll}
+                        />
+                      </th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Employee</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Period</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Claims</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">Total (RM)</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Status</th>
+                      <th className="px-4 py-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthlyClaims.map((m) => (
+                      <tr key={m.id} className={`border-b border-gray-50 hover:bg-gray-50 ${selectedIds.has(m.id) ? "bg-blue-50/40" : ""}`}>
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            className="rounded"
+                            checked={selectedIds.has(m.id)}
+                            onChange={() => toggleSelect(m.id)}
+                          />
+                        </td>
+                        <td className="px-4 py-3 font-medium">{m.submitted_by_name || "—"}</td>
+                        <td className="px-4 py-3 font-semibold">{MONTHS[(m.month ?? 1) - 1]} {m.year}</td>
+                        <td className="px-4 py-3 text-right text-gray-600">{m.claim_count}</td>
+                        <td className="px-4 py-3 text-right font-semibold">{fmt(m.total_amount)}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[m.status] || "bg-gray-100 text-gray-600"}`}>
+                            {m.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-2">
+                            {m.status === "submitted" && (
+                              <>
+                                <button
+                                  onClick={() => approveMonthlyMutation.mutate(m.id)}
+                                  className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50"
+                                  title="Approve"
+                                >
+                                  <Check size={14} />
+                                </button>
+                                <button
+                                  onClick={() => setRejectMonthlyId(m.id)}
+                                  className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50"
+                                  title="Reject"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => downloadPdf(userClaimsApi.monthlyPdfUrl(m.id), `claims-${m.year}-${String(m.month).padStart(2, "0")}.pdf`)}
+                              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded border border-gray-200 hover:bg-gray-50"
+                              title="Download detailed PDF"
+                            >
+                              <Download size={12} /> PDF
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
         )}
 
         {/* Reject Claim Modal */}

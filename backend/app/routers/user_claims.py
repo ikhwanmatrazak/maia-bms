@@ -471,6 +471,10 @@ class RejectMonthlyBody(BaseModel):
     reason: str = ""
 
 
+class PaymentSummaryBody(BaseModel):
+    monthly_claim_ids: List[int]
+
+
 def _mc_row_to_dict(r) -> dict:
     return {
         "id": r[0],
@@ -637,6 +641,130 @@ async def reject_monthly_claim(
 
 
 # ── PDF generation ────────────────────────────────────────────────
+
+@router.post("/payment-summary-pdf")
+async def download_payment_summary_pdf(
+    body: PaymentSummaryBody,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role not in ("admin", "manager") and not current_user.is_super_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not body.monthly_claim_ids:
+        raise HTTPException(status_code=400, detail="No monthly claim IDs provided")
+
+    settings = get_settings()
+    upload_dir = settings.upload_dir
+
+    # Company settings
+    tid = current_user.tenant_id
+    cs_r = await db.execute(
+        text("SELECT name, logo_url, address, phone, email FROM company_settings WHERE tenant_id=:tid OR tenant_id IS NULL ORDER BY tenant_id DESC LIMIT 1"),
+        {"tid": tid},
+    )
+    company = cs_r.mappings().first() or {}
+
+    logo_data = None
+    logo_raw = company.get("logo_url") if company else None
+    if logo_raw:
+        if logo_raw.startswith("data:"):
+            logo_data = logo_raw
+        else:
+            logo_path = Path(upload_dir) / logo_raw.lstrip("/")
+            if logo_path.exists():
+                ext = logo_path.suffix.lower()
+                mime = "image/png" if ext == ".png" else "image/jpeg"
+                logo_data = f"data:{mime};base64,{base64.b64encode(logo_path.read_bytes()).decode()}"
+
+    employees_data = []
+    grand_total = 0.0
+    total_claim_count = 0
+
+    ids_placeholder = ",".join(str(i) for i in body.monthly_claim_ids)
+
+    mc_rows = await db.execute(text(f"""
+        SELECT mc.id, mc.user_id, mc.tenant_id, mc.year, mc.month,
+               mc.total_amount, mc.claim_count, mc.status, u.name as submitted_by_name
+        FROM monthly_claims mc
+        LEFT JOIN users u ON u.id = mc.user_id
+        WHERE mc.id IN ({ids_placeholder})
+        ORDER BY u.name, mc.year, mc.month
+    """))
+
+    for mc in mc_rows.fetchall():
+        year, month = mc.year, mc.month
+
+        # Employee HR profile (bank details)
+        emp_r = await db.execute(text("""
+            SELECT e.full_name, e.designation, e.bank_name, e.bank_account_no,
+                   d.name AS dept_name
+            FROM hr_employees e
+            LEFT JOIN hr_departments d ON d.id = e.department_id
+            WHERE e.user_id=:uid
+            LIMIT 1
+        """), {"uid": mc.user_id})
+        emp = emp_r.mappings().first()
+
+        emp_info = dict(emp) if emp else {
+            "full_name": mc.submitted_by_name or "—",
+            "designation": None, "bank_name": None, "bank_account_no": None, "dept_name": None,
+        }
+
+        # Individual claims for this user/month
+        claims_r = await db.execute(text("""
+            SELECT title, claim_type, description, amount, claim_date
+            FROM user_claims
+            WHERE user_id=:uid AND YEAR(claim_date)=:y AND MONTH(claim_date)=:m
+              AND status IN ('approved', 'pending')
+            ORDER BY claim_date
+        """), {"uid": mc.user_id, "y": year, "m": month})
+
+        claims = [
+            {
+                "title": r[0], "claim_type": r[1], "description": r[2],
+                "amount": float(r[3]), "claim_date": str(r[4]),
+            }
+            for r in claims_r.fetchall()
+        ]
+
+        total = sum(c["amount"] for c in claims) or float(mc.total_amount)
+        grand_total += total
+        total_claim_count += len(claims)
+
+        employees_data.append({
+            "employee": emp_info,
+            "submitted_by_name": mc.submitted_by_name,
+            "year": year,
+            "month": month,
+            "month_name": MONTH_NAMES[month],
+            "claims": claims,
+            "total_amount": total,
+        })
+
+    context = {
+        "company": dict(company) if company else {},
+        "logo_data": logo_data,
+        "employees": employees_data,
+        "grand_total": grand_total,
+        "total_employees_count": total_claim_count,
+        "generated_at": datetime.now().strftime("%d %B %Y %H:%M"),
+    }
+
+    templates_dir = Path(__file__).parent.parent / "templates" / "pdf"
+    jinja_env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=False)
+    template = jinja_env.get_template("payment_summary.html")
+    html_content = template.render(**context)
+
+    loop = asyncio.get_event_loop()
+    pdf_bytes = await loop.run_in_executor(None, lambda: HTML(string=html_content).write_pdf())
+
+    filename = f"Payment_Summary_{datetime.now().strftime('%Y%m%d')}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 
 def _receipt_images(receipt_relative_url: Optional[str], upload_dir: str) -> List[str]:
     """Return list of base64 data-URIs for a receipt (1 for image, N for PDF pages)."""

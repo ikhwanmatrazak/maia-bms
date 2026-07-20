@@ -586,6 +586,8 @@ export const userClaimsApi = {
   },
   delete: (id: number) => api.delete(`/user-claims/${id}`).then((r) => r.data),
   submitOnBehalf: (form: FormData) => api.post("/user-claims/on-behalf", form, multipartConfig).then((r) => r.data),
+  paymentSummaryPdf: (ids: number[]) =>
+    api.post("/user-claims/payment-summary-pdf", { monthly_claim_ids: ids }, { responseType: "blob" }).then((r) => r.data),
 
   // Monthly claims
   generateMonthly: (year: number, month: number) =>
