@@ -11,6 +11,8 @@ import {
 import { Upload, Camera, Sparkles, Plus, Trash2, Eye, X, CheckCircle, XCircle, Download, FileText } from "lucide-react";
 import { userClaimsApi, MonthlyClaim, downloadPdf } from "@/lib/api";
 import { getUser } from "@/lib/auth";
+
+const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1").replace(/\/api\/v1\/?$/, "");
 import { Topbar } from "@/components/ui/Topbar";
 import { formatDate } from "@/lib/utils";
 
@@ -236,7 +238,7 @@ export default function MyClaimsPage() {
   );
 
   const receiptBtn = (c: Claim) => c.receipt_url ? (
-    <Button size="sm" variant="flat" isIconOnly onPress={() => setViewReceipt(`/api/v1/documents/uploads/${c.receipt_url}`)}>
+    <Button size="sm" variant="flat" isIconOnly onPress={() => setViewReceipt(`${API_ORIGIN}/uploads/${c.receipt_url}`)}>
       <Eye size={14} />
     </Button>
   ) : <span className="text-xs text-gray-300">—</span>;

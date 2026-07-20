@@ -2,6 +2,8 @@
 import { Topbar } from "@/components/ui/Topbar";
 import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
+const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1").replace(/\/api\/v1\/?$/, "");
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { hrApi } from "@/lib/api";
@@ -136,7 +138,7 @@ export default function ClaimsPage() {
                       </div>
                     )}
                     {c.receipt_url && (
-                      <a href={c.receipt_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline ml-2">Receipt</a>
+                      <a href={`${API_ORIGIN}/uploads/${c.receipt_url}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline ml-2">Receipt</a>
                     )}
                   </td>
                 </tr>
