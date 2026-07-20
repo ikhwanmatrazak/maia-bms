@@ -6,8 +6,8 @@ const API_ORIGIN = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/ap
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { hrApi } from "@/lib/api";
-import { Plus, Check, X } from "lucide-react";
+import { userClaimsApi } from "@/lib/api";
+import { Check, X } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-700",
@@ -16,57 +16,34 @@ const STATUS_COLORS: Record<string, string> = {
   paid: "bg-blue-100 text-blue-700",
 };
 
-const CLAIM_TYPES = ["Travel", "Medical", "Meal", "Accommodation", "Equipment", "Training", "Other"];
 
 export default function ClaimsPage() {
   const qc = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState("");
-  const [showModal, setShowModal] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("");
   const [rejectId, setRejectId] = useState<number | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
-
-  const [form, setForm] = useState({ employee_id: "", claim_type: "Travel", description: "", amount: "", claim_date: new Date().toISOString().split("T")[0] });
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const set = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
+  const [rejectReason, setRejectReason] = useState<string>("");
 
   const { data: claims = [], isLoading } = useQuery({
-    queryKey: ["hr-claims", statusFilter],
-    queryFn: () => hrApi.listClaims({ status: statusFilter || undefined }),
-  });
-
-  const { data: employees = [] } = useQuery({
-    queryKey: ["hr-employees"],
-    queryFn: () => hrApi.listEmployees(),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: FormData) => hrApi.createClaim(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-claims"] }); setShowModal(false); setForm({ employee_id: "", claim_type: "Travel", description: "", amount: "", claim_date: new Date().toISOString().split("T")[0] }); setReceiptFile(null); },
+    queryKey: ["hr-claims-all", statusFilter],
+    queryFn: () => userClaimsApi.listAll(statusFilter || undefined),
   });
 
   const approveMutation = useMutation({
-    mutationFn: (id: number) => hrApi.approveClaim(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-claims"] }),
+    mutationFn: (id: number) => userClaimsApi.approve(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hr-claims-all"] }),
   });
 
   const rejectMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) => hrApi.rejectClaim(id, reason),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-claims"] }); setRejectId(null); setRejectReason(""); },
+    mutationFn: async ({ id, reason }: { id: number; reason: string }) => {
+      const fd = new FormData();
+      fd.append("reason", reason);
+      return userClaimsApi.reject(id, fd);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-claims-all"] }); setRejectId(null); setRejectReason(""); },
   });
 
-  const handleSubmit = () => {
-    const fd = new FormData();
-    fd.append("employee_id", form.employee_id);
-    fd.append("claim_type", form.claim_type);
-    fd.append("description", form.description);
-    fd.append("amount", form.amount);
-    fd.append("claim_date", form.claim_date);
-    if (receiptFile) fd.append("receipt", receiptFile);
-    createMutation.mutate(fd);
-  };
-
-  const fmt = (v: number) => `MYR ${v.toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
-  const totalApproved = claims.filter((c: any) => c.status === "approved").reduce((s: number, c: any) => s + c.amount, 0);
+  const fmt = (v: number) => `MYR ${Number(v).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
+  const totalApproved = claims.filter((c: any) => c.status === "approved").reduce((s: number, c: any) => s + Number(c.amount), 0);
 
   if (isLoading) return (
     <div>
@@ -82,9 +59,6 @@ export default function ClaimsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Claims</h1>
           <p className="text-sm text-gray-500">{claims.filter((c: any) => c.status === "pending").length} pending · {fmt(totalApproved)} approved</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-[#1a1a2e] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2a2a3e]">
-          <Plus size={16} /> Submit Claim
-        </button>
       </div>
 
       <div className="flex gap-3">
@@ -116,7 +90,7 @@ export default function ClaimsPage() {
             <tbody>
               {claims.map((c: any) => (
                 <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{c.employee_name || "—"}</td>
+                  <td className="px-4 py-3 font-medium">{c.submitted_by_name || c.employee_name || "—"}</td>
                   <td className="px-4 py-3 text-gray-600">{c.claim_type}</td>
                   <td className="px-4 py-3 text-gray-500 hidden md:table-cell text-xs max-w-xs truncate">{c.description}</td>
                   <td className="px-4 py-3 text-right font-semibold">{fmt(c.amount)}</td>
@@ -147,55 +121,6 @@ export default function ClaimsPage() {
           </table>
         )}
       </div>
-
-      {/* Submit Claim Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4">
-            <h2 className="text-lg font-bold">Submit Claim</h2>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">Employee</label>
-              <select className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" value={form.employee_id} onChange={e => set("employee_id", e.target.value)}>
-                <option value="">Select employee</option>
-                {employees.map((e: any) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Claim Type</label>
-                <select className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" value={form.claim_type} onChange={e => set("claim_type", e.target.value)}>
-                  {CLAIM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Date</label>
-                <input type="date" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" value={form.claim_date} onChange={e => set("claim_date", e.target.value)} />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">Description</label>
-              <textarea rows={2} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" value={form.description} onChange={e => set("description", e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">Amount (MYR)</label>
-              <input type="number" step="0.01" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg" value={form.amount} onChange={e => set("amount", e.target.value)} placeholder="0.00" />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">Receipt (optional)</label>
-              <label className="flex items-center gap-2 px-4 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500 cursor-pointer hover:bg-gray-50">
-                {receiptFile ? receiptFile.name : "Choose file"}
-                <input type="file" className="hidden" onChange={e => setReceiptFile(e.target.files?.[0] || null)} />
-              </label>
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg">Cancel</button>
-              <button disabled={!form.employee_id || !form.description || !form.amount || createMutation.isPending} onClick={handleSubmit} className="px-4 py-2 text-sm font-medium bg-[#1a1a2e] text-white rounded-lg disabled:opacity-40">
-                {createMutation.isPending ? "Submitting..." : "Submit"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Reject Modal */}
       {rejectId && (
