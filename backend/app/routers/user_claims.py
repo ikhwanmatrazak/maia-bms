@@ -356,6 +356,7 @@ async def approve_claim(
         UPDATE user_claims SET status='approved', approved_by=:by, approved_at=NOW()
         WHERE id=:id AND tenant_id=:tenant_id
     """), {"id": claim_id, "by": current_user.id, "tenant_id": current_user.tenant_id})
+    await db.flush()  # make the status change visible within this transaction
 
     # Auto-upsert monthly_claims for this employee/month
     from datetime import date as _date
@@ -554,7 +555,7 @@ async def list_my_monthly_claims(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        text(f"{_MC_SELECT} WHERE mc.user_id=:uid ORDER BY mc.year DESC, mc.month DESC"),
+        text(f"{_MC_SELECT} WHERE mc.user_id=:uid AND mc.claim_count > 0 ORDER BY mc.year DESC, mc.month DESC"),
         {"uid": current_user.id},
     )
     return [_mc_row_to_dict(r) for r in result.fetchall()]
@@ -567,7 +568,7 @@ async def list_all_monthly_claims(
 ):
     if current_user.role not in ("admin", "manager") and not current_user.is_super_admin:
         raise HTTPException(status_code=403, detail="Access denied")
-    where = "" if current_user.is_super_admin else "WHERE mc.tenant_id=:tid"
+    where = "WHERE mc.claim_count > 0" if current_user.is_super_admin else "WHERE mc.tenant_id=:tid AND mc.claim_count > 0"
     params = {} if current_user.is_super_admin else {"tid": current_user.tenant_id}
     result = await db.execute(
         text(f"{_MC_SELECT} {where} ORDER BY mc.year DESC, mc.month DESC, u.name"),
