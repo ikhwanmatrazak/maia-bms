@@ -342,10 +342,63 @@ async def approve_claim(
 ):
     if current_user.role not in ("admin", "manager") and not current_user.is_super_admin:
         raise HTTPException(status_code=403, detail="Access denied")
+
+    # Fetch claim details before approving
+    claim_row = await db.execute(
+        text("SELECT user_id, tenant_id, claim_date FROM user_claims WHERE id=:id"),
+        {"id": claim_id},
+    )
+    claim = claim_row.fetchone()
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+
     await db.execute(text("""
         UPDATE user_claims SET status='approved', approved_by=:by, approved_at=NOW()
         WHERE id=:id AND tenant_id=:tenant_id
     """), {"id": claim_id, "by": current_user.id, "tenant_id": current_user.tenant_id})
+
+    # Auto-upsert monthly_claims for this employee/month
+    from datetime import date as _date
+    raw_date = claim.claim_date
+    if isinstance(raw_date, str):
+        raw_date = _date.fromisoformat(raw_date[:10])
+    year, month = raw_date.year, raw_date.month
+
+    # Recalculate totals from all approved claims for that month
+    totals = await db.execute(text("""
+        SELECT COUNT(*), COALESCE(SUM(amount), 0)
+        FROM user_claims
+        WHERE user_id=:uid AND YEAR(claim_date)=:y AND MONTH(claim_date)=:m AND status='approved'
+    """), {"uid": claim.user_id, "y": year, "m": month})
+    count, total = totals.fetchone()
+
+    existing = await db.execute(
+        text("SELECT id, status FROM monthly_claims WHERE user_id=:uid AND year=:y AND month=:m"),
+        {"uid": claim.user_id, "y": year, "m": month},
+    )
+    mc = existing.fetchone()
+
+    if mc:
+        # Update totals; promote draft → submitted so HR can see it; leave approved untouched
+        if mc.status != "approved":
+            await db.execute(text("""
+                UPDATE monthly_claims
+                SET total_amount=:total, claim_count=:count,
+                    status=CASE WHEN status='draft' THEN 'submitted' ELSE status END,
+                    submitted_at=CASE WHEN status='draft' THEN NOW() ELSE submitted_at END
+                WHERE id=:id
+            """), {"total": float(total), "count": int(count), "id": mc.id})
+    else:
+        await db.execute(text("""
+            INSERT INTO monthly_claims
+              (user_id, tenant_id, year, month, total_amount, claim_count, status, submitted_at)
+            VALUES (:uid, :tid, :y, :m, :total, :count, 'submitted', NOW())
+        """), {
+            "uid": claim.user_id, "tid": claim.tenant_id,
+            "y": year, "m": month,
+            "total": float(total), "count": int(count),
+        })
+
     await db.commit()
     return {"message": "Claim approved"}
 
