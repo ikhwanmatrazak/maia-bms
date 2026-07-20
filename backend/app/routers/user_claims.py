@@ -239,6 +239,52 @@ async def submit_claim(
     return {"message": "Claim submitted successfully"}
 
 
+@router.post("/on-behalf")
+async def submit_claim_on_behalf(
+    on_behalf_of_user_id: int = Form(...),
+    title: str = Form(...),
+    claim_type: str = Form(...),
+    description: str = Form(...),
+    amount: float = Form(...),
+    claim_date: str = Form(...),
+    receipt: Optional[UploadFile] = File(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role not in ("admin", "manager") and not current_user.is_super_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Resolve target user tenant
+    target = await db.execute(
+        text("SELECT id, tenant_id FROM users WHERE id=:uid"), {"uid": on_behalf_of_user_id}
+    )
+    target_row = target.fetchone()
+    if not target_row:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    receipt_url = None
+    if receipt and receipt.filename:
+        receipt_url = await _save_file(receipt)
+
+    await db.execute(text("""
+        INSERT INTO user_claims
+          (user_id, tenant_id, title, claim_type, description, amount, claim_date, receipt_url, status)
+        VALUES
+          (:user_id, :tenant_id, :title, :claim_type, :description, :amount, :claim_date, :receipt_url, 'pending')
+    """), {
+        "user_id": target_row.id,
+        "tenant_id": target_row.tenant_id,
+        "title": title,
+        "claim_type": claim_type,
+        "description": description,
+        "amount": amount,
+        "claim_date": claim_date,
+        "receipt_url": receipt_url,
+    })
+    await db.commit()
+    return {"message": "Claim submitted successfully"}
+
+
 @router.get("/my")
 async def list_my_claims(
     db: AsyncSession = Depends(get_db),

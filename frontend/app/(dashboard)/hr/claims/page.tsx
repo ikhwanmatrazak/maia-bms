@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { userClaimsApi, MonthlyClaim, downloadPdf } from "@/lib/api";
-import { Check, X, Download } from "lucide-react";
+import { userClaimsApi, usersApi, MonthlyClaim, downloadPdf } from "@/lib/api";
+import { Check, X, Download, Plus } from "lucide-react";
 import { Topbar } from "@/components/ui/Topbar";
 import { TableSkeleton } from "@/components/ui/PageSkeleton";
 
@@ -20,7 +20,18 @@ const STATUS_COLORS: Record<string, string> = {
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+const CLAIM_TYPES = ["Meals", "Petrol", "Travel", "Parking", "Accommodation", "Medical", "Office Supplies", "Other"];
+
 const fmt = (v: number) => `RM ${Number(v).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
+
+const emptyClaimForm = {
+  on_behalf_of_user_id: "",
+  title: "",
+  claim_type: "Other",
+  description: "",
+  amount: "",
+  claim_date: new Date().toISOString().slice(0, 10),
+};
 
 export default function HRClaimsPage() {
   const qc = useQueryClient();
@@ -35,7 +46,17 @@ export default function HRClaimsPage() {
   const [rejectMonthlyId, setRejectMonthlyId] = useState<number | null>(null);
   const [rejectMonthlyReason, setRejectMonthlyReason] = useState("");
 
+  // Create claim on behalf state
+  const [createModal, setCreateModal] = useState(false);
+  const [claimForm, setClaimForm] = useState({ ...emptyClaimForm });
+  const [claimReceipt, setClaimReceipt] = useState<File | null>(null);
+
   // Queries
+  const { data: staffList = [] } = useQuery<any[]>({
+    queryKey: ["users-list"],
+    queryFn: () => usersApi.list(),
+  });
+
   const { data: claims = [], isLoading: loadingClaims } = useQuery({
     queryKey: ["hr-claims-all", statusFilter],
     queryFn: () => userClaimsApi.listAll(statusFilter || undefined),
@@ -58,6 +79,29 @@ export default function HRClaimsPage() {
     mutationFn: ({ id, reason }: { id: number; reason: string }) => userClaimsApi.reject(id, reason),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["hr-claims-all"] }); setRejectId(null); setRejectReason(""); },
   });
+
+  const submitOnBehalfMutation = useMutation({
+    mutationFn: (form: FormData) => userClaimsApi.submitOnBehalf(form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hr-claims-all"] });
+      setCreateModal(false);
+      setClaimForm({ ...emptyClaimForm });
+      setClaimReceipt(null);
+    },
+  });
+
+  const handleSubmitOnBehalf = () => {
+    if (!claimForm.on_behalf_of_user_id || !claimForm.title || !claimForm.amount || !claimForm.claim_date) return;
+    const fd = new FormData();
+    fd.append("on_behalf_of_user_id", claimForm.on_behalf_of_user_id);
+    fd.append("title", claimForm.title);
+    fd.append("claim_type", claimForm.claim_type);
+    fd.append("description", claimForm.description);
+    fd.append("amount", claimForm.amount);
+    fd.append("claim_date", claimForm.claim_date);
+    if (claimReceipt) fd.append("receipt", claimReceipt);
+    submitOnBehalfMutation.mutate(fd);
+  };
 
   // Mutations — Monthly Claims
   const approveMonthlyMutation = useMutation({
@@ -82,13 +126,21 @@ export default function HRClaimsPage() {
       <div className="p-6 space-y-5">
 
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Claims Management</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {tab === "all"
-              ? `${pendingCount} pending · ${fmt(totalApproved)} approved`
-              : `${pendingMonthly} awaiting approval`}
-          </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Claims Management</h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {tab === "all"
+                ? `${pendingCount} pending · ${fmt(totalApproved)} approved`
+                : `${pendingMonthly} awaiting approval`}
+            </p>
+          </div>
+          <button
+            onClick={() => { setClaimForm({ ...emptyClaimForm }); setClaimReceipt(null); setCreateModal(true); }}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 whitespace-nowrap"
+          >
+            <Plus size={15} /> Create Claim
+          </button>
         </div>
 
         {/* Tabs */}
@@ -259,6 +311,106 @@ export default function HRClaimsPage() {
               <div className="flex gap-3 justify-end">
                 <button onClick={() => setRejectId(null)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg">Cancel</button>
                 <button onClick={() => rejectMutation.mutate({ id: rejectId, reason: rejectReason })} className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg">Reject</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create Claim on Behalf Modal */}
+        {createModal && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+              <h2 className="text-lg font-bold">Create Claim on Behalf of Staff</h2>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Employee *</label>
+                <select
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none"
+                  value={claimForm.on_behalf_of_user_id}
+                  onChange={e => setClaimForm({ ...claimForm, on_behalf_of_user_id: e.target.value })}
+                >
+                  <option value="">Select employee...</option>
+                  {staffList.map((u: any) => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Claim Type *</label>
+                  <select
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none"
+                    value={claimForm.claim_type}
+                    onChange={e => setClaimForm({ ...claimForm, claim_type: e.target.value })}
+                  >
+                    {CLAIM_TYPES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Date *</label>
+                  <input
+                    type="date"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none"
+                    value={claimForm.claim_date}
+                    onChange={e => setClaimForm({ ...claimForm, claim_date: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Title *</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none"
+                  placeholder="e.g. Petrol — site visit"
+                  value={claimForm.title}
+                  onChange={e => setClaimForm({ ...claimForm, title: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Description</label>
+                <textarea
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none"
+                  value={claimForm.description}
+                  onChange={e => setClaimForm({ ...claimForm, description: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Amount (RM) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none"
+                  placeholder="0.00"
+                  value={claimForm.amount}
+                  onChange={e => setClaimForm({ ...claimForm, amount: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Receipt (optional)</label>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100"
+                  onChange={e => setClaimReceipt(e.target.files?.[0] ?? null)}
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-1">
+                <button onClick={() => setCreateModal(false)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg">Cancel</button>
+                <button
+                  onClick={handleSubmitOnBehalf}
+                  disabled={submitOnBehalfMutation.isPending || !claimForm.on_behalf_of_user_id || !claimForm.title || !claimForm.amount}
+                  className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg disabled:opacity-50"
+                >
+                  {submitOnBehalfMutation.isPending ? "Submitting..." : "Submit Claim"}
+                </button>
               </div>
             </div>
           </div>

@@ -585,6 +585,7 @@ export const userClaimsApi = {
     return api.patch(`/user-claims/${id}/reject`, form, multipartConfig).then((r) => r.data);
   },
   delete: (id: number) => api.delete(`/user-claims/${id}`).then((r) => r.data),
+  submitOnBehalf: (form: FormData) => api.post("/user-claims/on-behalf", form, multipartConfig).then((r) => r.data),
 
   // Monthly claims
   generateMonthly: (year: number, month: number) =>
