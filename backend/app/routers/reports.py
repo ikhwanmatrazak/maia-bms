@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, case
+from sqlalchemy import select, func, case, text
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
@@ -366,3 +366,114 @@ async def client_summary_report(
         })
 
     return {"count": len(rows), "clients": rows}
+
+
+# ── Management Accounts ──────────────────────────────────────────
+
+_INCOME_KEYWORDS = {
+    "Grant / Disbursement": ["disbursement", "ntis disb", "ibg credit"],
+    "Professional Services": ["x-ray analysis", "ai model", "maia ai work", "ai work", "setia utama lrt", "iium kuantan"],
+    "Cash Deposits": ["cdm cash deposit", "cash deposit dep"],
+    "Director Loan": ["director loan"],
+    "Return / Refund": ["return"],
+}
+
+_EXPENSE_KEYWORDS = {
+    "Salaries & Allowances": ["salary", " sal ", "allowance", "bonus", "gaji"],
+    "Consultant Fees": ["consultant", "consultation", "consultancy"],
+    "Development / Technical": ["dev ", "development", "pacs integration", "imagine ai", "lafamia", "ai model optim", "ui/ux", "dicom"],
+    "Compliance & Statutory": ["epf", "socso", "lhdn", "eis", "audit", "iso ", "stamp duty", "audit confirmation", "living stones"],
+    "Travel & Accommodation": ["hotel", "ledang house", "catering", "trip", "tda visit", "uniform", "peneng", "mara", "hicom"],
+    "Sponsorship / CSR": ["sponsor for master", "iium research"],
+    "Professional Fees": ["k k fong", "archwire", "medivice", "mekar medik", "hsdc resources"],
+    "Claims / Reimbursements": [" claim ", "loan ", "kuih"],
+}
+
+
+def _categorize(description: str, keywords_map: dict, default: str) -> str:
+    desc_lower = (" " + description.lower() + " ")
+    for cat, kws in keywords_map.items():
+        if any(kw in desc_lower for kw in kws):
+            return cat
+    return default
+
+
+@router.get("/management-accounts")
+async def management_accounts(
+    year: int = Query(2025),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin_or_manager()),
+):
+    tenant_filter = "" if current_user.is_super_admin else "AND account_id IN (SELECT id FROM bank_accounts WHERE tenant_id=:tid)"
+    params: dict = {"year": year}
+    if not current_user.is_super_admin:
+        params["tid"] = current_user.tenant_id
+
+    rows = await db.execute(text(f"""
+        SELECT txn_date, type, amount, description
+        FROM bank_transactions
+        WHERE YEAR(txn_date) = :year {tenant_filter}
+        ORDER BY txn_date
+    """), params)
+    txns = rows.fetchall()
+
+    MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    # Initialise monthly buckets
+    monthly: dict = {
+        m: {"inflow": 0.0, "outflow": 0.0, "income_breakdown": {}, "expense_breakdown": {}}
+        for m in range(1, 13)
+    }
+
+    all_income_cats: set = set()
+    all_expense_cats: set = set()
+
+    for row in txns:
+        m = row.txn_date.month
+        amt = float(row.amount)
+        desc = row.description or ""
+
+        if row.type == "credit":
+            cat = _categorize(desc, _INCOME_KEYWORDS, "Other Income")
+            all_income_cats.add(cat)
+            monthly[m]["inflow"] += amt
+            monthly[m]["income_breakdown"][cat] = monthly[m]["income_breakdown"].get(cat, 0.0) + amt
+        else:
+            cat = _categorize(desc, _EXPENSE_KEYWORDS, "Other Expenses")
+            all_expense_cats.add(cat)
+            monthly[m]["outflow"] += amt
+            monthly[m]["expense_breakdown"][cat] = monthly[m]["expense_breakdown"].get(cat, 0.0) + amt
+
+    # Build monthly series
+    running_balance = 0.0
+    months_out = []
+    for m in range(1, 13):
+        d = monthly[m]
+        net = d["inflow"] - d["outflow"]
+        opening = running_balance
+        running_balance += net
+        months_out.append({
+            "month": m,
+            "month_name": MONTHS[m - 1],
+            "inflow": round(d["inflow"], 2),
+            "outflow": round(d["outflow"], 2),
+            "net": round(net, 2),
+            "opening_balance": round(opening, 2),
+            "closing_balance": round(running_balance, 2),
+            "income_breakdown": {k: round(v, 2) for k, v in d["income_breakdown"].items()},
+            "expense_breakdown": {k: round(v, 2) for k, v in d["expense_breakdown"].items()},
+        })
+
+    total_inflow = sum(d["inflow"] for d in monthly.values())
+    total_outflow = sum(d["outflow"] for d in monthly.values())
+
+    return {
+        "year": year,
+        "months": months_out,
+        "income_categories": sorted(all_income_cats),
+        "expense_categories": sorted(all_expense_cats),
+        "total_inflow": round(total_inflow, 2),
+        "total_outflow": round(total_outflow, 2),
+        "net": round(total_inflow - total_outflow, 2),
+    }

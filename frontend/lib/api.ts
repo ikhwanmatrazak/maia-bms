@@ -281,6 +281,7 @@ export const reportsApi = {
   invoices: (params?: object) => api.get("/reports/invoices", { params }).then((r) => r.data),
   payments: (params?: object) => api.get("/reports/payments", { params }).then((r) => r.data),
   clientSummary: () => api.get("/reports/client-summary").then((r) => r.data),
+  managementAccounts: (year: number) => api.get("/reports/management-accounts", { params: { year } }).then((r) => r.data),
 };
 
 export const settingsApi = {
