@@ -1797,6 +1797,26 @@ async def _pnl_data(db: AsyncSession, tid, date_from: Optional[str], date_to: Op
             "net":      revenue - expenses,
         })
 
+    # Pad missing months within the requested date range with zeros
+    if date_from and date_to:
+        existing = {m["month"] for m in monthly}
+        sy, sm = int(date_from[:4]), int(date_from[5:7]) if len(date_from) >= 7 else 1
+        ey, em = int(date_to[:4]),   int(date_to[5:7])   if len(date_to)   >= 7 else 12
+        yr, mo = sy, sm
+        while (yr, mo) <= (ey, em):
+            key = f"{yr:04d}-{mo:02d}"
+            if key not in existing:
+                monthly.append({
+                    "month": key,
+                    "month_label": f"{MONTHS_SHORT[mo-1]} {yr}",
+                    "revenue": 0.0, "cogs": 0.0, "opex": 0.0,
+                    "expenses": 0.0, "gross": 0.0, "net": 0.0,
+                })
+            mo += 1
+            if mo > 12:
+                mo, yr = 1, yr + 1
+        monthly.sort(key=lambda m: m["month"])
+
     # Account breakdown
     acc_r = await db.execute(text(f"""
         SELECT ba.id, ba.name, ba.bank_name, ba.account_number,
