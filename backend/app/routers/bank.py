@@ -1891,6 +1891,7 @@ async def _pnl_data(db: AsyncSession, tid, date_from: Optional[str], date_to: Op
 async def pnl_pdf(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    include_txns: bool = Query(True),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1901,6 +1902,8 @@ async def pnl_pdf(
 
     tid = _tenant_id(current_user)
     ctx = await _pnl_data(db, tid, date_from, date_to)
+    if not include_txns:
+        ctx["txns"] = []
 
     templates_dir = Path(__file__).parent.parent / "templates" / "pdf"
     env = Environment(loader=FileSystemLoader(str(templates_dir)))
@@ -1910,7 +1913,8 @@ async def pnl_pdf(
     loop = asyncio.get_event_loop()
     pdf_bytes = await loop.run_in_executor(None, lambda: WP_HTML(string=html).write_pdf())
 
-    fname = f"pnl_{date_from or 'all'}_{date_to or 'all'}.pdf"
+    suffix = "summary" if not include_txns else "full"
+    fname = f"pnl_{date_from or 'all'}_{date_to or 'all'}_{suffix}.pdf"
     return Response(content=pdf_bytes, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 

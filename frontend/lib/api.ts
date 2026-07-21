@@ -954,8 +954,9 @@ export const bankApi = {
   // P&L across all accounts
   getPnl: (params?: { date_from?: string; date_to?: string }) =>
     api.get<{ monthly: { month: string; revenue: number; expenses: number; net: number }[]; total_revenue: number; total_expenses: number; total_net: number }>("/bank/pnl", { params }).then((r) => r.data),
-  pnlPdfUrl:   (date_from?: string, date_to?: string) => `${API_URL}/bank/pnl/pdf?${new URLSearchParams(Object.fromEntries(Object.entries({date_from,date_to}).filter(([,v])=>v) as [string,string][])).toString()}`,
-  pnlExcelUrl: (date_from?: string, date_to?: string) => `${API_URL}/bank/pnl/excel?${new URLSearchParams(Object.fromEntries(Object.entries({date_from,date_to}).filter(([,v])=>v) as [string,string][])).toString()}`,
+  pnlPdfUrl:        (date_from?: string, date_to?: string) => `${API_URL}/bank/pnl/pdf?${new URLSearchParams(Object.fromEntries(Object.entries({date_from,date_to}).filter(([,v])=>v) as [string,string][])).toString()}`,
+  pnlSummaryPdfUrl: (date_from?: string, date_to?: string) => `${API_URL}/bank/pnl/pdf?include_txns=false&${new URLSearchParams(Object.fromEntries(Object.entries({date_from,date_to}).filter(([,v])=>v) as [string,string][])).toString()}`,
+  pnlExcelUrl:      (date_from?: string, date_to?: string) => `${API_URL}/bank/pnl/excel?${new URLSearchParams(Object.fromEntries(Object.entries({date_from,date_to}).filter(([,v])=>v) as [string,string][])).toString()}`,
 
   // Reconciliation helpers
   listUnpaidInvoices: (txn_id?: number) => api.get<UnpaidInvoice[]>("/bank/invoices/unpaid", { params: txn_id ? { txn_id } : {} }).then((r) => r.data),

@@ -23,7 +23,7 @@ export default function PnLPage() {
 
   const [fromMonth, setFromMonth] = useState(defaultFrom);
   const [toMonth, setToMonth]     = useState(defaultTo);
-  const [dlLoading, setDlLoading] = useState<"pdf"|"excel"|null>(null);
+  const [dlLoading, setDlLoading] = useState<"pdf"|"pdf-summary"|"excel"|null>(null);
 
   const params = useMemo(() => {
     const p: { date_from?: string; date_to?: string } = {};
@@ -37,12 +37,14 @@ export default function PnLPage() {
     return p;
   }, [fromMonth, toMonth]);
 
-  const handleDownload = async (format: "pdf" | "excel") => {
+  const handleDownload = async (format: "pdf" | "pdf-summary" | "excel") => {
     setDlLoading(format);
     try {
       const df = params.date_from; const dt = params.date_to;
       if (format === "pdf") {
-        await downloadPdf(bankApi.pnlPdfUrl(df, dt), `pnl_${fromMonth}_${toMonth}.pdf`);
+        await downloadPdf(bankApi.pnlPdfUrl(df, dt), `pnl_${fromMonth}_${toMonth}_full.pdf`);
+      } else if (format === "pdf-summary") {
+        await downloadPdf(bankApi.pnlSummaryPdfUrl(df, dt), `pnl_${fromMonth}_${toMonth}_summary.pdf`);
       } else {
         await downloadFile(bankApi.pnlExcelUrl(df, dt), `pnl_${fromMonth}_${toMonth}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       }
@@ -105,14 +107,26 @@ export default function PnLPage() {
               />
             </div>
             <button
+              onClick={() => handleDownload("pdf-summary")}
+              disabled={!!dlLoading || isLoading}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              title="P&L summary only — no transaction list"
+            >
+              {dlLoading === "pdf-summary" ? "…" : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+              )}
+              PDF (Summary)
+            </button>
+            <button
               onClick={() => handleDownload("pdf")}
               disabled={!!dlLoading || isLoading}
               className="flex items-center gap-1.5 px-4 py-1.5 bg-danger-600 text-white text-sm rounded-lg hover:bg-danger-700 disabled:opacity-50"
+              title="Full PDF with all transactions"
             >
               {dlLoading === "pdf" ? "…" : (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
               )}
-              PDF
+              PDF (Full)
             </button>
             <button
               onClick={() => handleDownload("excel")}
