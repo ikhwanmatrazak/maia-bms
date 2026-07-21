@@ -409,6 +409,27 @@ async def management_accounts(
     if not current_user.is_super_admin:
         params["tid"] = current_user.tenant_id
 
+    # Opening balance: sum of all bank account opening balances + all transactions BEFORE this year
+    ob_filter = "" if current_user.is_super_admin else "WHERE tenant_id=:tid"
+    ob_params: dict = {} if current_user.is_super_admin else {"tid": current_user.tenant_id}
+    ob_row = await db.execute(text(f"SELECT COALESCE(SUM(opening_balance), 0) FROM bank_accounts {ob_filter}"), ob_params)
+    account_opening = float(ob_row.scalar() or 0)
+
+    # Add net of all transactions before the requested year
+    prior_filter = "" if current_user.is_super_admin else "AND account_id IN (SELECT id FROM bank_accounts WHERE tenant_id=:tid)"
+    prior_params: dict = {"year": year}
+    if not current_user.is_super_admin:
+        prior_params["tid"] = current_user.tenant_id
+    prior_row = await db.execute(text(f"""
+        SELECT
+          COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE -amount END), 0)
+        FROM bank_transactions
+        WHERE YEAR(txn_date) < :year {prior_filter}
+    """), prior_params)
+    prior_net = float(prior_row.scalar() or 0)
+
+    opening_balance = account_opening + prior_net
+
     rows = await db.execute(text(f"""
         SELECT txn_date, type, amount, description
         FROM bank_transactions
@@ -446,7 +467,7 @@ async def management_accounts(
             monthly[m]["expense_breakdown"][cat] = monthly[m]["expense_breakdown"].get(cat, 0.0) + amt
 
     # Build monthly series
-    running_balance = 0.0
+    running_balance = opening_balance
     months_out = []
     for m in range(1, 13):
         d = monthly[m]
@@ -470,10 +491,12 @@ async def management_accounts(
 
     return {
         "year": year,
+        "opening_balance": round(opening_balance, 2),
         "months": months_out,
         "income_categories": sorted(all_income_cats),
         "expense_categories": sorted(all_expense_cats),
         "total_inflow": round(total_inflow, 2),
         "total_outflow": round(total_outflow, 2),
         "net": round(total_inflow - total_outflow, 2),
+        "closing_balance": round(running_balance, 2),
     }

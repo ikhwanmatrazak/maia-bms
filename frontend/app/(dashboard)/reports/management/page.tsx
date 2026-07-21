@@ -9,7 +9,7 @@ import { Download, TrendingUp, TrendingDown, Minus } from "lucide-react";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const fmt = (v: number) =>
-  `RM ${Math.abs(v).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
+  `RM ${v.toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
 
 const fmtSigned = (v: number) => {
   const s = Math.abs(v).toLocaleString("en-MY", { minimumFractionDigits: 2 });
@@ -88,10 +88,10 @@ export default function ManagementAccountsPage() {
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Management Accounts</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Cash-basis — bank transactions only</p>
+            <h1 className="text-2xl font-bold text-gray-900">Management Accounts {year}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Cash-basis · Bank transactions · Jan – Dec {year}</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 no-print">
             <select
               value={year}
               onChange={e => setYear(Number(e.target.value))}
@@ -130,7 +130,7 @@ export default function ManagementAccountsPage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit no-print">
               {(["cashflow", "pnl"] as const).map(t => (
                 <button
                   key={t}
@@ -283,11 +283,31 @@ export default function ManagementAccountsPage() {
         )}
       </div>
 
-      {/* Print styles */}
       <style>{`
         @media print {
-          nav, button, select { display: none !important; }
-          body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+          @page { size: A4 landscape; margin: 15mm; }
+          body { print-color-adjust: exact; -webkit-print-color-adjust: exact; font-size: 9pt !important; }
+          /* Hide everything except the report content */
+          aside, nav, header, [data-sidebar], .topbar-container { display: none !important; }
+          button, select, .no-print { display: none !important; }
+          /* Make the main content area full width */
+          main, .main-content, [class*="ml-"], [class*="pl-"] { margin-left: 0 !important; padding-left: 0 !important; }
+          div[class*="p-6"] { padding: 0 !important; }
+          /* Tables */
+          table { font-size: 8pt !important; page-break-inside: auto; }
+          tr { page-break-inside: avoid; }
+          th, td { padding: 4px 6px !important; }
+          /* KPI cards */
+          .grid { display: flex !important; flex-wrap: wrap; gap: 8px; }
+          .grid > div { flex: 1 1 120px; padding: 8px !important; border: 1px solid #ccc !important; box-shadow: none !important; }
+          /* Overflow tables */
+          .overflow-x-auto { overflow: visible !important; }
+          /* Colors */
+          .bg-gray-900, tfoot tr { background: #1a1a2e !important; color: white !important; }
+          .text-green-600 { color: #16a34a !important; }
+          .text-red-500, .text-red-600 { color: #dc2626 !important; }
+          .text-green-300 { color: #86efac !important; }
+          .text-red-300 { color: #fca5a5 !important; }
         }
       `}</style>
     </div>
