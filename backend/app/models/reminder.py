@@ -43,6 +43,7 @@ class Reminder(Base):
     action_type = Column(Enum(ActionType), default=ActionType.reminder, nullable=False)
     next_fire_at = Column(Date, nullable=True)
     is_active = Column(Boolean, default=True)
+    send_whatsapp = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     client = relationship("Client", back_populates="reminders")

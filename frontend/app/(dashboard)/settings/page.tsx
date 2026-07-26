@@ -2,16 +2,18 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardBody, CardHeader, Button, Input, Textarea } from "@heroui/react";
-import { settingsApi } from "@/lib/api";
+import { settingsApi, remindersApi } from "@/lib/api";
 import { CompanySettings } from "@/types";
 import { Topbar } from "@/components/ui/Topbar";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [smtpTestEmail, setSmtpTestEmail] = useState("");
   const [smtpTestResult, setSmtpTestResult] = useState<string | null>(null);
+  const [waQr, setWaQr] = useState<string | null>(null);
+  const [waLoading, setWaLoading] = useState(false);
 
   const { data: settings, isLoading } = useQuery<CompanySettings>({
     queryKey: ["settings", "company"],
@@ -294,7 +296,96 @@ export default function SettingsPage() {
             </div>
           </CardBody>
         </Card>
+
+        {/* WhatsApp Connection */}
+        <WhatsAppCard waQr={waQr} setWaQr={setWaQr} waLoading={waLoading} setWaLoading={setWaLoading} />
       </div>
     </div>
+  );
+}
+
+function WhatsAppCard({ waQr, setWaQr, waLoading, setWaLoading }: {
+  waQr: string | null; setWaQr: (v: string | null) => void;
+  waLoading: boolean; setWaLoading: (v: boolean) => void;
+}) {
+  const { data: waStatus, refetch: refetchStatus } = useQuery({
+    queryKey: ["wa-status"],
+    queryFn: () => remindersApi.waStatus(),
+    refetchInterval: waQr ? 5000 : false,
+  });
+
+  const connected = waStatus?.connected === true;
+
+  const handleConnect = async () => {
+    setWaLoading(true);
+    setWaQr(null);
+    try {
+      const data = await remindersApi.waSetup();
+      const qr = data?.qrcode?.base64 ?? data?.base64 ?? null;
+      if (qr) setWaQr(qr);
+      else if (data?.instance?.state === "open") {
+        setWaQr(null);
+        refetchStatus();
+      }
+    } catch {
+      alert("Could not reach WhatsApp service. Make sure it is running.");
+    } finally {
+      setWaLoading(false);
+    }
+  };
+
+  return (
+    <Card className="shadow-sm">
+      <CardHeader className="pb-0">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">💬</span>
+          <div>
+            <h3 className="text-base font-semibold">WhatsApp Reminders</h3>
+            <p className="text-xs text-default-400">Connect the MAIA WhatsApp number to send reminder notifications</p>
+          </div>
+        </div>
+      </CardHeader>
+      <CardBody className="pt-4 space-y-4">
+        <div className="flex items-center gap-3">
+          <span className={`w-2.5 h-2.5 rounded-full ${connected ? "bg-green-500" : "bg-gray-300"}`} />
+          <span className="text-sm text-default-600">
+            Status: <strong className={connected ? "text-green-600" : "text-gray-500"}>{connected ? "Connected" : "Not connected"}</strong>
+          </span>
+          <Button size="sm" variant="flat" onPress={() => refetchStatus()}>Refresh</Button>
+        </div>
+
+        {!connected && (
+          <div className="space-y-3">
+            <Button
+              color="success" variant="flat" size="sm"
+              isLoading={waLoading}
+              onPress={handleConnect}
+            >
+              {waQr ? "Refresh QR Code" : "Connect WhatsApp"}
+            </Button>
+
+            {waQr && (
+              <div className="space-y-2">
+                <p className="text-xs text-default-500">
+                  Open WhatsApp on the MAIA phone → <strong>Linked Devices</strong> → <strong>Link a Device</strong> → scan the QR below.
+                  It refreshes automatically once connected.
+                </p>
+                <img
+                  src={waQr.startsWith("data:") ? waQr : `data:image/png;base64,${waQr}`}
+                  alt="WhatsApp QR Code"
+                  className="w-52 h-52 rounded-lg border border-default-200"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {connected && (
+          <p className="text-xs text-green-600 bg-green-50 px-3 py-2 rounded-lg">
+            ✓ WhatsApp is connected. Reminders with "Send via WhatsApp" enabled will be delivered to staff on their registered number.
+          </p>
+        )}
+      </CardBody>
+    </Card>
   );
 }

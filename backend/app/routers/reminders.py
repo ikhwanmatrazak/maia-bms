@@ -1,8 +1,11 @@
 import asyncio
 import logging
+import os
+import re
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, text
 from sqlalchemy.orm import joinedload
 from typing import List, Optional
 from datetime import datetime, timezone, date, timedelta
@@ -16,6 +19,34 @@ from app.middleware.auth import get_current_user
 
 router = APIRouter(prefix="/reminders", tags=["reminders"])
 logger = logging.getLogger(__name__)
+
+# ─── WhatsApp helpers ─────────────────────────────────────────────────────────
+
+_WA_URL = os.getenv("WHATSAPP_API_URL", "http://whatsapp-api:3000")
+_WA_KEY = os.getenv("WHATSAPP_API_KEY", "maia-secret-key")
+_WA_INSTANCE = "maia"
+_WA_HEADERS = {"X-Api-Key": _WA_KEY}
+
+
+def _normalize_phone(phone: str) -> str:
+    digits = re.sub(r'\D', '', phone)
+    if digits.startswith('60'):
+        return digits
+    elif digits.startswith('0'):
+        return '60' + digits[1:]
+    return '60' + digits
+
+
+async def _send_wa(phone: str, message: str):
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(
+                f"{_WA_URL}/api/sendText",
+                json={"session": _WA_INSTANCE, "chatId": f"{phone}@c.us", "text": message},
+                headers=_WA_HEADERS,
+            )
+    except Exception as exc:
+        logger.warning(f"WhatsApp send failed to {phone}: {exc}")
 
 
 def _compute_next_fire(recurrence_type: RecurrenceType, day_of_month: Optional[int],
@@ -116,6 +147,49 @@ def _advance_next_fire(recurrence_type: RecurrenceType, day_of_month: Optional[i
     return None
 
 
+# ─── WhatsApp setup endpoints ────────────────────────────────────────────────
+
+@router.get("/whatsapp/status")
+async def whatsapp_status(current_user: User = Depends(get_current_user)):
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(
+                f"{_WA_URL}/api/sessions/{_WA_INSTANCE}",
+                headers=_WA_HEADERS,
+            )
+            data = r.json()
+            state = data.get("status", "unknown")
+            return {"state": state, "connected": state == "WORKING"}
+    except Exception:
+        return {"state": "unreachable", "connected": False}
+
+
+@router.post("/whatsapp/setup")
+async def whatsapp_setup(current_user: User = Depends(get_current_user)):
+    """Start WAHA session and return QR code (base64 PNG) for scanning."""
+    import base64
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # Create/start session (safe to call even if already exists)
+            await client.post(
+                f"{_WA_URL}/api/sessions",
+                json={"name": _WA_INSTANCE},
+                headers=_WA_HEADERS,
+            )
+            # Get QR code as PNG image
+            qr_r = await client.get(
+                f"{_WA_URL}/api/{_WA_INSTANCE}/auth/qr",
+                headers=_WA_HEADERS,
+            )
+            if qr_r.status_code == 200 and qr_r.content:
+                b64 = base64.b64encode(qr_r.content).decode()
+                return {"qrcode": {"base64": f"data:image/png;base64,{b64}"}}
+            # Already connected or QR not ready yet
+            return qr_r.json() if qr_r.content else {"status": "starting"}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"WhatsApp service unavailable: {exc}")
+
+
 # ─── CRUD ────────────────────────────────────────────────────────────────────
 
 @router.get("", response_model=List[ReminderResponse])
@@ -157,7 +231,7 @@ async def list_reminders(
     else:
         query = query.where(Reminder.is_active == True, Reminder.is_completed == False)
 
-    query = query.order_by(Reminder.next_fire_at.asc().nulls_last())
+    query = query.order_by(func.isnull(Reminder.next_fire_at), Reminder.next_fire_at.asc())
     result = await db.execute(query)
     rows = result.scalars().all()
 
@@ -193,6 +267,7 @@ async def create_reminder(
         action_type=body.action_type,
         next_fire_at=next_fire,
         is_active=True,
+        send_whatsapp=body.send_whatsapp,
     )
     db.add(reminder)
     await db.commit()
@@ -407,6 +482,25 @@ async def _fire_due_reminders():
                         notif.email_sent = True
                 except Exception as email_err:
                     logger.warning(f"Reminder email failed for id={reminder.id}: {email_err}")
+
+                # Send WhatsApp if enabled
+                if reminder.send_whatsapp:
+                    try:
+                        emp_row = await db.execute(
+                            text("SELECT phone FROM hr_employees WHERE user_id=:uid LIMIT 1"),
+                            {"uid": reminder.user_id},
+                        )
+                        emp = emp_row.fetchone()
+                        if emp and emp[0]:
+                            wa_phone = _normalize_phone(emp[0])
+                            wa_msg = f"*Reminder: {reminder.title}*"
+                            if client_name:
+                                wa_msg += f"\nClient: {client_name}"
+                            if reminder.description:
+                                wa_msg += f"\n{reminder.description}"
+                            await _send_wa(wa_phone, wa_msg)
+                    except Exception as wa_err:
+                        logger.warning(f"WhatsApp reminder failed for id={reminder.id}: {wa_err}")
 
                 # Advance or complete
                 if reminder.recurrence_type == RecurrenceType.one_time:

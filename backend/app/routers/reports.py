@@ -398,6 +398,23 @@ def _categorize(description: str, keywords_map: dict, default: str) -> str:
     return default
 
 
+@router.get("/available-years")
+async def available_years(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin_or_manager()),
+):
+    tenant_filter = "" if current_user.is_super_admin else "AND account_id IN (SELECT id FROM bank_accounts WHERE tenant_id=:tid)"
+    params: dict = {} if current_user.is_super_admin else {"tid": current_user.tenant_id}
+    rows = await db.execute(text(f"""
+        SELECT DISTINCT YEAR(txn_date) AS yr
+        FROM bank_transactions
+        WHERE 1=1 {tenant_filter}
+        ORDER BY yr
+    """), params)
+    years = [int(row.yr) for row in rows.fetchall()]
+    return {"years": years if years else [datetime.now().year]}
+
+
 @router.get("/management-accounts")
 async def management_accounts(
     year: int = Query(2025),

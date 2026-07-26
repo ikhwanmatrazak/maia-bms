@@ -71,7 +71,7 @@
   <table>
     <tr><td>Subtotal</td><td>{{ document.currency }} {{ document.subtotal|float|fmt }}</td></tr>
     {% if document.discount_amount|float > 0 %}
-    <tr><td>Discount</td><td>- {{ document.currency }} {{ document.discount_amount|float|fmt }}</td></tr>
+    <tr><td>{{ document.discount_label if document.discount_label else 'Discount' }}</td><td>- {{ document.currency }} {{ document.discount_amount|float|fmt }}</td></tr>
     {% endif %}
     <tr><td>Tax</td><td>{{ document.currency }} {{ document.tax_total|float|fmt }}</td></tr>
     <tr class="total-row"><td>TOTAL</td><td>{{ document.currency }} {{ document.total|float|fmt }}</td></tr>

@@ -266,6 +266,8 @@ export const remindersApi = {
   listNotifications: (params?: object) => api.get("/reminders/notifications", { params }).then((r) => r.data),
   markRead: (id: number) => api.post(`/reminders/notifications/${id}/read`).then((r) => r.data),
   markAllRead: () => api.post("/reminders/notifications/read-all").then((r) => r.data),
+  waStatus: () => api.get("/reminders/whatsapp/status").then((r) => r.data),
+  waSetup: () => api.post("/reminders/whatsapp/setup").then((r) => r.data),
 };
 
 export const analyticsApi = {
@@ -282,6 +284,7 @@ export const reportsApi = {
   payments: (params?: object) => api.get("/reports/payments", { params }).then((r) => r.data),
   clientSummary: () => api.get("/reports/client-summary").then((r) => r.data),
   managementAccounts: (year: number) => api.get("/reports/management-accounts", { params: { year } }).then((r) => r.data),
+  availableYears: () => api.get<{ years: number[] }>("/reports/available-years").then((r) => r.data),
 };
 
 export const settingsApi = {

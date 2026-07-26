@@ -59,18 +59,28 @@ function StatCard({ label, value, sub, positive }: { label: string; value: strin
 }
 
 export default function ManagementAccountsPage() {
-  const [year, setYear] = useState(2025);
+  const [year, setYear] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"cashflow" | "pnl">("cashflow");
 
+  const { data: yearsData } = useQuery({
+    queryKey: ["available-years"],
+    queryFn: () => reportsApi.availableYears(),
+  });
+
+  const availableYears: number[] = yearsData?.years ?? [];
+
+  // Auto-select latest available year once loaded
+  const effectiveYear = year ?? availableYears[availableYears.length - 1] ?? new Date().getFullYear();
+
   const { data, isLoading } = useQuery({
-    queryKey: ["management-accounts", year],
-    queryFn: () => reportsApi.managementAccounts(year),
+    queryKey: ["management-accounts", effectiveYear],
+    queryFn: () => reportsApi.managementAccounts(effectiveYear),
+    enabled: availableYears.length > 0,
   });
 
   const months = data?.months ?? [];
   const activeMths = months.filter((m: any) => m.inflow > 0 || m.outflow > 0);
 
-  // Income cats that actually have data
   const incomeActive = ALL_INCOME_CATS.filter(cat =>
     months.some((m: any) => (m.income_breakdown[cat] ?? 0) > 0)
   );
@@ -88,16 +98,21 @@ export default function ManagementAccountsPage() {
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Management Accounts {year}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Cash-basis · Bank transactions · Jan – Dec {year}</p>
+            <h1 className="text-2xl font-bold text-gray-900">Management Accounts {effectiveYear}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Cash-basis · Bank transactions · Jan – Dec {effectiveYear}</p>
           </div>
           <div className="flex items-center gap-3 no-print">
             <select
-              value={year}
+              value={effectiveYear}
               onChange={e => setYear(Number(e.target.value))}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white"
+              disabled={availableYears.length === 0}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white disabled:opacity-50"
             >
-              {[2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+              {availableYears.length === 0 ? (
+                <option>Loading…</option>
+              ) : (
+                availableYears.map(y => <option key={y} value={y}>{y}</option>)
+              )}
             </select>
             <button
               onClick={handlePrint}

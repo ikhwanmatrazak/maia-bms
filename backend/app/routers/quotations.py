@@ -466,7 +466,7 @@ async def convert_to_invoice(
 
     from app.config import get_settings
     app_settings = get_settings()
-    payment_terms = settings.default_payment_terms if settings else 30
+    payment_terms = (settings.default_payment_terms if settings else None) or 30
 
     from datetime import timedelta
     due_date = datetime.now(timezone.utc) + timedelta(days=payment_terms)

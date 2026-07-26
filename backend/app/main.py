@@ -56,6 +56,7 @@ async def _ensure_crm_columns():
         # Billplz payment link columns
         "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_link_id VARCHAR(100) NULL",
         "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS payment_link_url VARCHAR(500) NULL",
+        "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount_label VARCHAR(200) NULL",
         "ALTER TABLE bills ADD COLUMN IF NOT EXISTS payment_receipt_url VARCHAR(500) NULL",
         # Line item unit column
         "ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS unit VARCHAR(50) NULL",
@@ -796,6 +797,7 @@ async def _ensure_reminder_tables():
         "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS action_type ENUM('reminder','create_invoice') NOT NULL DEFAULT 'reminder'",
         "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS next_fire_at DATE NULL",
         "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1",
+        "ALTER TABLE reminders ADD COLUMN IF NOT EXISTS send_whatsapp TINYINT(1) NOT NULL DEFAULT 0",
         """CREATE TABLE IF NOT EXISTS reminder_notifications (
             id INT AUTO_INCREMENT PRIMARY KEY,
             reminder_id INT NULL,

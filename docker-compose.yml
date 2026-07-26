@@ -13,6 +13,8 @@ services:
       ENVIRONMENT: production
       UPLOAD_DIR: uploads
       MAX_FILE_SIZE_MB: 10
+      WHATSAPP_API_URL: http://whatsapp-api:3000
+      WHATSAPP_API_KEY: maia-secret-key
     volumes:
       - uploads_data:/app/uploads
     networks:
@@ -38,8 +40,20 @@ services:
       - "traefik.http.routers.bmsfront.tls.certresolver=letsencrypt"
       - "traefik.http.services.bmsfront.loadbalancer.server.port=3000"
 
+  whatsapp-api:
+    image: devlikeapro/waha
+    restart: unless-stopped
+    environment:
+      WHATSAPP_API_KEY: maia-secret-key
+      WHATSAPP_DEFAULT_ENGINE: NOWEB
+    volumes:
+      - whatsapp_data:/app/.sessions
+    networks:
+      - dokploy-network
+
 volumes:
   uploads_data:
+  whatsapp_data:
 
 networks:
   dokploy-network:

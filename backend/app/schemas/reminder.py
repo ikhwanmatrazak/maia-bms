@@ -14,6 +14,7 @@ class ReminderCreate(BaseModel):
     day_of_month: Optional[int] = None
     day_of_week: Optional[int] = None
     action_type: ActionType = ActionType.reminder
+    send_whatsapp: bool = False
 
 
 class ReminderUpdate(BaseModel):
@@ -28,6 +29,7 @@ class ReminderUpdate(BaseModel):
     action_type: Optional[ActionType] = None
     is_active: Optional[bool] = None
     client_id: Optional[int] = None
+    send_whatsapp: Optional[bool] = None
 
 
 class ReminderResponse(BaseModel):
@@ -47,6 +49,7 @@ class ReminderResponse(BaseModel):
     action_type: ActionType
     next_fire_at: Optional[date] = None
     is_active: bool
+    send_whatsapp: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

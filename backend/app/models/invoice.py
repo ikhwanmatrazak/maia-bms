@@ -29,6 +29,7 @@ class Invoice(Base):
     due_date = Column(DateTime(timezone=True), nullable=True)
     subtotal = Column(Numeric(15, 2), default=0.00)
     discount_amount = Column(Numeric(15, 2), default=0.00)
+    discount_label = Column(String(200), nullable=True)
     tax_total = Column(Numeric(15, 2), default=0.00)
     total = Column(Numeric(15, 2), default=0.00)
     amount_paid = Column(Numeric(15, 2), default=0.00)

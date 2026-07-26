@@ -10,7 +10,7 @@ import { remindersApi, clientsApi } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 import { Topbar } from "@/components/ui/Topbar";
 import { TableSkeleton } from "@/components/ui/PageSkeleton";
-import { Bell, Repeat, Trash2, RotateCcw } from "lucide-react";
+import { Bell, Repeat, Trash2, RotateCcw, MessageCircle } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -57,6 +57,7 @@ const emptyForm = {
   day_of_week: "0",
   action_type: "reminder",
   client_id: "",
+  send_whatsapp: false,
 };
 
 export default function RemindersPage() {
@@ -99,6 +100,7 @@ export default function RemindersPage() {
       day_of_week: r.day_of_week?.toString() ?? "0",
       action_type: r.action_type,
       client_id: r.client_id?.toString() || "",
+      send_whatsapp: r.send_whatsapp ?? false,
     });
     setModal(true);
   };
@@ -132,6 +134,7 @@ export default function RemindersPage() {
       recurrence_type: form.recurrence_type,
       action_type: form.action_type,
       client_id: form.client_id ? Number(form.client_id) : null,
+      send_whatsapp: form.send_whatsapp,
     };
     if (form.recurrence_type === "monthly" || form.recurrence_type === "quarterly" || form.recurrence_type === "yearly") {
       payload.day_of_month = form.day_of_month ? Number(form.day_of_month) : null;
@@ -231,6 +234,12 @@ export default function RemindersPage() {
                       {r.action_type === "create_invoice" && (
                         <span className="text-[11px] text-success bg-success/10 px-2 py-0.5 rounded-full">
                           Invoice reminder
+                        </span>
+                      )}
+                      {r.send_whatsapp && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                          <MessageCircle size={10} />
+                          WhatsApp
                         </span>
                       )}
                     </div>
@@ -360,6 +369,23 @@ export default function RemindersPage() {
               >
                 {PRIORITIES.map((p) => <SelectItem key={p} className="capitalize">{p}</SelectItem>)}
               </Select>
+
+              {/* WhatsApp toggle */}
+              <label className="flex items-center gap-3 px-1 cursor-pointer select-none">
+                <div
+                  onClick={() => setForm({ ...form, send_whatsapp: !form.send_whatsapp })}
+                  className={`relative w-10 h-6 rounded-full transition-colors ${form.send_whatsapp ? "bg-green-500" : "bg-gray-200"}`}
+                >
+                  <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.send_whatsapp ? "translate-x-4" : ""}`} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                    <MessageCircle size={14} className="text-green-500" />
+                    Send via WhatsApp
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">Message sent to your registered WhatsApp number when reminder fires</p>
+                </div>
+              </label>
 
               {/* Description */}
               <Textarea
