@@ -153,10 +153,9 @@ def _advance_next_fire(recurrence_type: RecurrenceType, day_of_month: Optional[i
 async def whatsapp_status(current_user: User = Depends(get_current_user)):
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(
-                f"{_WA_URL}/api/sessions/{_WA_INSTANCE}",
-                headers=_WA_HEADERS,
-            )
+            r = await client.get(f"{_WA_URL}/api/sessions/{_WA_INSTANCE}", headers=_WA_HEADERS)
+            if r.status_code == 404:
+                return {"state": "not_created", "connected": False}
             data = r.json()
             state = data.get("status", "unknown")
             return {"state": state, "connected": state == "WORKING"}
@@ -170,22 +169,37 @@ async def whatsapp_setup(current_user: User = Depends(get_current_user)):
     import base64
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            # Create/start session (safe to call even if already exists)
-            await client.post(
-                f"{_WA_URL}/api/sessions",
-                json={"name": _WA_INSTANCE},
-                headers=_WA_HEADERS,
-            )
-            # Get QR code as PNG image
-            qr_r = await client.get(
-                f"{_WA_URL}/api/{_WA_INSTANCE}/auth/qr",
-                headers=_WA_HEADERS,
-            )
+            # Check if session already exists
+            check = await client.get(f"{_WA_URL}/api/sessions/{_WA_INSTANCE}", headers=_WA_HEADERS)
+
+            if check.status_code == 404:
+                # Session doesn't exist — create it
+                await client.post(
+                    f"{_WA_URL}/api/sessions",
+                    json={"name": _WA_INSTANCE, "config": {}},
+                    headers=_WA_HEADERS,
+                )
+            else:
+                session_status = check.json().get("status", "")
+                if session_status == "WORKING":
+                    return {"connected": True}
+                elif session_status == "STOPPED":
+                    # Start the stopped session
+                    await client.post(
+                        f"{_WA_URL}/api/sessions/{_WA_INSTANCE}/start",
+                        json={},
+                        headers=_WA_HEADERS,
+                    )
+
+            # Brief wait for session to initialise and generate QR
+            await asyncio.sleep(3)
+
+            # QR endpoint: /api/{session}/auth/qr
+            qr_r = await client.get(f"{_WA_URL}/api/{_WA_INSTANCE}/auth/qr", headers=_WA_HEADERS)
             if qr_r.status_code == 200 and qr_r.content:
                 b64 = base64.b64encode(qr_r.content).decode()
                 return {"qrcode": {"base64": f"data:image/png;base64,{b64}"}}
-            # Already connected or QR not ready yet
-            return qr_r.json() if qr_r.content else {"status": "starting"}
+            return {"status": "starting"}
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"WhatsApp service unavailable: {exc}")
 
