@@ -132,20 +132,27 @@ async def fix_po_numbers(secret: str, db: AsyncSession = Depends(get_db)):
     if secret != "maia-fix-2026":
         raise HTTPException(status_code=403, detail="Forbidden")
     from sqlalchemy import text
-    # 3-way swap: 0005->0008, 0006->0005, 0008->0006
-    # Use temp name to avoid unique constraint conflicts
-    steps = [
-        ("PO-2026-TEMP", "PO-2026-0005"),
-        ("PO-2026-0005", "PO-2026-0006"),
-        ("PO-2026-0006", "PO-2026-0008"),
-        ("PO-2026-0008", "PO-2026-TEMP"),
-    ]
-    results = []
-    for new, old in steps:
-        r = await db.execute(text("UPDATE purchase_orders SET po_number=:new WHERE po_number=:old"), {"new": new, "old": old})
-        results.append({"from": old, "to": new, "rows": r.rowcount})
-    await db.commit()
-    return {"done": True, "updates": results}
+    try:
+        # First show current state
+        cur = await db.execute(text("SELECT po_number, vendor_name FROM purchase_orders WHERE po_number IN ('PO-2026-0005','PO-2026-0006','PO-2026-0008') ORDER BY po_number"))
+        current = [{"po_number": r[0], "vendor": r[1]} for r in cur.fetchall()]
+
+        # 3-way swap: 0005->0008, 0006->0005, 0008->0006
+        steps = [
+            ("PO-2026-TEMP", "PO-2026-0005"),
+            ("PO-2026-0005", "PO-2026-0006"),
+            ("PO-2026-0006", "PO-2026-0008"),
+            ("PO-2026-0008", "PO-2026-TEMP"),
+        ]
+        results = []
+        for new, old in steps:
+            r = await db.execute(text("UPDATE purchase_orders SET po_number=:new WHERE po_number=:old"), {"new": new, "old": old})
+            results.append({"from": old, "to": new, "rows": r.rowcount})
+        await db.commit()
+        return {"done": True, "before": current, "updates": results}
+    except Exception as e:
+        await db.rollback()
+        return {"done": False, "error": str(e)}
 
 
 @router.get("/summary")
