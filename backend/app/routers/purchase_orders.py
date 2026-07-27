@@ -127,6 +127,20 @@ async def create_purchase_order(
     return result.scalar_one()
 
 
+@router.post("/fix-po-numbers")
+async def fix_po_numbers(secret: str, db: AsyncSession = Depends(get_db)):
+    if secret != "maia-fix-2026":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    from sqlalchemy import text
+    updates = [("PO-2026-0003", "PO-2026-0006"), ("PO-2026-0004", "PO-2026-0007")]
+    results = []
+    for new, old in updates:
+        r = await db.execute(text("UPDATE purchase_orders SET po_number=:new WHERE po_number=:old"), {"new": new, "old": old})
+        results.append({"from": old, "to": new, "rows": r.rowcount})
+    await db.commit()
+    return {"done": True, "updates": results}
+
+
 @router.get("/summary")
 async def purchase_orders_summary_route(
     month: Optional[str] = Query(None),
@@ -360,17 +374,3 @@ async def delete_purchase_order(
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     po.is_deleted = True
     await db.commit()
-
-
-@router.post("/fix-po-numbers")
-async def fix_po_numbers(secret: str, db: AsyncSession = Depends(get_db)):
-    if secret != "maia-fix-2026":
-        raise HTTPException(status_code=403, detail="Forbidden")
-    from sqlalchemy import text
-    updates = [("PO-2026-0003", "PO-2026-0006"), ("PO-2026-0004", "PO-2026-0007")]
-    results = []
-    for new, old in updates:
-        r = await db.execute(text("UPDATE purchase_orders SET po_number=:new WHERE po_number=:old"), {"new": new, "old": old})
-        results.append({"from": old, "to": new, "rows": r.rowcount})
-    await db.commit()
-    return {"done": True, "updates": results}
