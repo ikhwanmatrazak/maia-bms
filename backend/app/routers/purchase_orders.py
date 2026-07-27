@@ -132,9 +132,16 @@ async def fix_po_numbers(secret: str, db: AsyncSession = Depends(get_db)):
     if secret != "maia-fix-2026":
         raise HTTPException(status_code=403, detail="Forbidden")
     from sqlalchemy import text
-    updates = [("PO-2026-0003", "PO-2026-0006"), ("PO-2026-0004", "PO-2026-0007")]
+    # 3-way swap: 0005->0008, 0006->0005, 0008->0006
+    # Use temp name to avoid unique constraint conflicts
+    steps = [
+        ("PO-2026-TEMP", "PO-2026-0005"),
+        ("PO-2026-0005", "PO-2026-0006"),
+        ("PO-2026-0006", "PO-2026-0008"),
+        ("PO-2026-0008", "PO-2026-TEMP"),
+    ]
     results = []
-    for new, old in updates:
+    for new, old in steps:
         r = await db.execute(text("UPDATE purchase_orders SET po_number=:new WHERE po_number=:old"), {"new": new, "old": old})
         results.append({"from": old, "to": new, "rows": r.rowcount})
     await db.commit()
