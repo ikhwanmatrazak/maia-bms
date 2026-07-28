@@ -953,8 +953,8 @@ function ReconciliationPanel({ accountId, currency }: { accountId: number; curre
   const unreconciled = summary?.transactions.filter((t) => !t.is_reconciled) ?? [];
   const reconciled = summary?.transactions.filter((t) => t.is_reconciled) ?? [];
 
-  // Build month options: current month + 11 previous months
-  const monthOptions = Array.from({ length: 12 }, (_, i) => {
+  // Build month options: current month + 35 previous months (3 years)
+  const monthOptions = Array.from({ length: 36 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const label = d.toLocaleDateString("en-MY", { month: "long", year: "numeric" });
