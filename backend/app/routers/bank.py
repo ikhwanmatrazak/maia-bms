@@ -2868,16 +2868,17 @@ async def reconciliation_summary(
         date_from = date(now.year, now.month, 1)
         date_to = date(now.year + 1, 1, 1) if now.month == 12 else date(now.year, now.month + 1, 1)
 
-    params: dict = {"aid": account_id, "df": date_from, "dt": date_to}
-    tenant_filter = "" if tid is None else "AND ba.tenant_id = :tid"
+    # Verify account belongs to tenant (use separate params dict)
     if tid is not None:
-        params["tid"] = tid
-
-    # Verify account belongs to tenant
-    acc_row = await db.execute(
-        text(f"SELECT id, name, currency FROM bank_accounts ba WHERE ba.id = :aid {tenant_filter}"),
-        params,
-    )
+        acc_row = await db.execute(
+            text("SELECT id, name, currency FROM bank_accounts WHERE id = :aid AND tenant_id = :tid"),
+            {"aid": account_id, "tid": tid},
+        )
+    else:
+        acc_row = await db.execute(
+            text("SELECT id, name, currency FROM bank_accounts WHERE id = :aid"),
+            {"aid": account_id},
+        )
     account = acc_row.fetchone()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
