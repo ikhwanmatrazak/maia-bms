@@ -1017,3 +1017,43 @@ export const bankApi = {
     return `${API_URL}/bank/accounts/${accountId}/transactions/${suffix}?${q.toString()}`;
   },
 };
+
+// ── Balance Sheet ──────────────────────────────────────────────────────────────
+
+export interface BSAutoItem {
+  label: string;
+  amount: number;
+  auto: true;
+}
+
+export interface BSManualItem {
+  id?: number;
+  section: string;
+  label: string;
+  amount: number;
+  sort_order: number;
+}
+
+export interface BalanceSheet {
+  as_of: string;
+  non_current_assets: { items: BSManualItem[]; total: number };
+  current_assets: { auto_items: BSAutoItem[]; manual_items: BSManualItem[]; total: number };
+  total_assets: number;
+  equity: { auto_items: BSAutoItem[]; manual_items: BSManualItem[]; total: number };
+  current_liabilities: { auto_items: BSAutoItem[]; manual_items: BSManualItem[]; total: number };
+  total_liabilities: number;
+  total_equity_liabilities: number;
+  is_balanced: boolean;
+  difference: number;
+}
+
+export const balanceSheetApi = {
+  get: (as_of?: string) =>
+    api.get<BalanceSheet>("/finance/balance-sheet", { params: as_of ? { as_of } : {} }).then((r) => r.data),
+  getItems: () =>
+    api.get<BSManualItem[]>("/finance/balance-sheet/items").then((r) => r.data),
+  saveItems: (items: BSManualItem[]) =>
+    api.put<{ ok: boolean; saved: number }>("/finance/balance-sheet/items", { items }).then((r) => r.data),
+  pdfUrl: (as_of?: string) =>
+    `${API_URL}/finance/balance-sheet/pdf${as_of ? `?as_of=${as_of}` : ""}`,
+};

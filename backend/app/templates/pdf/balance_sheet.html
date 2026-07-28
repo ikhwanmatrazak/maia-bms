@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 9pt; color: #1a1a2e; background: #fff; }
+  .page { padding: 28px 32px; }
+
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a2e; padding-bottom: 12px; margin-bottom: 16px; }
+  .company-info h1 { font-size: 14pt; font-weight: 700; color: #1a1a2e; margin-bottom: 2px; }
+  .company-info p { font-size: 7.5pt; color: #555; line-height: 1.5; }
+  .logo-block img { max-height: 56px; max-width: 130px; object-fit: contain; }
+
+  .title-block { text-align: center; margin-bottom: 20px; }
+  .title-block h2 { font-size: 12pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .title-block .subtitle { font-size: 9pt; color: #444; margin-top: 3px; }
+  .title-block .generated { font-size: 7.5pt; color: #888; margin-top: 2px; }
+
+  .bs-layout { display: flex; gap: 24px; }
+  .bs-col { flex: 1; }
+
+  .section { margin-bottom: 18px; }
+  .section-header { background: #1a1a2e; color: #fff; font-weight: 700; font-size: 8.5pt; padding: 5px 8px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .section table { width: 100%; border-collapse: collapse; }
+  .section table td { padding: 4px 8px; font-size: 8.5pt; border-bottom: 1px solid #e5e7eb; }
+  .section table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .section table td.label { color: #374151; }
+  .section table td.auto-label { color: #374151; font-style: italic; }
+
+  .subtotal-row td { font-weight: 700; background: #f3f4f6; border-top: 1.5px solid #1a1a2e; }
+  .grand-total-row td { font-weight: 700; background: #e0e7ff; border-top: 2px solid #1a1a2e; font-size: 9pt; }
+
+  .balance-check { margin-top: 20px; padding: 10px 14px; border-radius: 4px; font-size: 8.5pt; font-weight: 700; }
+  .balance-ok { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+  .balance-err { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+
+  .doc-footer { margin-top: 24px; text-align: center; font-size: 7pt; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 6px; }
+
+  @page { size: A4 portrait; margin: 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="company-info">
+      <h1>{{ company.get('name', 'Company') }}</h1>
+      {% if company.get('registration_number') %}<p>{{ company['registration_number'] }}</p>{% endif %}
+      {% if company.get('address') %}<p>{{ company['address'] }}</p>{% endif %}
+      {% if company.get('phone') %}<p>Tel: {{ company['phone'] }}</p>{% endif %}
+    </div>
+    {% if logo_data %}
+    <div class="logo-block"><img src="{{ logo_data }}" alt="Logo" /></div>
+    {% endif %}
+  </div>
+
+  <!-- Title -->
+  <div class="title-block">
+    <h2>Statement of Financial Position</h2>
+    <div class="subtitle">As at {{ as_of }}</div>
+    <div class="generated">Generated on {{ now }}</div>
+  </div>
+
+  <!-- Two-column layout: Assets | Equity & Liabilities -->
+  <div class="bs-layout">
+
+    <!-- LEFT: Assets -->
+    <div class="bs-col">
+
+      <!-- Non-Current Assets -->
+      <div class="section">
+        <div class="section-header">Non-Current Assets</div>
+        <table>
+          {% for item in bs.non_current_assets.items %}
+          <tr>
+            <td class="label">{{ item.label }}</td>
+            <td class="num">{{ item.amount | fmt }}</td>
+          </tr>
+          {% endfor %}
+          {% if not bs.non_current_assets.items %}
+          <tr><td class="label" colspan="2" style="color:#9ca3af;font-style:italic">No items</td></tr>
+          {% endif %}
+          <tr class="subtotal-row">
+            <td>Total Non-Current Assets</td>
+            <td class="num">{{ bs.non_current_assets.total | fmt }}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Current Assets -->
+      <div class="section">
+        <div class="section-header">Current Assets</div>
+        <table>
+          {% for item in bs.current_assets.auto_items %}
+          <tr>
+            <td class="auto-label">{{ item.label }}</td>
+            <td class="num">{{ item.amount | fmt }}</td>
+          </tr>
+          {% endfor %}
+          {% for item in bs.current_assets.manual_items %}
+          <tr>
+            <td class="label">{{ item.label }}</td>
+            <td class="num">{{ item.amount | fmt }}</td>
+          </tr>
+          {% endfor %}
+          <tr class="subtotal-row">
+            <td>Total Current Assets</td>
+            <td class="num">{{ bs.current_assets.total | fmt }}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Total Assets -->
+      <table style="width:100%;border-collapse:collapse;margin-top:4px;">
+        <tr class="grand-total-row">
+          <td style="padding:6px 8px;font-size:9.5pt;">TOTAL ASSETS</td>
+          <td class="num" style="padding:6px 8px;font-size:9.5pt;text-align:right;">{{ bs.total_assets | fmt }}</td>
+        </tr>
+      </table>
+
+    </div>
+
+    <!-- RIGHT: Equity & Liabilities -->
+    <div class="bs-col">
+
+      <!-- Equity -->
+      <div class="section">
+        <div class="section-header">Equity</div>
+        <table>
+          {% for item in bs.equity.manual_items %}
+          <tr>
+            <td class="label">{{ item.label }}</td>
+            <td class="num">{{ item.amount | fmt }}</td>
+          </tr>
+          {% endfor %}
+          {% for item in bs.equity.auto_items %}
+          <tr>
+            <td class="auto-label">{{ item.label }}</td>
+            <td class="num">{{ item.amount | fmt }}</td>
+          </tr>
+          {% endfor %}
+          <tr class="subtotal-row">
+            <td>Total Equity</td>
+            <td class="num">{{ bs.equity.total | fmt }}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Current Liabilities -->
+      <div class="section">
+        <div class="section-header">Current Liabilities</div>
+        <table>
+          {% for item in bs.current_liabilities.auto_items %}
+          <tr>
+            <td class="auto-label">{{ item.label }}</td>
+            <td class="num">{{ item.amount | fmt }}</td>
+          </tr>
+          {% endfor %}
+          {% for item in bs.current_liabilities.manual_items %}
+          <tr>
+            <td class="label">{{ item.label }}</td>
+            <td class="num">{{ item.amount | fmt }}</td>
+          </tr>
+          {% endfor %}
+          {% if not bs.current_liabilities.auto_items and not bs.current_liabilities.manual_items %}
+          <tr><td class="label" colspan="2" style="color:#9ca3af;font-style:italic">No items</td></tr>
+          {% endif %}
+          <tr class="subtotal-row">
+            <td>Total Current Liabilities</td>
+            <td class="num">{{ bs.current_liabilities.total | fmt }}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Total Equity & Liabilities -->
+      <table style="width:100%;border-collapse:collapse;margin-top:4px;">
+        <tr class="grand-total-row">
+          <td style="padding:6px 8px;font-size:9.5pt;">TOTAL EQUITY &amp; LIABILITIES</td>
+          <td class="num" style="padding:6px 8px;font-size:9.5pt;text-align:right;">{{ bs.total_equity_liabilities | fmt }}</td>
+        </tr>
+      </table>
+
+    </div>
+  </div>
+
+  <!-- Balance Check -->
+  {% if bs.is_balanced %}
+  <div class="balance-check balance-ok">&#10003; Balance sheet balances — Total Assets = Total Equity &amp; Liabilities (RM {{ bs.total_assets | fmt }})</div>
+  {% else %}
+  <div class="balance-check balance-err">&#9888; Out of balance by RM {{ bs.difference | fmt }} — please review manual entries</div>
+  {% endif %}
+
+  <!-- Notes -->
+  <div style="margin-top:14px;font-size:7.5pt;color:#6b7280;">
+    <em>Note: Cash at Bank and Accounts Receivable are system-computed from bank and invoice records. Retained Earnings is computed from recorded income and expenses. Italic items are auto-computed.</em>
+  </div>
+
+  <div class="doc-footer">Generated by MAIA BMS &bull; {{ now }}</div>
+</div>
+</body>
+</html>

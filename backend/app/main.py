@@ -14,6 +14,7 @@ from app.database import init_db
 from app.routers import auth, users, clients, quotations, invoices, receipts, payments, expenses, reminders, reports, settings, documents
 from app.routers import purchase_orders, delivery_orders, super_admin, products, analytics, vendors, prospects, credit_notes, tracking
 from app.routers import gateway, bills, hr, user_claims, projects, calendar, bug_reports, name_card, bank
+from app.routers import balance_sheet
 
 logging.basicConfig(
     level=logging.INFO,
@@ -923,6 +924,7 @@ app.include_router(calendar.router, prefix=prefix)
 app.include_router(bug_reports.router, prefix=prefix)
 app.include_router(name_card.router, prefix=prefix)
 app.include_router(bank.router, prefix=prefix)
+app.include_router(balance_sheet.router, prefix=prefix)
 
 
 @app.get("/health")
