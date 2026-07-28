@@ -2803,8 +2803,9 @@ class ReconcileToggleOut(BaseModel):
 
 
 class ReconcileBatchIn(BaseModel):
-    transaction_ids: List[int]
+    transaction_ids: List[int] = []
     reconciled: bool = True
+    year: Optional[str] = None  # if set, auto-reconcile all txns for this year (or "all")
 
 
 @router.post("/transactions/{txn_id}/toggle-reconcile", response_model=ReconcileToggleOut)
@@ -2885,6 +2886,21 @@ async def reconcile_batch(
     current_user: User = Depends(get_current_user),
 ):
     now = datetime.now(timezone.utc) if body.reconciled else None
+    # Auto-reconcile by year
+    if body.year:
+        if body.year == "all":
+            result = await db.execute(
+                text("UPDATE bank_transactions SET is_reconciled = :s, reconciled_at = :at WHERE account_id = :aid AND is_reconciled = 0"),
+                {"s": body.reconciled, "at": now, "aid": account_id},
+            )
+        else:
+            result = await db.execute(
+                text("UPDATE bank_transactions SET is_reconciled = :s, reconciled_at = :at WHERE account_id = :aid AND is_reconciled = 0 AND YEAR(txn_date) = :yr"),
+                {"s": body.reconciled, "at": now, "aid": account_id, "yr": int(body.year)},
+            )
+        await db.commit()
+        return {"ok": True, "updated": result.rowcount, "reconciled": body.reconciled, "year": body.year}
+    # Normal batch by IDs
     if body.transaction_ids:
         ids_placeholder = ",".join(str(i) for i in body.transaction_ids)
         await db.execute(

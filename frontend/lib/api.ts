@@ -1001,7 +1001,7 @@ export const bankApi = {
   reconcileBatch: (accountId: number, transactionIds: number[], reconciled = true) =>
     api.post(`/bank/accounts/${accountId}/reconcile-batch`, { transaction_ids: transactionIds, reconciled }).then((r) => r.data),
   autoReconcile: (accountId: number, year?: string) =>
-    api.post<{ ok: boolean; updated: number; year: string }>(`/bank/accounts/${accountId}/auto-reconcile`, null, { params: year ? { year } : {} }).then((r) => r.data),
+    api.post<{ ok: boolean; updated: number; year: string }>(`/bank/accounts/${accountId}/reconcile-batch`, { transaction_ids: [], reconciled: true, year: year || "all" }).then((r) => r.data),
   cashflowPdfUrl: (dateFrom: string, dateTo: string) =>
     `${API_URL}/bank/cashflow/pdf?date_from=${dateFrom}&date_to=${dateTo}`,
   cashflowExcelUrl: (dateFrom: string, dateTo: string) =>
