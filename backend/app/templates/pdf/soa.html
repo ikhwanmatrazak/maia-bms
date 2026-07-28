@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 9pt; color: #1a1a2e; background: #fff; }
+  .page { padding: 24px 28px; }
+
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a2e; padding-bottom: 12px; margin-bottom: 14px; }
+  .company-info h1 { font-size: 13pt; font-weight: 700; color: #1a1a2e; margin-bottom: 2px; }
+  .company-info p { font-size: 7.5pt; color: #555; line-height: 1.5; }
+  .logo-block img { max-height: 52px; max-width: 120px; object-fit: contain; }
+
+  .title-block { text-align: center; margin-bottom: 14px; }
+  .title-block h2 { font-size: 12pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .title-block .period { font-size: 9pt; color: #444; margin-top: 3px; }
+  .title-block .generated { font-size: 7.5pt; color: #888; margin-top: 2px; }
+
+  .party-block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px 14px; margin-bottom: 14px; }
+  .party-block h3 { font-size: 8.5pt; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+  .party-block .name { font-size: 10.5pt; font-weight: 700; color: #1a1a2e; }
+  .party-block .detail { font-size: 8pt; color: #555; margin-top: 2px; }
+
+  .summary-row { display: flex; gap: 12px; margin-bottom: 14px; }
+  .summary-box { flex: 1; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px 12px; text-align: center; }
+  .summary-box .label { font-size: 7.5pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px; }
+  .summary-box .value { font-size: 11pt; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .summary-box.outstanding .value { color: #b45309; }
+  .summary-box.credit .value { color: #065f46; }
+
+  /* Transaction table */
+  table.txn { width: 100%; border-collapse: collapse; font-size: 8pt; margin-bottom: 16px; }
+  table.txn thead th { background: #1a1a2e; color: #fff; padding: 5px 7px; text-align: left; font-size: 7.5pt; font-weight: 700; }
+  table.txn thead th.num { text-align: right; }
+  table.txn tbody tr:nth-child(even) { background: #f9fafb; }
+  table.txn tbody td { padding: 4px 7px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  table.txn tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.txn tbody td.info-row { color: #6b7280; font-style: italic; }
+  table.txn tfoot td { padding: 5px 7px; font-weight: 700; border-top: 2px solid #1a1a2e; }
+  table.txn tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .type-invoice { color: #1e3a8a; }
+  .type-payment { color: #065f46; }
+  .type-credit_note { color: #7e22ce; }
+  .type-bill { color: #1e3a8a; }
+  .type-po { color: #6b7280; font-style: italic; }
+
+  /* Aged analysis */
+  .aged-title { font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; border-left: 3px solid #1a1a2e; padding-left: 8px; margin-bottom: 8px; }
+  table.aged { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+  table.aged thead th { background: #1a1a2e; color: #fff; padding: 5px 8px; text-align: center; font-size: 8pt; font-weight: 700; }
+  table.aged thead th.label-col { text-align: left; }
+  table.aged tbody td { padding: 5px 8px; border: 1px solid #d1d5db; text-align: center; font-variant-numeric: tabular-nums; }
+  table.aged tbody td.label-col { text-align: left; font-weight: 700; }
+  table.aged tfoot td { padding: 5px 8px; font-weight: 700; background: #f3f4f6; border: 1px solid #d1d5db; text-align: center; font-variant-numeric: tabular-nums; }
+  table.aged tfoot td.label-col { text-align: left; }
+
+  .zero { color: #9ca3af; }
+  .pos { color: #b45309; }
+
+  .doc-footer { margin-top: 16px; text-align: center; font-size: 7pt; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 6px; }
+  @page { size: A4 portrait; margin: 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="company-info">
+      <h1>{{ company.get('name', 'Company') }}</h1>
+      {% if company.get('registration_number') %}<p>{{ company['registration_number'] }}</p>{% endif %}
+      {% if company.get('address') %}<p>{{ company['address'] }}</p>{% endif %}
+      {% if company.get('phone') %}<p>Tel: {{ company['phone'] }}</p>{% endif %}
+    </div>
+    {% if logo_data %}
+    <div class="logo-block"><img src="{{ logo_data }}" alt="Logo" /></div>
+    {% endif %}
+  </div>
+
+  <!-- Title -->
+  <div class="title-block">
+    <h2>Statement of Account</h2>
+    <div class="period">Period: {{ data['date_from'] }} to {{ data['date_to'] }}</div>
+    <div class="generated">Generated on {{ now }}</div>
+  </div>
+
+  <!-- Party info -->
+  {% if data['mode'] == 'client' %}
+  <div class="party-block">
+    <h3>Client</h3>
+    <div class="name">{{ data['client']['company_name'] }}</div>
+    {% if data['client'].get('email') %}<div class="detail">{{ data['client']['email'] }}</div>{% endif %}
+    {% if data['client'].get('phone') %}<div class="detail">Tel: {{ data['client']['phone'] }}</div>{% endif %}
+    {% if data['client'].get('address') %}<div class="detail">{{ data['client']['address'] }}</div>{% endif %}
+  </div>
+  {% else %}
+  <div class="party-block">
+    <h3>Vendor / Supplier</h3>
+    <div class="name">{{ data['vendor_name'] }}</div>
+  </div>
+  {% endif %}
+
+  <!-- Summary boxes -->
+  <div class="summary-row">
+    <div class="summary-box">
+      <div class="label">Opening Balance</div>
+      <div class="value">RM {{ data['opening_balance'] | fmt }}</div>
+    </div>
+    <div class="summary-box outstanding">
+      <div class="label">Closing Balance</div>
+      <div class="value">RM {{ data['closing_balance'] | fmt }}</div>
+    </div>
+    <div class="summary-box credit">
+      <div class="label">Outstanding (Aged)</div>
+      <div class="value">RM {{ data['aged']['total'] | fmt }}</div>
+    </div>
+  </div>
+
+  <!-- Transaction table -->
+  <table class="txn">
+    <thead>
+      <tr>
+        <th style="width:70px">Date</th>
+        <th style="width:75px">Type</th>
+        <th style="width:90px">Reference</th>
+        <th>Description</th>
+        <th class="num" style="width:80px">Debit (RM)</th>
+        <th class="num" style="width:80px">Credit (RM)</th>
+        <th class="num" style="width:85px">Balance (RM)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{{ data['date_from'] }}</td>
+        <td colspan="5" style="font-style:italic;color:#6b7280">Opening Balance</td>
+        <td class="num">{{ data['opening_balance'] | fmt }}</td>
+      </tr>
+      {% for t in data['transactions'] %}
+      <tr>
+        <td>{{ t['date'] }}</td>
+        <td class="type-{{ t['type'].lower().replace(' ', '_') }}">{{ t['type'] }}</td>
+        <td>{{ t['reference'] }}</td>
+        <td{% if t.get('info_only') %} class="info-row"{% endif %}>{{ t['description'] }}</td>
+        <td class="num">{% if t['debit'] > 0 %}{{ t['debit'] | fmt }}{% else %}<span class="zero">—</span>{% endif %}</td>
+        <td class="num">{% if t['credit'] > 0 %}{{ t['credit'] | fmt }}{% else %}<span class="zero">—</span>{% endif %}</td>
+        <td class="num">{% if t['balance'] is not none %}{{ t['balance'] | fmt }}{% else %}<span class="zero">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      {% if not data['transactions'] %}
+      <tr><td colspan="7" style="text-align:center;color:#9ca3af;font-style:italic;padding:12px">No transactions in this period</td></tr>
+      {% endif %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" style="text-align:right">Closing Balance</td>
+        <td class="num"></td>
+        <td class="num"></td>
+        <td class="num">{{ data['closing_balance'] | fmt }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- Aged Analysis -->
+  <div class="aged-title">Aged Analysis (Outstanding)</div>
+  <table class="aged">
+    <thead>
+      <tr>
+        <th class="label-col">Description</th>
+        <th>Current</th>
+        <th>1 – 30 Days</th>
+        <th>31 – 60 Days</th>
+        <th>61 – 90 Days</th>
+        <th>91+ Days</th>
+        <th>Total Outstanding</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="label-col">Amount (RM)</td>
+        <td>{% if data['aged']['current'] > 0 %}<span class="pos">{{ data['aged']['current'] | fmt }}</span>{% else %}<span class="zero">—</span>{% endif %}</td>
+        <td>{% if data['aged']['d1_30'] > 0 %}<span class="pos">{{ data['aged']['d1_30'] | fmt }}</span>{% else %}<span class="zero">—</span>{% endif %}</td>
+        <td>{% if data['aged']['d31_60'] > 0 %}<span class="pos">{{ data['aged']['d31_60'] | fmt }}</span>{% else %}<span class="zero">—</span>{% endif %}</td>
+        <td>{% if data['aged']['d61_90'] > 0 %}<span class="pos">{{ data['aged']['d61_90'] | fmt }}</span>{% else %}<span class="zero">—</span>{% endif %}</td>
+        <td>{% if data['aged']['d91_plus'] > 0 %}<span class="pos">{{ data['aged']['d91_plus'] | fmt }}</span>{% else %}<span class="zero">—</span>{% endif %}</td>
+        <td>{{ data['aged']['total'] | fmt }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="doc-footer">Generated by MAIA BMS &bull; {{ now }} &bull; This is a system-generated statement.</div>
+</div>
+</body>
+</html>

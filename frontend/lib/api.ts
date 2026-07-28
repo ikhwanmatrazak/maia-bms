@@ -1057,3 +1057,60 @@ export const balanceSheetApi = {
   pdfUrl: (as_of?: string) =>
     `${API_URL}/finance/balance-sheet/pdf${as_of ? `?as_of=${as_of}` : ""}`,
 };
+
+// ── Statement of Account ───────────────────────────────────────────────────────
+
+export interface SOATxn {
+  date: string;
+  type: string;
+  reference: string;
+  description: string;
+  debit: number;
+  credit: number;
+  balance: number | null;
+  due_date?: string | null;
+  status?: string;
+  info_only?: boolean;
+}
+
+export interface SOAAged {
+  current: number;
+  d1_30: number;
+  d31_60: number;
+  d61_90: number;
+  d91_plus: number;
+  total: number;
+}
+
+export interface SOAData {
+  mode: "client" | "vendor";
+  client?: { id: number; company_name: string; email?: string; phone?: string; address?: string };
+  vendor_name?: string;
+  date_from: string;
+  date_to: string;
+  opening_balance: number;
+  transactions: SOATxn[];
+  closing_balance: number;
+  aged: SOAAged;
+}
+
+export const soaApi = {
+  listClients: () => api.get<{ id: number; company_name: string; email?: string }[]>("/finance/soa/clients").then((r) => r.data),
+  getClient: (clientId: number, date_from?: string, date_to?: string) =>
+    api.get<SOAData>(`/finance/soa/client/${clientId}`, { params: { date_from, date_to } }).then((r) => r.data),
+  clientPdfUrl: (clientId: number, date_from?: string, date_to?: string) => {
+    const q = new URLSearchParams();
+    if (date_from) q.set("date_from", date_from);
+    if (date_to) q.set("date_to", date_to);
+    return `${API_URL}/finance/soa/client/${clientId}/pdf?${q.toString()}`;
+  },
+  listVendors: () => api.get<{ name: string }[]>("/finance/soa/vendors").then((r) => r.data),
+  getVendor: (vendorName: string, date_from?: string, date_to?: string) =>
+    api.get<SOAData>("/finance/soa/vendor", { params: { vendor_name: vendorName, date_from, date_to } }).then((r) => r.data),
+  vendorPdfUrl: (vendorName: string, date_from?: string, date_to?: string) => {
+    const q = new URLSearchParams({ vendor_name: vendorName });
+    if (date_from) q.set("date_from", date_from);
+    if (date_to) q.set("date_to", date_to);
+    return `${API_URL}/finance/soa/vendor/pdf?${q.toString()}`;
+  },
+};

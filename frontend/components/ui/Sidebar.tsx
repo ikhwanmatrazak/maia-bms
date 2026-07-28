@@ -81,6 +81,7 @@ const navGroups = [
       { href: "/finance/bank", label: "Bank / Cash Flow", roles: ["admin"], permission: "finance-bank" },
       { href: "/finance/pnl", label: "P&L Statement", roles: ["admin"], permission: "finance-bank" },
       { href: "/finance/balance-sheet", label: "Balance Sheet", roles: ["admin"], permission: "finance-bank" },
+      { href: "/finance/statement-of-account", label: "Statement of Account", roles: ["admin"], permission: "finance-bank" },
       { href: "/reports", label: "Reports", permission: "reports" },
       { href: "/reports/management", label: "Management Accounts", roles: ["admin", "manager"], permission: "reports" },
     ],
