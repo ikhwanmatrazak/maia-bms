@@ -2856,6 +2856,16 @@ async def reconciliation_summary(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    import traceback
+    try:
+        return await _reconciliation_summary_impl(account_id, month, db, current_user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
+
+
+async def _reconciliation_summary_impl(account_id, month, db, current_user):
     tid = get_effective_tenant_id(current_user)
 
     # Determine date range
