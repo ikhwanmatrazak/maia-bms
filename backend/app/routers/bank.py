@@ -2900,7 +2900,7 @@ async def reconciliation_summary(
         text("""
             SELECT id, txn_date, description, party_name, amount, type, is_reconciled, reconciled_at, note
             FROM bank_transactions
-            WHERE account_id = :aid AND txn_date >= :df AND txn_date < :dt AND (is_deleted = 0 OR is_deleted IS NULL)
+            WHERE account_id = :aid AND txn_date >= :df AND txn_date < :dt
             ORDER BY txn_date, id
         """),
         {"aid": account_id, "df": date_from, "dt": date_to},
