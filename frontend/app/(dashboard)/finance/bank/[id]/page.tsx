@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import {
   bankApi, BankTransaction, BankStatement, InvoiceDoc, TxnCategory, ParsedRow,
-  UnpaidInvoice, UnpaidBill, downloadPdf, downloadFile,
+  UnpaidInvoice, UnpaidBill, ReconciliationSummary, downloadPdf, downloadFile,
 } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
 
@@ -906,6 +906,244 @@ function CategoryModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── Reconciliation Panel ──────────────────────────────────────────────────────
+
+function ReconciliationPanel({ accountId, currency }: { accountId: number; currency: string }) {
+  const qc = useQueryClient();
+  const now = new Date();
+  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [month, setMonth] = useState(defaultMonth);
+  const [statementBalance, setStatementBalance] = useState("");
+  const [pendingIds, setPendingIds] = useState<Set<number>>(new Set());
+
+  const { data: summary, isLoading } = useQuery<ReconciliationSummary>({
+    queryKey: ["reconciliation-summary", accountId, month],
+    queryFn: () => bankApi.reconciliationSummary(accountId, month),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: (txnId: number) => bankApi.toggleReconcile(txnId),
+    onMutate: (txnId) => {
+      setPendingIds((p) => new Set([...p, txnId]));
+    },
+    onSettled: (_, __, txnId) => {
+      setPendingIds((p) => { const n = new Set(p); n.delete(txnId); return n; });
+      qc.invalidateQueries({ queryKey: ["reconciliation-summary", accountId, month] });
+      qc.invalidateQueries({ queryKey: ["bank-txns", accountId] });
+    },
+  });
+
+  const batchMut = useMutation({
+    mutationFn: ({ ids, reconciled }: { ids: number[]; reconciled: boolean }) =>
+      bankApi.reconcileBatch(accountId, ids, reconciled),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reconciliation-summary", accountId, month] });
+      qc.invalidateQueries({ queryKey: ["bank-txns", accountId] });
+    },
+  });
+
+  const fmtCur = (n: number) =>
+    `${currency} ${n.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  const stmtBal = parseFloat(statementBalance) || 0;
+  const bookBal = summary?.book_balance ?? 0;
+  const difference = stmtBal - bookBal;
+  const isBalanced = statementBalance !== "" && Math.abs(difference) < 0.01;
+
+  const unreconciled = summary?.transactions.filter((t) => !t.is_reconciled) ?? [];
+  const reconciled = summary?.transactions.filter((t) => t.is_reconciled) ?? [];
+
+  // Build month options: current month + 11 previous months
+  const monthOptions = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("en-MY", { month: "long", year: "numeric" });
+    return { val, label };
+  });
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center py-20 text-default-400 text-sm">Loading reconciliation data…</div>
+  );
+
+  return (
+    <div className="space-y-5">
+      {/* Controls row */}
+      <div className="flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="text-xs text-default-500 font-medium block mb-1">Statement Month</label>
+          <select
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className="border border-default-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            {monthOptions.map((o) => (
+              <option key={o.val} value={o.val}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs text-default-500 font-medium block mb-1">Bank Statement Closing Balance</label>
+          <input
+            type="number"
+            step="0.01"
+            placeholder="Enter closing balance from bank statement"
+            value={statementBalance}
+            onChange={(e) => setStatementBalance(e.target.value)}
+            className="border border-default-200 rounded-xl px-3 py-2 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+      </div>
+
+      {/* Balance summary cards */}
+      {summary && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-white border border-default-200 rounded-xl p-4 shadow-sm">
+            <p className="text-xs text-default-400 mb-1">Opening Balance</p>
+            <p className="text-base font-bold text-foreground">{fmtCur(summary.opening_balance)}</p>
+            <p className="text-xs text-default-400 mt-1">Reconciled before {month}</p>
+          </div>
+          <div className="bg-white border border-default-200 rounded-xl p-4 shadow-sm">
+            <p className="text-xs text-default-400 mb-1">Book Balance</p>
+            <p className="text-base font-bold text-primary">{fmtCur(bookBal)}</p>
+            <p className="text-xs text-default-400 mt-1">Opening + reconciled this month</p>
+          </div>
+          <div className="bg-white border border-default-200 rounded-xl p-4 shadow-sm">
+            <p className="text-xs text-default-400 mb-1">Statement Balance</p>
+            <p className="text-base font-bold text-foreground">
+              {statementBalance !== "" ? fmtCur(stmtBal) : <span className="text-default-300">—</span>}
+            </p>
+            <p className="text-xs text-default-400 mt-1">From your bank statement</p>
+          </div>
+          <div className={`rounded-xl p-4 shadow-sm border ${isBalanced ? "bg-success-50 border-success-200" : statementBalance !== "" ? "bg-warning-50 border-warning-200" : "bg-white border-default-200"}`}>
+            <p className="text-xs text-default-400 mb-1">Difference</p>
+            <p className={`text-base font-bold ${isBalanced ? "text-success-600" : statementBalance !== "" ? "text-warning-600" : "text-default-300"}`}>
+              {statementBalance !== "" ? fmtCur(difference) : "—"}
+            </p>
+            <p className={`text-xs mt-1 ${isBalanced ? "text-success-600 font-medium" : "text-default-400"}`}>
+              {isBalanced ? "✓ Fully reconciled!" : statementBalance !== "" ? "Tick transactions to close the gap" : "Enter statement balance above"}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Progress bar */}
+      {summary && summary.total_transactions > 0 && (
+        <div className="bg-white border border-default-200 rounded-xl p-4 shadow-sm">
+          <div className="flex justify-between text-xs text-default-500 mb-2">
+            <span>{summary.reconciled_count} of {summary.total_transactions} transactions reconciled</span>
+            <span>{Math.round((summary.reconciled_count / summary.total_transactions) * 100)}%</span>
+          </div>
+          <div className="w-full bg-default-100 rounded-full h-2">
+            <div
+              className="bg-success-500 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${(summary.reconciled_count / summary.total_transactions) * 100}%` }}
+            />
+          </div>
+          <div className="flex justify-between mt-2 text-xs text-default-400">
+            <span>Reconciled: {fmtCur(summary.reconciled_credits)} in / {fmtCur(summary.reconciled_debits)} out</span>
+            <span>Unreconciled: {fmtCur(summary.unreconciled_credits)} in / {fmtCur(summary.unreconciled_debits)} out</span>
+          </div>
+        </div>
+      )}
+
+      {/* Batch actions */}
+      {summary && unreconciled.length > 0 && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => batchMut.mutate({ ids: unreconciled.map((t) => t.id), reconciled: true })}
+            disabled={batchMut.isPending}
+            className="px-3 py-1.5 text-xs rounded-xl bg-success-500 text-white font-medium hover:bg-success-600 disabled:opacity-50"
+          >
+            ✓ Mark All as Reconciled
+          </button>
+          {reconciled.length > 0 && (
+            <button
+              onClick={() => batchMut.mutate({ ids: reconciled.map((t) => t.id), reconciled: false })}
+              disabled={batchMut.isPending}
+              className="px-3 py-1.5 text-xs rounded-xl border border-default-200 text-default-600 font-medium hover:bg-default-50 disabled:opacity-50"
+            >
+              Unreconcile All
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Unreconciled transactions */}
+      {unreconciled.length > 0 && (
+        <div className="bg-white border border-default-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-4 py-3 border-b border-default-100 bg-warning-50">
+            <p className="text-sm font-semibold text-warning-700">Unreconciled ({unreconciled.length})</p>
+            <p className="text-xs text-warning-600">Tick each transaction that appears on your bank statement</p>
+          </div>
+          <div className="divide-y divide-default-100">
+            {unreconciled.map((t) => (
+              <div key={t.id} className="flex items-center gap-3 px-4 py-3 hover:bg-default-50 transition-colors">
+                <button
+                  onClick={() => toggleMut.mutate(t.id)}
+                  disabled={pendingIds.has(t.id)}
+                  className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+                    pendingIds.has(t.id) ? "border-default-300 bg-default-100" : "border-default-300 hover:border-success-500"
+                  }`}
+                >
+                  {pendingIds.has(t.id) && <span className="text-default-400 text-xs">…</span>}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{t.description}</p>
+                  {t.party_name && <p className="text-xs text-default-400">{t.party_name}</p>}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className={`text-sm font-semibold ${t.type === "credit" ? "text-success-600" : "text-danger-500"}`}>
+                    {t.type === "credit" ? "+" : "-"}{fmtCur(t.amount)}
+                  </p>
+                  <p className="text-xs text-default-400">{t.txn_date}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Reconciled transactions */}
+      {reconciled.length > 0 && (
+        <div className="bg-white border border-default-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-4 py-3 border-b border-default-100 bg-success-50">
+            <p className="text-sm font-semibold text-success-700">Reconciled ✓ ({reconciled.length})</p>
+          </div>
+          <div className="divide-y divide-default-100">
+            {reconciled.map((t) => (
+              <div key={t.id} className="flex items-center gap-3 px-4 py-3 hover:bg-default-50 transition-colors opacity-75">
+                <button
+                  onClick={() => toggleMut.mutate(t.id)}
+                  disabled={pendingIds.has(t.id)}
+                  className="w-5 h-5 rounded border-2 border-success-500 bg-success-500 flex-shrink-0 flex items-center justify-center"
+                >
+                  <span className="text-white text-xs font-bold">✓</span>
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{t.description}</p>
+                  {t.party_name && <p className="text-xs text-default-400">{t.party_name}</p>}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className={`text-sm font-semibold ${t.type === "credit" ? "text-success-600" : "text-danger-500"}`}>
+                    {t.type === "credit" ? "+" : "-"}{fmtCur(t.amount)}
+                  </p>
+                  <p className="text-xs text-default-400">{t.txn_date}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {summary && summary.total_transactions === 0 && (
+        <div className="text-center py-16 text-default-400 text-sm">
+          No transactions found for {month}. Upload a bank statement first.
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function BankDetailPage() {
@@ -919,6 +1157,7 @@ export default function BankDetailPage() {
   const [editingTxn, setEditingTxn] = useState<BankTransaction | null>(null);
   const [drawerTxn, setDrawerTxn] = useState<BankTransaction | null>(null);
   const [showCats, setShowCats] = useState(false);
+  const [activeTab, setActiveTab] = useState<"transactions" | "reconcile">("transactions");
 
   // Filters
   const [dateFrom, setDateFrom] = useState("");
@@ -1073,12 +1312,43 @@ export default function BankDetailPage() {
             className="px-3 py-1.5 rounded-xl border border-default-200 text-xs font-medium text-default-600 hover:bg-default-50">
             + Add Manual
           </button>
+          <button
+            onClick={() => setActiveTab(activeTab === "reconcile" ? "transactions" : "reconcile")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${activeTab === "reconcile" ? "bg-success-500 text-white border-success-500" : "border-default-200 text-default-600 hover:bg-default-50"}`}
+          >
+            ✓ Reconcile
+          </button>
           <button onClick={() => setShowUpload(true)}
             className="px-4 py-1.5 rounded-xl bg-primary text-white text-xs font-medium hover:bg-primary/90">
             Upload Statement
           </button>
         </div>
       </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-default-200">
+        {(["transactions", "reconcile"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors capitalize ${
+              activeTab === tab
+                ? "border-primary text-primary"
+                : "border-transparent text-default-500 hover:text-foreground"
+            }`}
+          >
+            {tab === "reconcile" ? "✓ Reconcile" : "Transactions"}
+          </button>
+        ))}
+      </div>
+
+      {/* Reconciliation panel */}
+      {activeTab === "reconcile" && account && (
+        <ReconciliationPanel accountId={accountId} currency={account.currency ?? "MYR"} />
+      )}
+
+      {/* Transactions view — hidden when reconcile tab is active */}
+      {activeTab === "transactions" && <>
 
       {/* Year selector */}
       {availableYears.length > 0 && (
@@ -1534,6 +1804,8 @@ export default function BankDetailPage() {
           </div>
         </div>
       )}
+
+      </> /* end transactions tab */}
 
       {/* Modals */}
       {showUpload && <UploadModal accountId={accountId} onClose={() => setShowUpload(false)} />}

@@ -118,6 +118,8 @@ class TransactionOut(BaseModel):
     bill_number: Optional[str]
     note: Optional[str]
     receipt_url: Optional[str] = None
+    is_reconciled: bool = False
+    reconciled_at: Optional[str] = None
 
 
 class ParsedRow(BaseModel):
@@ -1290,6 +1292,8 @@ def _txn_out_from_row(row: tuple) -> TransactionOut:
         invoice_number=first_inv.invoice_number if first_inv else None,
         bill_id=row[15], bill_number=row[16],
         note=row[17], receipt_url=row[18],
+        is_reconciled=bool(row[19]) if row[19] is not None else False,
+        reconciled_at=str(row[20]) if row[20] else None,
     )
 
 
@@ -1304,7 +1308,8 @@ _TXN_SELECT = """
            GROUP_CONCAT(DISTINCT inv.invoice_number ORDER BY bti.invoice_id SEPARATOR '|||')    AS inv_numbers,
            GROUP_CONCAT(DISTINCT COALESCE(ic.company_name,'') ORDER BY bti.invoice_id SEPARATOR '|||') AS inv_clients,
            bt.bill_id, b.bill_number,
-           bt.note, bt.receipt_url
+           bt.note, bt.receipt_url,
+           bt.is_reconciled, bt.reconciled_at
     FROM bank_transactions bt
     LEFT JOIN bank_transaction_categories btc ON btc.transaction_id = bt.id
     LEFT JOIN transaction_categories tc ON tc.id = btc.category_id
@@ -1318,7 +1323,8 @@ _TXN_GROUP = """
     GROUP BY bt.id, bt.account_id, bt.statement_id, bt.txn_date, bt.description,
              bt.party_name, bt.amount, bt.type,
              bt.bill_id, b.bill_number,
-             bt.note, bt.receipt_url
+             bt.note, bt.receipt_url,
+             bt.is_reconciled, bt.reconciled_at
 """
 
 
@@ -2786,3 +2792,155 @@ async def cashflow_excel(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="cashflow_{date_from}_{date_to}.xlsx"'},
     )
+
+
+# ── Bank Reconciliation ───────────────────────────────────────────────────────
+
+class ReconcileToggleOut(BaseModel):
+    id: int
+    is_reconciled: bool
+    reconciled_at: Optional[str]
+
+
+class ReconcileBatchIn(BaseModel):
+    transaction_ids: List[int]
+    reconciled: bool = True
+
+
+@router.post("/transactions/{txn_id}/toggle-reconcile", response_model=ReconcileToggleOut)
+async def toggle_reconcile(
+    txn_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    row = await db.execute(
+        text("SELECT id, account_id, is_reconciled FROM bank_transactions WHERE id = :tid"),
+        {"tid": txn_id},
+    )
+    txn = row.fetchone()
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    new_state = not bool(txn[2])
+    now = datetime.now(timezone.utc) if new_state else None
+    await db.execute(
+        text("UPDATE bank_transactions SET is_reconciled = :s, reconciled_at = :at WHERE id = :tid"),
+        {"s": new_state, "at": now, "tid": txn_id},
+    )
+    await db.commit()
+    return ReconcileToggleOut(id=txn_id, is_reconciled=new_state, reconciled_at=str(now) if now else None)
+
+
+@router.post("/accounts/{account_id}/reconcile-batch")
+async def reconcile_batch(
+    account_id: int,
+    body: ReconcileBatchIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc) if body.reconciled else None
+    if body.transaction_ids:
+        ids_placeholder = ",".join(str(i) for i in body.transaction_ids)
+        await db.execute(
+            text(f"UPDATE bank_transactions SET is_reconciled = :s, reconciled_at = :at WHERE id IN ({ids_placeholder}) AND account_id = :aid"),
+            {"s": body.reconciled, "at": now, "aid": account_id},
+        )
+    await db.commit()
+    return {"ok": True, "updated": len(body.transaction_ids), "reconciled": body.reconciled}
+
+
+@router.get("/accounts/{account_id}/reconciliation-summary")
+async def reconciliation_summary(
+    account_id: int,
+    month: Optional[str] = Query(None, description="YYYY-MM"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tid = get_effective_tenant_id(current_user)
+
+    # Determine date range
+    if month:
+        y, m = int(month.split("-")[0]), int(month.split("-")[1])
+        date_from = date(y, m, 1)
+        date_to = date(y + 1, 1, 1) if m == 12 else date(y, m + 1, 1)
+    else:
+        now = datetime.now(timezone.utc)
+        date_from = date(now.year, now.month, 1)
+        date_to = date(now.year + 1, 1, 1) if now.month == 12 else date(now.year, now.month + 1, 1)
+
+    params: dict = {"aid": account_id, "df": date_from, "dt": date_to}
+    tenant_filter = "" if tid is None else "AND ba.tenant_id = :tid"
+    if tid is not None:
+        params["tid"] = tid
+
+    # Verify account belongs to tenant
+    acc_row = await db.execute(
+        text(f"SELECT id, name, currency FROM bank_accounts ba WHERE ba.id = :aid {tenant_filter}"),
+        params,
+    )
+    account = acc_row.fetchone()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    # Opening balance = all reconciled transactions before this month
+    ob_row = await db.execute(
+        text("""
+            SELECT
+                COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE -amount END), 0) AS ob
+            FROM bank_transactions
+            WHERE account_id = :aid AND txn_date < :df AND is_reconciled = 1
+        """),
+        {"aid": account_id, "df": date_from},
+    )
+    opening_balance = float(ob_row.fetchone()[0])
+
+    # All transactions for this month
+    txn_rows = await db.execute(
+        text("""
+            SELECT id, txn_date, description, party_name, amount, type, is_reconciled, reconciled_at, note
+            FROM bank_transactions
+            WHERE account_id = :aid AND txn_date >= :df AND txn_date < :dt AND (is_deleted = 0 OR is_deleted IS NULL)
+            ORDER BY txn_date, id
+        """),
+        {"aid": account_id, "df": date_from, "dt": date_to},
+    )
+    txns = txn_rows.fetchall()
+
+    reconciled_credits = sum(float(r[4]) for r in txns if r[5] == "credit" and r[6])
+    reconciled_debits = sum(float(r[4]) for r in txns if r[5] == "debit" and r[6])
+    unreconciled_credits = sum(float(r[4]) for r in txns if r[5] == "credit" and not r[6])
+    unreconciled_debits = sum(float(r[4]) for r in txns if r[5] == "debit" and not r[6])
+
+    book_balance = opening_balance + reconciled_credits - reconciled_debits
+
+    transactions = [
+        {
+            "id": r[0],
+            "txn_date": str(r[1]),
+            "description": r[2],
+            "party_name": r[3],
+            "amount": float(r[4]),
+            "type": r[5],
+            "is_reconciled": bool(r[6]),
+            "reconciled_at": str(r[7]) if r[7] else None,
+            "note": r[8],
+        }
+        for r in txns
+    ]
+
+    return {
+        "account_id": account_id,
+        "account_name": account[1],
+        "currency": account[2],
+        "month": month or date_from.strftime("%Y-%m"),
+        "opening_balance": opening_balance,
+        "book_balance": book_balance,
+        "reconciled_credits": reconciled_credits,
+        "reconciled_debits": reconciled_debits,
+        "unreconciled_credits": unreconciled_credits,
+        "unreconciled_debits": unreconciled_debits,
+        "transactions": transactions,
+        "total_transactions": len(txns),
+        "reconciled_count": sum(1 for r in txns if r[6]),
+        "unreconciled_count": sum(1 for r in txns if not r[6]),
+    }

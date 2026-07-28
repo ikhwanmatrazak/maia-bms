@@ -801,6 +801,35 @@ export interface BankTransaction {
   bill_number: string | null;
   note: string | null;
   receipt_url: string | null;
+  is_reconciled: boolean;
+  reconciled_at: string | null;
+}
+
+export interface ReconciliationSummary {
+  account_id: number;
+  account_name: string;
+  currency: string;
+  month: string;
+  opening_balance: number;
+  book_balance: number;
+  reconciled_credits: number;
+  reconciled_debits: number;
+  unreconciled_credits: number;
+  unreconciled_debits: number;
+  transactions: {
+    id: number;
+    txn_date: string;
+    description: string;
+    party_name: string | null;
+    amount: number;
+    type: "credit" | "debit";
+    is_reconciled: boolean;
+    reconciled_at: string | null;
+    note: string | null;
+  }[];
+  total_transactions: number;
+  reconciled_count: number;
+  unreconciled_count: number;
 }
 
 export interface ParsedRow {
@@ -964,6 +993,13 @@ export const bankApi = {
   // Reconciliation helpers
   listUnpaidInvoices: (txn_id?: number) => api.get<UnpaidInvoice[]>("/bank/invoices/unpaid", { params: txn_id ? { txn_id } : {} }).then((r) => r.data),
   listUnpaidBills: () => api.get<UnpaidBill[]>("/bank/bills/unpaid").then((r) => r.data),
+  // Bank reconciliation
+  reconciliationSummary: (accountId: number, month?: string) =>
+    api.get<ReconciliationSummary>(`/bank/accounts/${accountId}/reconciliation-summary`, { params: month ? { month } : {} }).then((r) => r.data),
+  toggleReconcile: (txnId: number) =>
+    api.post<{ id: number; is_reconciled: boolean; reconciled_at: string | null }>(`/bank/transactions/${txnId}/toggle-reconcile`).then((r) => r.data),
+  reconcileBatch: (accountId: number, transactionIds: number[], reconciled = true) =>
+    api.post(`/bank/accounts/${accountId}/reconcile-batch`, { transaction_ids: transactionIds, reconciled }).then((r) => r.data),
   cashflowPdfUrl: (dateFrom: string, dateTo: string) =>
     `${API_URL}/bank/cashflow/pdf?date_from=${dateFrom}&date_to=${dateTo}`,
   cashflowExcelUrl: (dateFrom: string, dateTo: string) =>
