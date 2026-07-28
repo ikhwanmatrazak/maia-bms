@@ -107,30 +107,7 @@ async def _compute_balance_sheet(db: AsyncSession, tid, as_of: date):
     )
     accounts_payable_po = float(ap_row.scalar() or 0)
 
-    # ── Auto: retained earnings from P&L (cumulative net income) ─────────────
-    re_filter = "" if tid is None else "AND account_id IN (SELECT id FROM bank_accounts WHERE tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL))"
-    re_row = await db.execute(
-        text(f"""
-            SELECT
-              COALESCE(SUM(ob.opening_balance), 0)
-              + COALESCE((
-                  SELECT SUM(CASE WHEN type='credit' THEN amount ELSE -amount END)
-                  FROM bank_transactions
-                  WHERE txn_date <= :as_of
-                    {re_filter}
-              ), 0)
-              - (
-                  SELECT COALESCE(SUM(ob2.opening_balance), 0)
-                  FROM bank_accounts ob2
-                  WHERE (ob2.tenant_id=:tid OR (ob2.tenant_id IS NULL AND :tid IS NULL))
-              )
-            FROM bank_accounts ob
-            WHERE (ob.tenant_id=:tid OR (ob.tenant_id IS NULL AND :tid IS NULL))
-        """),
-        {"tid": tid, "as_of": as_of_dt},
-    )
-    # Retained earnings = cumulative net income: total revenue - total expenses from invoice/expense data
-    # Simpler: compute from invoices (income) and expenses
+    # ── Auto: retained earnings = cumulative invoiced income minus expenses ───
     income_row = await db.execute(
         text(f"""
             SELECT COALESCE(SUM(amount_paid), 0)
@@ -196,23 +173,23 @@ async def _compute_balance_sheet(db: AsyncSession, tid, as_of: date):
     return {
         "as_of": as_of.isoformat(),
         "non_current_assets": {
-            "items": non_current_assets,
+            "rows": non_current_assets,
             "total": round(nca_total, 2),
         },
         "current_assets": {
-            "auto_items": ca_auto,
-            "manual_items": ca_manual,
+            "auto_rows": ca_auto,
+            "manual_rows": ca_manual,
             "total": round(ca_total, 2),
         },
         "total_assets": round(total_assets, 2),
         "equity": {
-            "auto_items": eq_auto,
-            "manual_items": equity_manual,
+            "auto_rows": eq_auto,
+            "manual_rows": equity_manual,
             "total": round(eq_total, 2),
         },
         "current_liabilities": {
-            "auto_items": cl_auto,
-            "manual_items": cl_manual,
+            "auto_rows": cl_auto,
+            "manual_rows": cl_manual,
             "total": round(cl_total, 2),
         },
         "total_liabilities": round(cl_total, 2),

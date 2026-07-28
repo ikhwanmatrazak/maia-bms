@@ -29,7 +29,7 @@
   .section table td.auto-label { color: #374151; font-style: italic; }
 
   .subtotal-row td { font-weight: 700; background: #f3f4f6; border-top: 1.5px solid #1a1a2e; }
-  .grand-total-row td { font-weight: 700; background: #e0e7ff; border-top: 2px solid #1a1a2e; font-size: 9pt; }
+  .grand-total-row td { font-weight: 700; background: #312e81; color: #fff; border-top: 2px solid #1a1a2e; font-size: 9pt; }
 
   .balance-check { margin-top: 20px; padding: 10px 14px; border-radius: 4px; font-size: 8.5pt; font-weight: 700; }
   .balance-ok { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
@@ -73,18 +73,18 @@
       <div class="section">
         <div class="section-header">Non-Current Assets</div>
         <table>
-          {% for item in bs.non_current_assets.items %}
+          {% for row in bs['non_current_assets']['rows'] %}
           <tr>
-            <td class="label">{{ item.label }}</td>
-            <td class="num">{{ item.amount | fmt }}</td>
+            <td class="label">{{ row['label'] }}</td>
+            <td class="num">{{ row['amount'] | fmt }}</td>
           </tr>
           {% endfor %}
-          {% if not bs.non_current_assets.items %}
+          {% if not bs['non_current_assets']['rows'] %}
           <tr><td class="label" colspan="2" style="color:#9ca3af;font-style:italic">No items</td></tr>
           {% endif %}
           <tr class="subtotal-row">
             <td>Total Non-Current Assets</td>
-            <td class="num">{{ bs.non_current_assets.total | fmt }}</td>
+            <td class="num">{{ bs['non_current_assets']['total'] | fmt }}</td>
           </tr>
         </table>
       </div>
@@ -93,21 +93,21 @@
       <div class="section">
         <div class="section-header">Current Assets</div>
         <table>
-          {% for item in bs.current_assets.auto_items %}
+          {% for row in bs['current_assets']['auto_rows'] %}
           <tr>
-            <td class="auto-label">{{ item.label }}</td>
-            <td class="num">{{ item.amount | fmt }}</td>
+            <td class="auto-label">{{ row['label'] }}</td>
+            <td class="num">{{ row['amount'] | fmt }}</td>
           </tr>
           {% endfor %}
-          {% for item in bs.current_assets.manual_items %}
+          {% for row in bs['current_assets']['manual_rows'] %}
           <tr>
-            <td class="label">{{ item.label }}</td>
-            <td class="num">{{ item.amount | fmt }}</td>
+            <td class="label">{{ row['label'] }}</td>
+            <td class="num">{{ row['amount'] | fmt }}</td>
           </tr>
           {% endfor %}
           <tr class="subtotal-row">
             <td>Total Current Assets</td>
-            <td class="num">{{ bs.current_assets.total | fmt }}</td>
+            <td class="num">{{ bs['current_assets']['total'] | fmt }}</td>
           </tr>
         </table>
       </div>
@@ -116,7 +116,7 @@
       <table style="width:100%;border-collapse:collapse;margin-top:4px;">
         <tr class="grand-total-row">
           <td style="padding:6px 8px;font-size:9.5pt;">TOTAL ASSETS</td>
-          <td class="num" style="padding:6px 8px;font-size:9.5pt;text-align:right;">{{ bs.total_assets | fmt }}</td>
+          <td style="padding:6px 8px;font-size:9.5pt;text-align:right;font-variant-numeric:tabular-nums;">{{ bs['total_assets'] | fmt }}</td>
         </tr>
       </table>
 
@@ -129,21 +129,21 @@
       <div class="section">
         <div class="section-header">Equity</div>
         <table>
-          {% for item in bs.equity.manual_items %}
+          {% for row in bs['equity']['manual_rows'] %}
           <tr>
-            <td class="label">{{ item.label }}</td>
-            <td class="num">{{ item.amount | fmt }}</td>
+            <td class="label">{{ row['label'] }}</td>
+            <td class="num">{{ row['amount'] | fmt }}</td>
           </tr>
           {% endfor %}
-          {% for item in bs.equity.auto_items %}
+          {% for row in bs['equity']['auto_rows'] %}
           <tr>
-            <td class="auto-label">{{ item.label }}</td>
-            <td class="num">{{ item.amount | fmt }}</td>
+            <td class="auto-label">{{ row['label'] }}</td>
+            <td class="num">{{ row['amount'] | fmt }}</td>
           </tr>
           {% endfor %}
           <tr class="subtotal-row">
             <td>Total Equity</td>
-            <td class="num">{{ bs.equity.total | fmt }}</td>
+            <td class="num">{{ bs['equity']['total'] | fmt }}</td>
           </tr>
         </table>
       </div>
@@ -152,24 +152,24 @@
       <div class="section">
         <div class="section-header">Current Liabilities</div>
         <table>
-          {% for item in bs.current_liabilities.auto_items %}
+          {% for row in bs['current_liabilities']['auto_rows'] %}
           <tr>
-            <td class="auto-label">{{ item.label }}</td>
-            <td class="num">{{ item.amount | fmt }}</td>
+            <td class="auto-label">{{ row['label'] }}</td>
+            <td class="num">{{ row['amount'] | fmt }}</td>
           </tr>
           {% endfor %}
-          {% for item in bs.current_liabilities.manual_items %}
+          {% for row in bs['current_liabilities']['manual_rows'] %}
           <tr>
-            <td class="label">{{ item.label }}</td>
-            <td class="num">{{ item.amount | fmt }}</td>
+            <td class="label">{{ row['label'] }}</td>
+            <td class="num">{{ row['amount'] | fmt }}</td>
           </tr>
           {% endfor %}
-          {% if not bs.current_liabilities.auto_items and not bs.current_liabilities.manual_items %}
+          {% if not bs['current_liabilities']['auto_rows'] and not bs['current_liabilities']['manual_rows'] %}
           <tr><td class="label" colspan="2" style="color:#9ca3af;font-style:italic">No items</td></tr>
           {% endif %}
           <tr class="subtotal-row">
             <td>Total Current Liabilities</td>
-            <td class="num">{{ bs.current_liabilities.total | fmt }}</td>
+            <td class="num">{{ bs['current_liabilities']['total'] | fmt }}</td>
           </tr>
         </table>
       </div>
@@ -178,7 +178,7 @@
       <table style="width:100%;border-collapse:collapse;margin-top:4px;">
         <tr class="grand-total-row">
           <td style="padding:6px 8px;font-size:9.5pt;">TOTAL EQUITY &amp; LIABILITIES</td>
-          <td class="num" style="padding:6px 8px;font-size:9.5pt;text-align:right;">{{ bs.total_equity_liabilities | fmt }}</td>
+          <td style="padding:6px 8px;font-size:9.5pt;text-align:right;font-variant-numeric:tabular-nums;">{{ bs['total_equity_liabilities'] | fmt }}</td>
         </tr>
       </table>
 
@@ -186,15 +186,16 @@
   </div>
 
   <!-- Balance Check -->
-  {% if bs.is_balanced %}
-  <div class="balance-check balance-ok">&#10003; Balance sheet balances — Total Assets = Total Equity &amp; Liabilities (RM {{ bs.total_assets | fmt }})</div>
+  {% if bs['is_balanced'] %}
+  <div class="balance-check balance-ok">&#10003; Balance sheet balances &mdash; Total Assets = Total Equity &amp; Liabilities (RM {{ bs['total_assets'] | fmt }})</div>
   {% else %}
-  <div class="balance-check balance-err">&#9888; Out of balance by RM {{ bs.difference | fmt }} — please review manual entries</div>
+  <div class="balance-check balance-err">&#9888; Out of balance by RM {{ bs['difference'] | fmt }} &mdash; please review manual entries</div>
   {% endif %}
 
   <!-- Notes -->
   <div style="margin-top:14px;font-size:7.5pt;color:#6b7280;">
-    <em>Note: Cash at Bank and Accounts Receivable are system-computed from bank and invoice records. Retained Earnings is computed from recorded income and expenses. Italic items are auto-computed.</em>
+    <em>Note: Cash at Bank and Accounts Receivable are system-computed from bank and invoice records.
+    Retained Earnings is computed from recorded income and expenses. Italic items are auto-computed.</em>
   </div>
 
   <div class="doc-footer">Generated by MAIA BMS &bull; {{ now }}</div>

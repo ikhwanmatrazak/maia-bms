@@ -133,19 +133,19 @@ export default function BalanceSheetPage() {
     let total = 0;
 
     if (sectionKey === "non_current_assets") {
-      manualItems2 = bs.non_current_assets.items;
+      manualItems2 = bs.non_current_assets.rows;
       total = bs.non_current_assets.total;
     } else if (sectionKey === "current_assets") {
-      autoItems = bs.current_assets.auto_items;
-      manualItems2 = bs.current_assets.manual_items;
+      autoItems = bs.current_assets.auto_rows;
+      manualItems2 = bs.current_assets.manual_rows;
       total = bs.current_assets.total;
     } else if (sectionKey === "equity") {
-      manualItems2 = bs.equity.manual_items;
-      autoItems = bs.equity.auto_items;
+      manualItems2 = bs.equity.manual_rows;
+      autoItems = bs.equity.auto_rows;
       total = bs.equity.total;
     } else if (sectionKey === "current_liabilities") {
-      autoItems = bs.current_liabilities.auto_items;
-      manualItems2 = bs.current_liabilities.manual_items;
+      autoItems = bs.current_liabilities.auto_rows;
+      manualItems2 = bs.current_liabilities.manual_rows;
       total = bs.current_liabilities.total;
     }
 

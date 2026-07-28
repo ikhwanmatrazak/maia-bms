@@ -1036,11 +1036,11 @@ export interface BSManualItem {
 
 export interface BalanceSheet {
   as_of: string;
-  non_current_assets: { items: BSManualItem[]; total: number };
-  current_assets: { auto_items: BSAutoItem[]; manual_items: BSManualItem[]; total: number };
+  non_current_assets: { rows: BSManualItem[]; total: number };
+  current_assets: { auto_rows: BSAutoItem[]; manual_rows: BSManualItem[]; total: number };
   total_assets: number;
-  equity: { auto_items: BSAutoItem[]; manual_items: BSManualItem[]; total: number };
-  current_liabilities: { auto_items: BSAutoItem[]; manual_items: BSManualItem[]; total: number };
+  equity: { auto_rows: BSAutoItem[]; manual_rows: BSManualItem[]; total: number };
+  current_liabilities: { auto_rows: BSAutoItem[]; manual_rows: BSManualItem[]; total: number };
   total_liabilities: number;
   total_equity_liabilities: number;
   is_balanced: boolean;
