@@ -915,6 +915,8 @@ function ReconciliationPanel({ accountId, currency }: { accountId: number; curre
   const [month, setMonth] = useState(defaultMonth);
   const [statementBalance, setStatementBalance] = useState("");
   const [pendingIds, setPendingIds] = useState<Set<number>>(new Set());
+  const [autoYear, setAutoYear] = useState(String(now.getFullYear()));
+  const [autoConfirm, setAutoConfirm] = useState(false);
 
   const { data: summary, isLoading } = useQuery<ReconciliationSummary>({
     queryKey: ["reconciliation-summary", accountId, month],
@@ -939,6 +941,16 @@ function ReconciliationPanel({ accountId, currency }: { accountId: number; curre
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["reconciliation-summary", accountId, month] });
       qc.invalidateQueries({ queryKey: ["bank-txns", accountId] });
+    },
+  });
+
+  const autoMut = useMutation({
+    mutationFn: (year: string) => bankApi.autoReconcile(accountId, year === "all" ? undefined : year),
+    onSuccess: (data) => {
+      setAutoConfirm(false);
+      qc.invalidateQueries({ queryKey: ["reconciliation-summary", accountId, month] });
+      qc.invalidateQueries({ queryKey: ["bank-txns", accountId] });
+      alert(`Auto-reconciled ${data.updated} transaction(s) successfully.`);
     },
   });
 
@@ -991,6 +1003,51 @@ function ReconciliationPanel({ accountId, currency }: { accountId: number; curre
             onChange={(e) => setStatementBalance(e.target.value)}
             className="border border-default-200 rounded-xl px-3 py-2 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
+        </div>
+      </div>
+
+      {/* Auto-Reconcile */}
+      <div className="bg-primary-50 border border-primary-200 rounded-xl p-4 flex flex-wrap gap-3 items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-primary-700">Auto-Reconcile</p>
+          <p className="text-xs text-primary-500 mt-0.5">Mark all uploaded bank statement transactions as reconciled for a selected year.</p>
+        </div>
+        <div className="flex gap-2 items-center">
+          <select
+            value={autoYear}
+            onChange={(e) => { setAutoYear(e.target.value); setAutoConfirm(false); }}
+            className="border border-primary-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            {[now.getFullYear(), now.getFullYear()-1, now.getFullYear()-2, now.getFullYear()-3].map((y) => (
+              <option key={y} value={String(y)}>{y}</option>
+            ))}
+            <option value="all">All Years</option>
+          </select>
+          {!autoConfirm ? (
+            <button
+              onClick={() => setAutoConfirm(true)}
+              className="px-4 py-2 text-sm rounded-xl bg-primary text-white font-medium hover:bg-primary/90"
+            >
+              Auto-Reconcile
+            </button>
+          ) : (
+            <div className="flex gap-2 items-center">
+              <span className="text-xs text-warning-600 font-medium">Confirm reconcile {autoYear === "all" ? "ALL years" : autoYear}?</span>
+              <button
+                onClick={() => autoMut.mutate(autoYear)}
+                disabled={autoMut.isPending}
+                className="px-3 py-1.5 text-xs rounded-xl bg-warning-500 text-white font-medium hover:bg-warning-600 disabled:opacity-50"
+              >
+                {autoMut.isPending ? "Processing…" : "Yes, Proceed"}
+              </button>
+              <button
+                onClick={() => setAutoConfirm(false)}
+                className="px-3 py-1.5 text-xs rounded-xl border border-default-200 text-default-600 font-medium hover:bg-default-50"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

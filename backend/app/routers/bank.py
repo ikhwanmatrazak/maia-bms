@@ -2831,6 +2831,52 @@ async def toggle_reconcile(
     return ReconcileToggleOut(id=txn_id, is_reconciled=new_state, reconciled_at=str(now) if now else None)
 
 
+@router.post("/accounts/{account_id}/auto-reconcile")
+async def auto_reconcile(
+    account_id: int,
+    year: Optional[str] = Query(None, description="YYYY — omit to reconcile all years"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tid = get_effective_tenant_id(current_user)
+    # Verify account ownership
+    if tid is not None:
+        acc = await db.execute(
+            text("SELECT id FROM bank_accounts WHERE id = :aid AND tenant_id = :tid"),
+            {"aid": account_id, "tid": tid},
+        )
+    else:
+        acc = await db.execute(
+            text("SELECT id FROM bank_accounts WHERE id = :aid"),
+            {"aid": account_id},
+        )
+    if not acc.fetchone():
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    now = datetime.now(timezone.utc)
+    if year:
+        result = await db.execute(
+            text("""
+                UPDATE bank_transactions
+                SET is_reconciled = 1, reconciled_at = :now
+                WHERE account_id = :aid AND is_reconciled = 0
+                  AND YEAR(txn_date) = :yr
+            """),
+            {"now": now, "aid": account_id, "yr": int(year)},
+        )
+    else:
+        result = await db.execute(
+            text("""
+                UPDATE bank_transactions
+                SET is_reconciled = 1, reconciled_at = :now
+                WHERE account_id = :aid AND is_reconciled = 0
+            """),
+            {"now": now, "aid": account_id},
+        )
+    await db.commit()
+    return {"ok": True, "updated": result.rowcount, "year": year or "all"}
+
+
 @router.post("/accounts/{account_id}/reconcile-batch")
 async def reconcile_batch(
     account_id: int,
