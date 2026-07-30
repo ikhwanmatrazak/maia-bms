@@ -1,204 +1,278 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  @page { size: A4; margin: 18mm 15mm 18mm 15mm; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 9pt; color: #1a1a1a; }
+  @page { size: A4; margin: 16mm 18mm 14mm 18mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; font-size: 10px; color: #1a1a1a; background: #fff; line-height: 1.5; }
 
-  /* Header */
-  .header { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 2.5px solid #1a1a2e; padding-bottom: 10px; margin-bottom: 12px; }
-  .company-block { flex: 1; }
-  .company-name { font-size: 15pt; font-weight: 800; color: #1a1a2e; letter-spacing: -0.3px; }
-  .company-sub { font-size: 7.5pt; color: #555; margin-top: 2px; line-height: 1.5; }
-  .logo-block { text-align: right; }
-  .logo-block img { max-height: 50px; max-width: 120px; object-fit: contain; }
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+  .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 14px; border-bottom: 2px solid #1a1a1a; margin-bottom: 14px; }
+  .co-name { font-size: 14px; font-weight: 700; color: #1a1a1a; letter-spacing: -0.2px; margin-bottom: 3px; }
+  .co-meta { font-size: 8.5px; color: #666; line-height: 1.7; }
+  .logo-wrap img { max-height: 44px; max-width: 110px; object-fit: contain; display: block; }
 
-  /* Title bar */
-  .title-bar { background: #1a1a2e; color: #fff; padding: 7px 14px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-  .title-bar .title { font-size: 12pt; font-weight: 700; letter-spacing: 1px; }
-  .title-bar .period { font-size: 9pt; font-weight: 400; opacity: 0.85; }
+  /* ── Title row ───────────────────────────────────────────────────────────── */
+  .title-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+  .doc-title { font-size: 20px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #1a1a1a; }
+  .doc-period { font-size: 10px; font-weight: 500; color: #555; }
 
-  /* Two-column employee info */
-  .emp-section { display: flex; gap: 12px; margin-bottom: 12px; }
-  .emp-col { flex: 1; background: #f7f8fc; border: 1px solid #e3e6ef; border-radius: 4px; padding: 8px 10px; }
-  .emp-col .col-title { font-size: 7pt; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; border-bottom: 1px solid #e3e6ef; padding-bottom: 4px; }
-  .emp-row { display: flex; justify-content: space-between; font-size: 8pt; padding: 2.5px 0; }
-  .emp-row .label { color: #666; }
-  .emp-row .value { font-weight: 600; color: #1a1a2e; text-align: right; }
+  /* ── Employee block ──────────────────────────────────────────────────────── */
+  .emp-block { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-top: 1px solid #e5e5e5; border-bottom: 1px solid #e5e5e5; margin-bottom: 16px; gap: 20px; }
+  .emp-left .emp-name { font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 2px; }
+  .emp-left .emp-role { font-size: 9px; color: #555; font-weight: 500; }
+  .emp-right { display: flex; gap: 32px; }
+  .emp-col { min-width: 120px; }
+  .field { margin-bottom: 5px; }
+  .field-label { font-size: 7.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: #999; display: block; }
+  .field-value { font-size: 9.5px; font-weight: 500; color: #1a1a1a; }
 
-  /* Earnings / Deductions tables */
-  .tables { display: flex; gap: 12px; margin-bottom: 12px; }
-  .tbl-wrap { flex: 1; }
-  .tbl-title { background: #2d3a8c; color: #fff; font-size: 8pt; font-weight: 700; padding: 5px 10px; border-radius: 3px 3px 0 0; letter-spacing: 0.3px; }
-  .tbl-title.deduct { background: #8c2d2d; }
-  table.data { width: 100%; border-collapse: collapse; font-size: 8pt; }
-  table.data td { padding: 4px 10px; border-bottom: 1px solid #eef0f7; }
-  table.data tr:last-child td { border-bottom: none; }
-  table.data td.right { text-align: right; font-variant-numeric: tabular-nums; }
-  table.data tr.subtotal td { background: #f0f2fb; font-weight: 700; border-top: 1.5px solid #c8cde8; }
-  table.data tr.zero td { color: #bbb; }
-  .tbl-border { border: 1px solid #e3e6ef; border-top: none; border-radius: 0 0 3px 3px; }
+  /* ── Earnings / Deductions ───────────────────────────────────────────────── */
+  .tables-row { display: flex; gap: 0; margin-bottom: 0; }
+  .tbl-section { flex: 1; }
+  .tbl-section:first-child { border-right: 1px solid #e5e5e5; padding-right: 20px; }
+  .tbl-section:last-child { padding-left: 20px; }
+  .section-label { font-size: 7.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #999; margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid #e5e5e5; }
+  .line-item { display: flex; justify-content: space-between; padding: 3.5px 0; font-size: 9.5px; color: #333; }
+  .line-item .li-label { color: #444; }
+  .line-item .li-amt { font-variant-numeric: tabular-nums; font-weight: 500; }
+  .line-item.zero .li-label, .line-item.zero .li-amt { color: #bbb; }
+  .subtotal-row { display: flex; justify-content: space-between; padding: 6px 0 0; margin-top: 6px; border-top: 1px solid #1a1a1a; font-size: 10px; font-weight: 700; color: #1a1a1a; }
+  .subtotal-row .li-amt { font-variant-numeric: tabular-nums; }
 
-  /* Net pay */
-  .netpay-box { background: #1a1a2e; color: #fff; border-radius: 4px; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-  .netpay-box .lbl { font-size: 9pt; font-weight: 600; opacity: 0.85; }
-  .netpay-box .amount { font-size: 15pt; font-weight: 800; letter-spacing: -0.5px; }
+  /* ── Net Pay ─────────────────────────────────────────────────────────────── */
+  .netpay-section { margin: 14px 0; padding: 14px 0; border-top: 1px solid #e5e5e5; border-bottom: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: center; }
+  .netpay-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #999; }
+  .netpay-name { font-size: 11px; font-weight: 600; color: #1a1a1a; margin-top: 1px; }
+  .netpay-amount { text-align: right; }
+  .netpay-currency { font-size: 10px; font-weight: 500; color: #555; }
+  .netpay-figure { font-size: 24px; font-weight: 700; color: #1a1a1a; letter-spacing: -0.5px; line-height: 1; }
 
-  /* Attendance + Employer contrib */
-  .bottom-row { display: flex; gap: 12px; margin-bottom: 10px; }
-  .box { flex: 1; background: #f7f8fc; border: 1px solid #e3e6ef; border-radius: 4px; padding: 8px 10px; }
-  .box .box-title { font-size: 7pt; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; border-bottom: 1px solid #e3e6ef; padding-bottom: 4px; }
-  .stat-grid { display: flex; gap: 8px; }
-  .stat { flex: 1; text-align: center; }
-  .stat .num { font-size: 13pt; font-weight: 800; color: #1a1a2e; }
-  .stat .sub { font-size: 7pt; color: #888; margin-top: 1px; }
-  .contrib-row { display: flex; justify-content: space-between; font-size: 8pt; padding: 2.5px 0; }
-  .contrib-row .label { color: #666; }
-  .contrib-row .value { font-weight: 600; font-variant-numeric: tabular-nums; }
+  /* ── Bottom info ─────────────────────────────────────────────────────────── */
+  .bottom-row { display: flex; gap: 0; padding-top: 12px; }
+  .bottom-col { flex: 1; }
+  .bottom-col:first-child { border-right: 1px solid #e5e5e5; padding-right: 20px; }
+  .bottom-col:last-child { padding-left: 20px; }
+  .bottom-label { font-size: 7.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #999; margin-bottom: 8px; }
+  .att-grid { display: flex; gap: 16px; }
+  .att-item .att-num { font-size: 16px; font-weight: 700; color: #1a1a1a; line-height: 1; }
+  .att-item .att-sub { font-size: 8px; color: #888; margin-top: 2px; }
+  .contrib-line { display: flex; justify-content: space-between; font-size: 9px; padding: 3px 0; color: #444; }
+  .contrib-line span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
 
-  /* Footer */
-  .footer { border-top: 1px solid #e3e6ef; padding-top: 8px; display: flex; justify-content: space-between; align-items: center; }
-  .footer .conf { font-size: 7pt; color: #aaa; font-style: italic; }
-  .footer .generated { font-size: 7pt; color: #aaa; }
+  /* ── Footer ──────────────────────────────────────────────────────────────── */
+  .footer { margin-top: 16px; padding-top: 10px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: center; }
+  .footer-note { font-size: 7.5px; color: #bbb; font-style: italic; }
+  .footer-brand { font-size: 7.5px; color: #bbb; }
 </style>
 </head>
 <body>
 
-<!-- Company Header -->
+<!-- Header -->
 <div class="header">
-  <div class="company-block">
-    <div class="company-name">{{ company.company_name or 'Company' }}</div>
-    <div class="company-sub">
-      {% if company.registration_no %}Reg No: {{ company.registration_no }}&nbsp;&nbsp;{% endif %}
-      {% if company.address %}{{ company.address }}{% endif %}
-      {% if company.phone %}<br>Tel: {{ company.phone }}{% endif %}
+  <div>
+    <div class="co-name">{{ company.company_name or 'Company' }}</div>
+    <div class="co-meta">
+      {%- if company.registration_no %}Reg No: {{ company.registration_no }}{%- endif %}
+      {%- if company.address %}<br>{{ company.address }}{%- endif %}
+      {%- if company.phone %}<br>{{ company.phone }}{%- endif %}
     </div>
   </div>
   {% if logo_data %}
-  <div class="logo-block">
-    <img src="{{ logo_data }}" alt="logo">
-  </div>
+  <div class="logo-wrap"><img src="{{ logo_data }}" alt=""></div>
   {% endif %}
 </div>
 
-<!-- Title Bar -->
-<div class="title-bar">
-  <span class="title">PAYSLIP</span>
-  <span class="period">{{ month_name }} {{ year }}</span>
+<!-- Title -->
+<div class="title-row">
+  <div class="doc-title">Payslip</div>
+  <div class="doc-period">{{ month_name }} {{ year }}</div>
 </div>
 
 <!-- Employee Info -->
-<div class="emp-section">
-  <div class="emp-col">
-    <div class="col-title">Employee Details</div>
-    <div class="emp-row"><span class="label">Name</span><span class="value">{{ employee['full_name'] }}</span></div>
-    <div class="emp-row"><span class="label">Employee No.</span><span class="value">{{ employee['employee_no'] }}</span></div>
-    <div class="emp-row"><span class="label">IC No.</span><span class="value">{{ employee['ic_no'] or '—' }}</span></div>
-    <div class="emp-row"><span class="label">Designation</span><span class="value">{{ employee['designation'] or '—' }}</span></div>
-    <div class="emp-row"><span class="label">Department</span><span class="value">{{ employee['department'] or '—' }}</span></div>
+<div class="emp-block">
+  <div class="emp-left">
+    <div class="emp-name">{{ employee['full_name'] }}</div>
+    <div class="emp-role">
+      {{- employee['designation'] or '' -}}
+      {%- if employee['designation'] and employee['department'] %} &nbsp;·&nbsp; {% endif -%}
+      {{- employee['department'] or '' -}}
+    </div>
   </div>
-  <div class="emp-col">
-    <div class="col-title">Statutory &amp; Bank</div>
-    <div class="emp-row"><span class="label">EPF No.</span><span class="value">{{ employee['epf_no'] or '—' }}</span></div>
-    <div class="emp-row"><span class="label">SOCSO No.</span><span class="value">{{ employee['socso_no'] or '—' }}</span></div>
-    <div class="emp-row"><span class="label">Income Tax No.</span><span class="value">{{ employee['income_tax_no'] or '—' }}</span></div>
-    <div class="emp-row"><span class="label">Bank</span><span class="value">{{ employee['bank_name'] or '—' }}</span></div>
-    <div class="emp-row"><span class="label">Account No.</span><span class="value">{{ employee['bank_account_no'] or '—' }}</span></div>
+  <div class="emp-right">
+    <div class="emp-col">
+      <div class="field">
+        <span class="field-label">Employee No.</span>
+        <span class="field-value">{{ employee['employee_no'] }}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">IC No.</span>
+        <span class="field-value">{{ employee['ic_no'] or '—' }}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Bank</span>
+        <span class="field-value">{{ employee['bank_name'] or '—' }}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Account No.</span>
+        <span class="field-value">{{ employee['bank_account_no'] or '—' }}</span>
+      </div>
+    </div>
+    <div class="emp-col">
+      <div class="field">
+        <span class="field-label">EPF No.</span>
+        <span class="field-value">{{ employee['epf_no'] or '—' }}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">SOCSO No.</span>
+        <span class="field-value">{{ employee['socso_no'] or '—' }}</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Income Tax No.</span>
+        <span class="field-value">{{ employee['income_tax_no'] or '—' }}</span>
+      </div>
+    </div>
   </div>
 </div>
 
 <!-- Earnings & Deductions -->
-<div class="tables">
+<div class="tables-row">
 
   <!-- Earnings -->
-  <div class="tbl-wrap">
-    <div class="tbl-title">Earnings</div>
-    <div class="tbl-border">
-      <table class="data">
-        <tr><td>Basic Salary</td><td class="right">{{ line['basic_salary'] | fmt }}</td></tr>
-        {% if line['transport_allowance'] > 0 %}
-        <tr><td>Transport Allowance</td><td class="right">{{ line['transport_allowance'] | fmt }}</td></tr>
-        {% endif %}
-        {% if line['housing_allowance'] > 0 %}
-        <tr><td>Housing Allowance</td><td class="right">{{ line['housing_allowance'] | fmt }}</td></tr>
-        {% endif %}
-        {% if line['phone_allowance'] > 0 %}
-        <tr><td>Phone Allowance</td><td class="right">{{ line['phone_allowance'] | fmt }}</td></tr>
-        {% endif %}
-        {% if line['other_allowance'] > 0 %}
-        <tr><td>Other Allowance</td><td class="right">{{ line['other_allowance'] | fmt }}</td></tr>
-        {% endif %}
-        {% if line['overtime_pay'] > 0 %}
-        <tr><td>Overtime Pay</td><td class="right">{{ line['overtime_pay'] | fmt }}</td></tr>
-        {% endif %}
-        {% if line['claims_reimbursement'] > 0 %}
-        <tr><td>Claims Reimbursement</td><td class="right">{{ line['claims_reimbursement'] | fmt }}</td></tr>
-        {% endif %}
-        <tr class="subtotal"><td>Gross Pay (RM)</td><td class="right">{{ line['gross_pay'] | fmt }}</td></tr>
-      </table>
+  <div class="tbl-section">
+    <div class="section-label">Earnings</div>
+    <div class="line-item">
+      <span class="li-label">Basic Salary</span>
+      <span class="li-amt">{{ line['basic_salary'] | fmt }}</span>
+    </div>
+    {% if line['transport_allowance'] > 0 %}
+    <div class="line-item">
+      <span class="li-label">Transport Allowance</span>
+      <span class="li-amt">{{ line['transport_allowance'] | fmt }}</span>
+    </div>
+    {% endif %}
+    {% if line['housing_allowance'] > 0 %}
+    <div class="line-item">
+      <span class="li-label">Housing Allowance</span>
+      <span class="li-amt">{{ line['housing_allowance'] | fmt }}</span>
+    </div>
+    {% endif %}
+    {% if line['phone_allowance'] > 0 %}
+    <div class="line-item">
+      <span class="li-label">Phone Allowance</span>
+      <span class="li-amt">{{ line['phone_allowance'] | fmt }}</span>
+    </div>
+    {% endif %}
+    {% if line['other_allowance'] > 0 %}
+    <div class="line-item">
+      <span class="li-label">Other Allowance</span>
+      <span class="li-amt">{{ line['other_allowance'] | fmt }}</span>
+    </div>
+    {% endif %}
+    {% if line['overtime_pay'] > 0 %}
+    <div class="line-item">
+      <span class="li-label">Overtime</span>
+      <span class="li-amt">{{ line['overtime_pay'] | fmt }}</span>
+    </div>
+    {% endif %}
+    {% if line['claims_reimbursement'] > 0 %}
+    <div class="line-item">
+      <span class="li-label">Claims Reimbursement</span>
+      <span class="li-amt">{{ line['claims_reimbursement'] | fmt }}</span>
+    </div>
+    {% endif %}
+    <div class="subtotal-row">
+      <span>Gross Pay</span>
+      <span class="li-amt">RM {{ line['gross_pay'] | fmt }}</span>
     </div>
   </div>
 
   <!-- Deductions -->
-  <div class="tbl-wrap">
-    <div class="tbl-title deduct">Deductions</div>
-    <div class="tbl-border">
-      <table class="data">
-        <tr class="{% if line['epf_employee'] == 0 %}zero{% endif %}">
-          <td>EPF (Employee 11%)</td><td class="right">{{ line['epf_employee'] | fmt }}</td>
-        </tr>
-        <tr class="{% if line['socso_employee'] == 0 %}zero{% endif %}">
-          <td>SOCSO (Employee 0.5%)</td><td class="right">{{ line['socso_employee'] | fmt }}</td>
-        </tr>
-        <tr class="{% if line['eis_employee'] == 0 %}zero{% endif %}">
-          <td>EIS (Employee 0.2%)</td><td class="right">{{ line['eis_employee'] | fmt }}</td>
-        </tr>
-        <tr class="{% if line['pcb'] == 0 %}zero{% endif %}">
-          <td>PCB (Income Tax)</td><td class="right">{{ line['pcb'] | fmt }}</td>
-        </tr>
-        {% if line['other_deduction'] > 0 %}
-        <tr><td>Other Deduction</td><td class="right">{{ line['other_deduction'] | fmt }}</td></tr>
-        {% endif %}
-        {% set total_ded = line['epf_employee'] + line['socso_employee'] + line['eis_employee'] + line['pcb'] + line['other_deduction'] %}
-        <tr class="subtotal"><td>Total Deductions (RM)</td><td class="right">{{ total_ded | fmt }}</td></tr>
-      </table>
+  <div class="tbl-section">
+    <div class="section-label">Deductions</div>
+    <div class="line-item {% if line['epf_employee'] == 0 %}zero{% endif %}">
+      <span class="li-label">EPF — Employee (11%)</span>
+      <span class="li-amt">{{ line['epf_employee'] | fmt }}</span>
+    </div>
+    <div class="line-item {% if line['socso_employee'] == 0 %}zero{% endif %}">
+      <span class="li-label">SOCSO — Employee (0.5%)</span>
+      <span class="li-amt">{{ line['socso_employee'] | fmt }}</span>
+    </div>
+    <div class="line-item {% if line['eis_employee'] == 0 %}zero{% endif %}">
+      <span class="li-label">EIS — Employee (0.2%)</span>
+      <span class="li-amt">{{ line['eis_employee'] | fmt }}</span>
+    </div>
+    <div class="line-item {% if line['pcb'] == 0 %}zero{% endif %}">
+      <span class="li-label">PCB / Income Tax</span>
+      <span class="li-amt">{{ line['pcb'] | fmt }}</span>
+    </div>
+    {% if line['other_deduction'] > 0 %}
+    <div class="line-item">
+      <span class="li-label">Other Deduction</span>
+      <span class="li-amt">{{ line['other_deduction'] | fmt }}</span>
+    </div>
+    {% endif %}
+    {% set total_ded = line['epf_employee'] + line['socso_employee'] + line['eis_employee'] + line['pcb'] + line['other_deduction'] %}
+    <div class="subtotal-row">
+      <span>Total Deductions</span>
+      <span class="li-amt">RM {{ total_ded | fmt }}</span>
     </div>
   </div>
+
 </div>
 
 <!-- Net Pay -->
-<div class="netpay-box">
-  <span class="lbl">NET PAY FOR {{ month_name | upper }} {{ year }}</span>
-  <span class="amount">RM {{ line['net_pay'] | fmt }}</span>
+<div class="netpay-section">
+  <div>
+    <div class="netpay-label">Net Pay</div>
+    <div class="netpay-name">{{ employee['full_name'] }} &nbsp;·&nbsp; {{ month_name }} {{ year }}</div>
+  </div>
+  <div class="netpay-amount">
+    <div class="netpay-currency">MYR</div>
+    <div class="netpay-figure">{{ line['net_pay'] | fmt }}</div>
+  </div>
 </div>
 
 <!-- Attendance + Employer Contributions -->
 <div class="bottom-row">
-  {% if line['working_days'] %}
-  <div class="box">
-    <div class="box-title">Attendance Summary</div>
-    <div class="stat-grid">
-      <div class="stat"><div class="num">{{ line['working_days'] or '—' }}</div><div class="sub">Working Days</div></div>
-      <div class="stat"><div class="num">{{ line['present_days'] or '—' }}</div><div class="sub">Present</div></div>
-      <div class="stat"><div class="num">{{ line['absent_days'] or '0' }}</div><div class="sub">Absent</div></div>
-      <div class="stat"><div class="num">{{ line['leave_days'] or '0' }}</div><div class="sub">On Leave</div></div>
+  <div class="bottom-col">
+    {% if line['working_days'] %}
+    <div class="bottom-label">Attendance</div>
+    <div class="att-grid">
+      <div class="att-item">
+        <div class="att-num">{{ line['working_days'] or '—' }}</div>
+        <div class="att-sub">Working</div>
+      </div>
+      <div class="att-item">
+        <div class="att-num">{{ line['present_days'] or '—' }}</div>
+        <div class="att-sub">Present</div>
+      </div>
+      <div class="att-item">
+        <div class="att-num">{{ line['absent_days'] or '0' }}</div>
+        <div class="att-sub">Absent</div>
+      </div>
+      <div class="att-item">
+        <div class="att-num">{{ line['leave_days'] or '0' }}</div>
+        <div class="att-sub">Leave</div>
+      </div>
     </div>
+    {% endif %}
   </div>
-  {% endif %}
-  <div class="box">
-    <div class="box-title">Employer Contributions</div>
-    <div class="contrib-row"><span class="label">EPF (Employer)</span><span class="value">RM {{ line['epf_employer'] | fmt }}</span></div>
-    <div class="contrib-row"><span class="label">SOCSO (Employer 1.75%)</span><span class="value">RM {{ line['socso_employer'] | fmt }}</span></div>
-    <div class="contrib-row"><span class="label">EIS (Employer 0.2%)</span><span class="value">RM {{ line['eis_employer'] | fmt }}</span></div>
+  <div class="bottom-col">
+    <div class="bottom-label">Employer Contributions</div>
+    <div class="contrib-line"><span>EPF (Employer)</span><span>RM {{ line['epf_employer'] | fmt }}</span></div>
+    <div class="contrib-line"><span>SOCSO (Employer 1.75%)</span><span>RM {{ line['socso_employer'] | fmt }}</span></div>
+    <div class="contrib-line"><span>EIS (Employer 0.2%)</span><span>RM {{ line['eis_employer'] | fmt }}</span></div>
   </div>
 </div>
 
 <!-- Footer -->
 <div class="footer">
-  <span class="conf">CONFIDENTIAL — This payslip is computer generated and does not require a signature.</span>
-  <span class="generated">Generated by MAIA BMS</span>
+  <span class="footer-note">This is a computer-generated payslip and does not require a signature. Confidential.</span>
+  <span class="footer-brand">MAIA BMS</span>
 </div>
 
 </body>
