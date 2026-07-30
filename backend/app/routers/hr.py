@@ -1969,6 +1969,18 @@ async def create_payroll_run(
             spouse_working=emp.spouse_working or False,
         )
 
+        # Respect per-employee statutory flags
+        if not emp.has_epf:
+            statutory["epf_employee"] = 0.0
+            statutory["epf_employer"] = 0.0
+        if not emp.has_socso_eis:
+            statutory["socso_employee"] = 0.0
+            statutory["socso_employer"] = 0.0
+            statutory["eis_employee"] = 0.0
+            statutory["eis_employer"] = 0.0
+        if not emp.has_income_tax:
+            statutory["pcb"] = 0.0
+
         net = gross - statutory["epf_employee"] - statutory["socso_employee"] - statutory["eis_employee"] - statutory["pcb"]
 
         line = PayslipLine(

@@ -21,14 +21,14 @@
   .doc-period { font-size: 10px; font-weight: 500; color: #555; }
 
   /* ── Employee block ──────────────────────────────────────────────────────── */
-  .emp-block { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-top: 1px solid #e5e5e5; border-bottom: 1px solid #e5e5e5; margin-bottom: 16px; gap: 20px; }
-  .emp-left .emp-name { font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 2px; }
-  .emp-left .emp-role { font-size: 9px; color: #555; font-weight: 500; }
-  .emp-right { display: flex; gap: 32px; }
-  .emp-col { min-width: 120px; }
-  .field { margin-bottom: 5px; }
-  .field-label { font-size: 7.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: #999; display: block; }
-  .field-value { font-size: 9.5px; font-weight: 500; color: #1a1a1a; }
+  .emp-block { padding: 12px 0; border-top: 1px solid #e5e5e5; border-bottom: 1px solid #e5e5e5; margin-bottom: 16px; }
+  .emp-name { font-size: 13px; font-weight: 700; color: #1a1a1a; margin-bottom: 2px; }
+  .emp-role { font-size: 9px; color: #555; font-weight: 500; margin-bottom: 10px; }
+  .emp-grid { display: table; width: 100%; border-collapse: collapse; }
+  .emp-grid-row { display: table-row; }
+  .emp-cell { display: table-cell; width: 25%; padding: 4px 8px 4px 0; vertical-align: top; }
+  .field-label { font-size: 7.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: #999; display: block; margin-bottom: 1px; }
+  .field-value { font-size: 9.5px; font-weight: 500; color: #1a1a1a; display: block; word-break: break-all; }
 
   /* ── Earnings / Deductions ───────────────────────────────────────────────── */
   .tables-row { display: flex; gap: 0; margin-bottom: 0; }
@@ -94,45 +94,43 @@
 
 <!-- Employee Info -->
 <div class="emp-block">
-  <div class="emp-left">
-    <div class="emp-name">{{ employee['full_name'] }}</div>
-    <div class="emp-role">
-      {{- employee['designation'] or '' -}}
-      {%- if employee['designation'] and employee['department'] %} &nbsp;·&nbsp; {% endif -%}
-      {{- employee['department'] or '' -}}
-    </div>
+  <div class="emp-name">{{ employee['full_name'] }}</div>
+  <div class="emp-role">
+    {{- employee['designation'] or '' -}}
+    {%- if employee['designation'] and employee['department'] %} &nbsp;·&nbsp; {% endif -%}
+    {{- employee['department'] or '' -}}
   </div>
-  <div class="emp-right">
-    <div class="emp-col">
-      <div class="field">
+  <div class="emp-grid">
+    <div class="emp-grid-row">
+      <div class="emp-cell">
         <span class="field-label">Employee No.</span>
         <span class="field-value">{{ employee['employee_no'] }}</span>
       </div>
-      <div class="field">
+      <div class="emp-cell">
         <span class="field-label">IC No.</span>
         <span class="field-value">{{ employee['ic_no'] or '—' }}</span>
       </div>
-      <div class="field">
-        <span class="field-label">Bank</span>
-        <span class="field-value">{{ employee['bank_name'] or '—' }}</span>
-      </div>
-      <div class="field">
-        <span class="field-label">Account No.</span>
-        <span class="field-value">{{ employee['bank_account_no'] or '—' }}</span>
-      </div>
-    </div>
-    <div class="emp-col">
-      <div class="field">
+      <div class="emp-cell">
         <span class="field-label">EPF No.</span>
         <span class="field-value">{{ employee['epf_no'] or '—' }}</span>
       </div>
-      <div class="field">
+      <div class="emp-cell">
         <span class="field-label">SOCSO No.</span>
         <span class="field-value">{{ employee['socso_no'] or '—' }}</span>
       </div>
-      <div class="field">
+    </div>
+    <div class="emp-grid-row">
+      <div class="emp-cell">
         <span class="field-label">Income Tax No.</span>
         <span class="field-value">{{ employee['income_tax_no'] or '—' }}</span>
+      </div>
+      <div class="emp-cell">
+        <span class="field-label">Bank</span>
+        <span class="field-value">{{ employee['bank_name'] or '—' }}</span>
+      </div>
+      <div class="emp-cell" style="width:50%" colspan="2">
+        <span class="field-label">Account No.</span>
+        <span class="field-value">{{ employee['bank_account_no'] or '—' }}</span>
       </div>
     </div>
   </div>
