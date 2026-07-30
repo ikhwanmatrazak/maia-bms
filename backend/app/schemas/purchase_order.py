@@ -22,6 +22,7 @@ class PurchaseOrderCreate(BaseModel):
 
 
 class PurchaseOrderUpdate(BaseModel):
+    po_number: Optional[str] = None
     vendor_name: Optional[str] = None
     vendor_email: Optional[str] = None
     vendor_phone: Optional[str] = None
