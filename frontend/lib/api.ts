@@ -534,6 +534,7 @@ export const hrApi = {
   createPayrollRun: (data: object) => api.post("/hr/payroll", data).then((r) => r.data),
   finalizePayroll: (id: number) => api.post(`/hr/payroll/${id}/finalize`).then((r) => r.data),
   deletePayrollRun: (id: number) => api.delete(`/hr/payroll/${id}`),
+  payslipPdfUrl: (runId: number, lineId: number) => `${API_URL}/hr/payroll/${runId}/payslip/${lineId}/pdf`,
 
   // Claims
   listClaims: (params?: object) => api.get("/hr/claims", { params }).then((r) => r.data),

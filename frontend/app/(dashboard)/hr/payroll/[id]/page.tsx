@@ -2,9 +2,10 @@
 
 import { Topbar } from "@/components/ui/Topbar";
 import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { hrApi } from "@/lib/api";
-import { ChevronLeft, Lock } from "lucide-react";
+import { hrApi, downloadPdf } from "@/lib/api";
+import { ChevronLeft, Lock, Download } from "lucide-react";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const fmt = (v: number | undefined | null) => `MYR ${(v || 0).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
@@ -18,9 +19,23 @@ export default function PayrollRunDetailPage() {
     queryFn: () => hrApi.getPayrollRun(Number(id)),
   });
 
+  const [dlLoading, setDlLoading] = useState<number | null>(null);
+
   if (isLoading || !run) return <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>;
 
   const lines = run.payslip_lines || [];
+
+  const handleDownloadPayslip = async (lineId: number, employeeName: string) => {
+    setDlLoading(lineId);
+    try {
+      const url = hrApi.payslipPdfUrl(Number(id), lineId);
+      await downloadPdf(url, `Payslip_${employeeName.replace(/\s+/g, "_")}_${MONTHS[run.month - 1]}_${run.year}.pdf`);
+    } catch {
+      alert("Failed to download payslip.");
+    } finally {
+      setDlLoading(null);
+    }
+  };
 
   return (
     <div>
@@ -75,6 +90,7 @@ export default function PayrollRunDetailPage() {
               <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">EIS</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500">PCB</th>
               <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 border-l border-gray-100">Net Pay</th>
+              <th className="px-4 py-3 text-xs font-semibold text-gray-500 w-20"></th>
             </tr>
           </thead>
           <tbody>
@@ -96,6 +112,16 @@ export default function PayrollRunDetailPage() {
                   <td className="px-4 py-3 text-right text-orange-600">{fmt(l.eis_employee)}</td>
                   <td className="px-4 py-3 text-right text-orange-600">{fmt(l.pcb)}</td>
                   <td className="px-4 py-3 text-right font-bold text-green-700 border-l border-gray-100">{fmt(l.net_pay)}</td>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      onClick={() => handleDownloadPayslip(l.id, l.employee_name || "employee")}
+                      disabled={dlLoading === l.id}
+                      title="Download Payslip PDF"
+                      className="p-1.5 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-800 disabled:opacity-40"
+                    >
+                      <Download size={14} />
+                    </button>
+                  </td>
                 </tr>
               );
             })}
@@ -110,6 +136,7 @@ export default function PayrollRunDetailPage() {
                 <td className="px-4 py-3 text-right font-semibold text-orange-600">{fmt(lines.reduce((s: number, l: any) => s + (l.eis_employee || 0), 0))}</td>
                 <td className="px-4 py-3 text-right font-semibold text-orange-600">{fmt(lines.reduce((s: number, l: any) => s + (l.pcb || 0), 0))}</td>
                 <td className="px-4 py-3 text-right font-bold text-green-700 border-l border-gray-100">{fmt(run.total_net)}</td>
+                <td></td>
               </tr>
             </tfoot>
           )}

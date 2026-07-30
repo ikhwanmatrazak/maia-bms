@@ -2109,6 +2109,108 @@ async def delete_payroll_run(
     await db.commit()
 
 
+@router.get("/payroll/{run_id}/payslip/{line_id}/pdf")
+async def get_payslip_pdf(
+    run_id: int,
+    line_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    import io as _io
+    from fastapi.responses import StreamingResponse
+    from jinja2 import Environment, FileSystemLoader, select_autoescape
+    from pathlib import Path
+    from app.services.pdf_service import _render_pdf
+    from app.services.signature_service import get_logo_base64
+    import asyncio
+
+    require_admin_or_manager(current_user)
+
+    run_result = await db.execute(select(PayrollRun).where(PayrollRun.id == run_id))
+    run = run_result.scalar_one_or_none()
+    if not run:
+        raise HTTPException(status_code=404, detail="Payroll run not found")
+
+    line_result = await db.execute(
+        select(PayslipLine).options(
+            selectinload(PayslipLine.employee).selectinload(Employee.department_rel)
+        ).where(PayslipLine.id == line_id, PayslipLine.payroll_run_id == run_id)
+    )
+    line = line_result.scalar_one_or_none()
+    if not line:
+        raise HTTPException(status_code=404, detail="Payslip not found")
+
+    tid = get_effective_tenant_id(current_user)
+    co_row = await db.execute(
+        text("SELECT * FROM company_settings WHERE (tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL)) LIMIT 1"),
+        {"tid": tid},
+    )
+    company = dict(co_row.mappings().first() or {})
+    logo_data = get_logo_base64(company.get("logo_url"))
+
+    emp = line.employee
+    MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+
+    ctx = {
+        "company": company,
+        "logo_data": logo_data,
+        "month_name": MONTHS[run.month - 1],
+        "year": run.year,
+        "employee": {
+            "full_name": emp.full_name if emp else "",
+            "employee_no": emp.employee_no if emp else "",
+            "ic_no": emp.ic_no or "",
+            "designation": emp.designation or "",
+            "department": emp.department_rel.name if emp and emp.department_rel else "",
+            "epf_no": emp.epf_no or "",
+            "socso_no": emp.socso_no or "",
+            "income_tax_no": emp.income_tax_no or "",
+            "bank_name": emp.bank_name or "",
+            "bank_account_no": emp.bank_account_no or "",
+        },
+        "line": {
+            "basic_salary": float(line.basic_salary),
+            "transport_allowance": float(line.transport_allowance or 0),
+            "housing_allowance": float(line.housing_allowance or 0),
+            "phone_allowance": float(line.phone_allowance or 0),
+            "other_allowance": float(line.other_allowance or 0),
+            "overtime_pay": float(line.overtime_pay or 0),
+            "claims_reimbursement": float(line.claims_reimbursement or 0),
+            "gross_pay": float(line.gross_pay),
+            "epf_employee": float(line.epf_employee or 0),
+            "epf_employer": float(line.epf_employer or 0),
+            "socso_employee": float(line.socso_employee or 0),
+            "socso_employer": float(line.socso_employer or 0),
+            "eis_employee": float(line.eis_employee or 0),
+            "eis_employer": float(line.eis_employer or 0),
+            "pcb": float(line.pcb or 0),
+            "other_deduction": float(line.other_deduction or 0),
+            "net_pay": float(line.net_pay),
+            "working_days": line.working_days,
+            "present_days": line.present_days,
+            "absent_days": line.absent_days,
+            "leave_days": line.leave_days,
+        },
+    }
+
+    TEMPLATES_DIR = Path(__file__).parent.parent / "templates" / "pdf"
+    env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=select_autoescape(["html"]))
+    env.filters["fmt"] = lambda v: f"{float(v):,.2f}" if v else "0.00"
+    template = env.get_template("payslip.html")
+    html = template.render(**ctx)
+
+    loop = asyncio.get_event_loop()
+    pdf_bytes = await loop.run_in_executor(None, _render_pdf, html)
+
+    safe_name = (emp.full_name if emp else "employee").replace(" ", "_")
+    filename = f"payslip_{safe_name}_{MONTHS[run.month - 1]}_{run.year}.pdf"
+    return StreamingResponse(
+        _io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 # ─── Claims ──────────────────────────────────────────────────────────────────
 
 @router.get("/claims", response_model=List[ClaimResponse])
