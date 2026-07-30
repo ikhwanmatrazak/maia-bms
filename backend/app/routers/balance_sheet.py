@@ -315,17 +315,42 @@ async def get_balance_sheet_pdf(
 async def admin_fix_po(
     po_id: int = Query(...),
     new_po_number: str = Query(...),
-    new_issue_date: str = Query(..., description="YYYY-MM-DD"),
+    new_issue_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not current_user.is_super_admin and current_user.role.value != "admin":
-        from fastapi import HTTPException
-        raise HTTPException(status_code=403, detail="Admin only")
-    new_date = datetime.strptime(new_issue_date, "%Y-%m-%d")
-    result = await db.execute(
-        text("UPDATE purchase_orders SET po_number=:num, issue_date=:dt WHERE id=:id"),
-        {"num": new_po_number, "dt": new_date, "id": po_id},
+    # Step 1: find any existing record (including deleted) blocking the target number
+    conflict = await db.execute(
+        text("SELECT id, po_number, is_deleted FROM purchase_orders WHERE po_number = :num"),
+        {"num": new_po_number},
     )
+    conflict_row = conflict.mappings().first()
+
+    if conflict_row and conflict_row["id"] != po_id:
+        # Rename the conflicting record out of the way
+        temp_num = f"__DEL_{conflict_row['id']}_{new_po_number}"
+        await db.execute(
+            text("UPDATE purchase_orders SET po_number = :tmp WHERE id = :cid"),
+            {"tmp": temp_num, "cid": conflict_row["id"]},
+        )
+
+    # Step 2: rename (and optionally re-date) the target PO
+    if new_issue_date:
+        new_date = datetime.strptime(new_issue_date, "%Y-%m-%d")
+        result = await db.execute(
+            text("UPDATE purchase_orders SET po_number=:num, issue_date=:dt WHERE id=:id"),
+            {"num": new_po_number, "dt": new_date, "id": po_id},
+        )
+    else:
+        result = await db.execute(
+            text("UPDATE purchase_orders SET po_number=:num WHERE id=:id"),
+            {"num": new_po_number, "id": po_id},
+        )
+
     await db.commit()
-    return {"ok": True, "updated_rows": result.rowcount, "po_number": new_po_number, "issue_date": new_issue_date}
+    return {
+        "ok": True,
+        "updated_rows": result.rowcount,
+        "po_number": new_po_number,
+        "conflict_cleared": dict(conflict_row) if conflict_row and conflict_row["id"] != po_id else None,
+    }
