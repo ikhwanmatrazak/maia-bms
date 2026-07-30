@@ -319,7 +319,7 @@ async def admin_fix_po(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not current_user.is_super_admin and not current_user.is_admin:
+    if not current_user.is_super_admin and current_user.role.value != "admin":
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Admin only")
     new_date = datetime.strptime(new_issue_date, "%Y-%m-%d")
