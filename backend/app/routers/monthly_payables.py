@@ -123,15 +123,16 @@ async def _compute(db: AsyncSession, tid, month: int, year: int) -> dict:
     po_items = [dict(r._mapping) for r in po_rows.fetchall()]
     po_total = sum(float(r["total"] or 0) for r in po_items)
 
-    # ── 5. Expense Claims (approved user/monthly claims) ─────────────────────
+    # ── 5. Expense Claims (approved individual claims for this month) ─────────
     claims_rows = await db.execute(text(f"""
-        SELECT id, submitted_by_name AS employee_name, claim_type,
-               title, description, amount, claim_date
-        FROM monthly_claims
-        WHERE status='approved'
-          AND claim_date <= :m_end
-          AND (tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL))
-        ORDER BY claim_date, submitted_by_name
+        SELECT c.id, u.name AS employee_name, c.claim_type,
+               c.title, c.description, c.amount, c.claim_date
+        FROM user_claims c
+        LEFT JOIN users u ON u.id = c.user_id
+        WHERE c.status='approved'
+          AND c.claim_date BETWEEN :m_start AND :m_end
+          AND (c.tenant_id=:tid OR (c.tenant_id IS NULL AND :tid IS NULL))
+        ORDER BY c.claim_date, u.name
     """), p)
     claim_items = [dict(r._mapping) for r in claims_rows.fetchall()]
     claims_total = sum(float(r["amount"] or 0) for r in claim_items)
