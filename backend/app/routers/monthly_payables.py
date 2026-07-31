@@ -32,7 +32,8 @@ async def _compute(db: AsyncSession, tid, month: int, year: int) -> dict:
     m_start = date(year, month, 1)
     m_end   = date(year, month, last_day)
 
-    tf = "AND (tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL))"
+    tf     = "AND (tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL))"
+    tf_pr  = "AND (pr.tenant_id=:tid OR (pr.tenant_id IS NULL AND :tid IS NULL))"
     p  = {"tid": tid, "month": month, "year": year,
           "m_start": m_start, "m_end": m_end}
 
@@ -48,7 +49,7 @@ async def _compute(db: AsyncSession, tid, month: int, year: int) -> dict:
         FROM hr_payslip_lines pl
         JOIN hr_employees e  ON e.id  = pl.employee_id
         JOIN hr_payroll_runs pr ON pr.id = pl.payroll_run_id
-        WHERE pr.month=:month AND pr.year=:year {tf}
+        WHERE pr.month=:month AND pr.year=:year {tf_pr}
         ORDER BY e.full_name
     """), p)
     salary_items = [dict(r._mapping) for r in sal_rows.fetchall()]
@@ -70,7 +71,7 @@ async def _compute(db: AsyncSession, tid, month: int, year: int) -> dict:
           COALESCE(SUM(pl.pcb),           0) AS pcb
         FROM hr_payslip_lines pl
         JOIN hr_payroll_runs pr ON pr.id = pl.payroll_run_id
-        WHERE pr.month=:month AND pr.year=:year {tf}
+        WHERE pr.month=:month AND pr.year=:year {tf_pr}
     """), p)
     s = dict(stat_row.mappings().first() or {})
     epf_total   = float(s.get("epf_emp", 0))   + float(s.get("epf_er", 0))
