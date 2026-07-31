@@ -1827,7 +1827,7 @@ async def list_salary_structures(
     query = apply_tenant_filter(query, SalaryStructure, current_user)
     if employee_id:
         query = query.where(SalaryStructure.employee_id == employee_id)
-    result = await db.execute(query.order_by(SalaryStructure.effective_from.desc()))
+    result = await db.execute(query.order_by(SalaryStructure.effective_from.desc(), SalaryStructure.id.desc()))
     ss = result.scalars().all()
     return [SalaryStructureResponse(
         id=s.id, employee_id=s.employee_id,
@@ -1862,6 +1862,21 @@ async def create_salary_structure(
         other_allowance_name=ss.other_allowance_name,
         effective_from=ss.effective_from,
     )
+
+
+@router.delete("/salary-structures/{ss_id}", status_code=204)
+async def delete_salary_structure(
+    ss_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin(current_user)
+    result = await db.execute(select(SalaryStructure).where(SalaryStructure.id == ss_id))
+    ss = result.scalar_one_or_none()
+    if not ss:
+        raise HTTPException(status_code=404, detail="Not found")
+    await db.delete(ss)
+    await db.commit()
 
 
 # ─── Payroll ─────────────────────────────────────────────────────────────────
@@ -1920,7 +1935,7 @@ async def create_payroll_run(
         # Get latest salary structure
         ss_result = await db.execute(
             select(SalaryStructure).where(SalaryStructure.employee_id == emp.id)
-            .order_by(SalaryStructure.effective_from.desc()).limit(1)
+            .order_by(SalaryStructure.effective_from.desc(), SalaryStructure.id.desc()).limit(1)
         )
         ss = ss_result.scalar_one_or_none()
 
