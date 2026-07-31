@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 14mm 16mm 14mm 16mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; font-size: 9.5px; color: #1a1a1a; background: #fff; }
+
+  /* Header */
+  .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 12px; border-bottom: 2px solid #1a1a1a; margin-bottom: 12px; }
+  .co-name { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+  .co-meta { font-size: 8px; color: #666; line-height: 1.7; }
+  .logo-wrap img { max-height: 40px; max-width: 100px; object-fit: contain; display: block; }
+
+  /* Title */
+  .title-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+  .doc-title { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; color: #1a1a1a; }
+  .doc-sub { font-size: 9px; color: #666; text-align: right; }
+
+  /* Summary cards */
+  .summary { display: table; width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 14px; border: 1px solid #e5e5e5; border-radius: 4px; }
+  .summary-row { display: table-row; }
+  .summary-cell { display: table-cell; padding: 9px 12px; vertical-align: middle; border-right: 1px solid #e5e5e5; }
+  .summary-cell:last-child { border-right: none; }
+  .summary-cell.grand { background: #1a1a1a; border-radius: 0 4px 4px 0; }
+  .s-label { font-size: 7px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.7px; color: #999; margin-bottom: 2px; }
+  .s-amount { font-size: 11px; font-weight: 700; color: #1a1a1a; }
+  .summary-cell.grand .s-label { color: #aaa; }
+  .summary-cell.grand .s-amount { color: #fff; font-size: 13px; }
+
+  /* Section */
+  .section { margin-bottom: 12px; }
+  .section-header { display: flex; justify-content: space-between; align-items: center; background: #f5f5f5; border-left: 3px solid #1a1a1a; padding: 5px 10px; margin-bottom: 0; }
+  .section-title { font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #1a1a1a; }
+  .section-total { font-size: 9.5px; font-weight: 700; color: #1a1a1a; font-variant-numeric: tabular-nums; }
+  .section-note { font-size: 7.5px; color: #aaa; font-style: italic; margin-top: 5px; margin-left: 3px; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 8.5px; }
+  thead th { background: #f9f9f9; padding: 5px 8px; text-align: left; font-size: 7.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: #888; border-bottom: 1px solid #e5e5e5; }
+  thead th.right { text-align: right; }
+  tbody td { padding: 5px 8px; border-bottom: 1px solid #f0f0f0; color: #333; vertical-align: top; }
+  tbody td.right { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+  tbody td.muted { color: #aaa; }
+  tbody tr:last-child td { border-bottom: none; }
+  tfoot td { padding: 5px 8px; font-weight: 700; background: #f9f9f9; border-top: 1.5px solid #d0d0d0; font-size: 9px; }
+  tfoot td.right { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Statutory grid */
+  .stat-grid { display: table; width: 100%; border-collapse: collapse; }
+  .stat-row { display: table-row; }
+  .stat-cell { display: table-cell; padding: 5px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; font-size: 8.5px; }
+  .stat-cell.label { width: 28%; color: #444; font-weight: 500; }
+  .stat-cell.num { width: 24%; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+  .stat-cell.total-num { width: 24%; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; color: #1a1a1a; }
+  .stat-head { display: table-row; }
+  .stat-head .stat-cell { font-size: 7.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: #888; padding-bottom: 4px; border-bottom: 1px solid #e5e5e5; background: #f9f9f9; }
+  .stat-footer { display: table-row; }
+  .stat-footer .stat-cell { border-top: 1.5px solid #d0d0d0; background: #f9f9f9; font-weight: 700; font-size: 9px; border-bottom: none; }
+
+  /* Footer */
+  .footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; }
+  .footer span { font-size: 7.5px; color: #bbb; font-style: italic; }
+
+  .empty-note { padding: 8px; text-align: center; color: #bbb; font-style: italic; font-size: 8.5px; }
+  .status-badge { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 7px; font-weight: 600; text-transform: uppercase; }
+  .badge-sent { background: #dbeafe; color: #1e40af; }
+  .badge-received { background: #d1fae5; color: #065f46; }
+  .badge-pending { background: #fef3c7; color: #92400e; }
+  .badge-overdue { background: #fee2e2; color: #991b1b; }
+  .badge-draft { background: #f3f4f6; color: #6b7280; }
+  .badge-finalized { background: #d1fae5; color: #065f46; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div>
+    <div class="co-name">{{ company.company_name or 'Company' }}</div>
+    <div class="co-meta">
+      {%- if company.registration_no %}Reg No: {{ company.registration_no }}{%- endif %}
+      {%- if company.address %}<br>{{ company.address }}{%- endif %}
+      {%- if company.phone %}<br>{{ company.phone }}{%- endif %}
+    </div>
+  </div>
+  {% if logo_data %}<div class="logo-wrap"><img src="{{ logo_data }}" alt=""></div>{% endif %}
+</div>
+
+<!-- Title -->
+<div class="title-row">
+  <div class="doc-title">Monthly Payables</div>
+  <div class="doc-sub">
+    {{ data['month_name'] }} {{ data['year'] }}<br>
+    Generated: {{ now }}
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="summary">
+  <div class="summary-row">
+    <div class="summary-cell">
+      <div class="s-label">Salaries</div>
+      <div class="s-amount">RM {{ data['salaries']['total'] | fmt }}</div>
+    </div>
+    <div class="summary-cell">
+      <div class="s-label">Statutory</div>
+      <div class="s-amount">RM {{ data['statutory']['total'] | fmt }}</div>
+    </div>
+    <div class="summary-cell">
+      <div class="s-label">Bills</div>
+      <div class="s-amount">RM {{ data['bills']['total'] | fmt }}</div>
+    </div>
+    <div class="summary-cell">
+      <div class="s-label">Purchase Orders</div>
+      <div class="s-amount">RM {{ data['purchase_orders']['total'] | fmt }}</div>
+    </div>
+    <div class="summary-cell">
+      <div class="s-label">Claims</div>
+      <div class="s-amount">RM {{ data['claims']['total'] | fmt }}</div>
+    </div>
+    <div class="summary-cell grand">
+      <div class="s-label">Grand Total</div>
+      <div class="s-amount">RM {{ data['grand_total'] | fmt }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- 1. Salaries -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-title">Employee Salaries</span>
+    <span class="section-total">RM {{ data['salaries']['total'] | fmt }}</span>
+  </div>
+  {% if data['salaries']['items'] %}
+  <table>
+    <thead>
+      <tr>
+        <th>Employee</th>
+        <th>Designation</th>
+        <th>Bank</th>
+        <th>Account No.</th>
+        <th class="right">Gross Pay (RM)</th>
+        <th class="right">Net Pay (RM)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in data['salaries']['items'] %}
+      <tr>
+        <td>
+          <strong>{{ r.full_name }}</strong><br>
+          <span style="color:#999;font-size:7.5px">{{ r.employee_no }}</span>
+        </td>
+        <td class="muted">{{ r.designation or '—' }}</td>
+        <td class="muted">{{ r.bank_name or '—' }}</td>
+        <td class="muted">{{ r.bank_account_no or '—' }}</td>
+        <td class="right">{{ r.gross_pay | fmt }}</td>
+        <td class="right"><strong>{{ r.net_pay | fmt }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="5">Total Net Salaries</td>
+        <td class="right">RM {{ data['salaries']['total'] | fmt }}</td>
+      </tr>
+    </tfoot>
+  </table>
+  {% if data['payroll_run_status'] %}
+  <div class="section-note">Payroll run status: {{ data['payroll_run_status'] }}</div>
+  {% endif %}
+  {% else %}
+  <div class="empty-note">No payroll run found for {{ data['month_name'] }} {{ data['year'] }}</div>
+  {% endif %}
+</div>
+
+<!-- 2. Statutory -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-title">Statutory Contributions</span>
+    <span class="section-total">RM {{ data['statutory']['total'] | fmt }}</span>
+  </div>
+  {% if data['statutory']['total'] > 0 %}
+  <div class="stat-grid">
+    <div class="stat-head">
+      <div class="stat-cell label">Contribution</div>
+      <div class="stat-cell num">Employee (RM)</div>
+      <div class="stat-cell num">Employer (RM)</div>
+      <div class="stat-cell total-num">Total (RM)</div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-cell label">EPF — KWSP</div>
+      <div class="stat-cell num">{{ data['statutory']['epf_employee'] | fmt }}</div>
+      <div class="stat-cell num">{{ data['statutory']['epf_employer'] | fmt }}</div>
+      <div class="stat-cell total-num">{{ data['statutory']['epf_total'] | fmt }}</div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-cell label">SOCSO — PERKESO</div>
+      <div class="stat-cell num">{{ data['statutory']['socso_employee'] | fmt }}</div>
+      <div class="stat-cell num">{{ data['statutory']['socso_employer'] | fmt }}</div>
+      <div class="stat-cell total-num">{{ data['statutory']['socso_total'] | fmt }}</div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-cell label">EIS</div>
+      <div class="stat-cell num">{{ data['statutory']['eis_employee'] | fmt }}</div>
+      <div class="stat-cell num">{{ data['statutory']['eis_employer'] | fmt }}</div>
+      <div class="stat-cell total-num">{{ data['statutory']['eis_total'] | fmt }}</div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-cell label">PCB / Income Tax — LHDN</div>
+      <div class="stat-cell num">{{ data['statutory']['pcb'] | fmt }}</div>
+      <div class="stat-cell num muted">—</div>
+      <div class="stat-cell total-num">{{ data['statutory']['pcb'] | fmt }}</div>
+    </div>
+    <div class="stat-footer">
+      <div class="stat-cell label">Total</div>
+      <div class="stat-cell num"></div>
+      <div class="stat-cell num"></div>
+      <div class="stat-cell total-num" style="font-size:10px">RM {{ data['statutory']['total'] | fmt }}</div>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-note">No statutory contributions — no payroll run for this month</div>
+  {% endif %}
+</div>
+
+<!-- 3. Bills -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-title">Vendor Bills</span>
+    <span class="section-total">RM {{ data['bills']['total'] | fmt }}</span>
+  </div>
+  {% if data['bills']['items'] %}
+  <table>
+    <thead>
+      <tr>
+        <th>Vendor</th>
+        <th>Bill No.</th>
+        <th>Description</th>
+        <th>Due Date</th>
+        <th>Status</th>
+        <th class="right">Amount (RM)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in data['bills']['items'] %}
+      <tr>
+        <td><strong>{{ r.vendor_name or '—' }}</strong></td>
+        <td class="muted">{{ r.bill_number or '—' }}</td>
+        <td class="muted">{{ (r.description or '')[:60] }}</td>
+        <td class="muted">{{ r.due_date | string | truncate(10, True, '') if r.due_date else '—' }}</td>
+        <td><span class="status-badge badge-{{ r.status }}">{{ r.status }}</span></td>
+        <td class="right"><strong>{{ r.amount | fmt }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="5">Total Bills</td>
+        <td class="right">RM {{ data['bills']['total'] | fmt }}</td>
+      </tr>
+    </tfoot>
+  </table>
+  {% else %}
+  <div class="empty-note">No outstanding bills due this month</div>
+  {% endif %}
+</div>
+
+<!-- 4. Purchase Orders -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-title">Purchase Orders (Unpaid)</span>
+    <span class="section-total">RM {{ data['purchase_orders']['total'] | fmt }}</span>
+  </div>
+  {% if data['purchase_orders']['items'] %}
+  <table>
+    <thead>
+      <tr>
+        <th>PO Number</th>
+        <th>Vendor</th>
+        <th>Issue Date</th>
+        <th>Status</th>
+        <th class="right">Total (RM)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in data['purchase_orders']['items'] %}
+      <tr>
+        <td><strong>{{ r.po_number }}</strong></td>
+        <td>{{ r.vendor_name }}</td>
+        <td class="muted">{{ r.issue_date | string | truncate(10, True, '') if r.issue_date else '—' }}</td>
+        <td><span class="status-badge badge-{{ r.status }}">{{ r.status }}</span></td>
+        <td class="right"><strong>{{ r.total | fmt }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4">Total Purchase Orders</td>
+        <td class="right">RM {{ data['purchase_orders']['total'] | fmt }}</td>
+      </tr>
+    </tfoot>
+  </table>
+  {% else %}
+  <div class="empty-note">No outstanding purchase orders</div>
+  {% endif %}
+</div>
+
+<!-- 5. Claims -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-title">Expense Claims (Pending Reimbursement)</span>
+    <span class="section-total">RM {{ data['claims']['total'] | fmt }}</span>
+  </div>
+  {% if data['claims']['items'] %}
+  <table>
+    <thead>
+      <tr>
+        <th>Employee</th>
+        <th>Claim Type</th>
+        <th>Description</th>
+        <th>Date</th>
+        <th class="right">Amount (RM)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in data['claims']['items'] %}
+      <tr>
+        <td><strong>{{ r.employee_name }}</strong></td>
+        <td>{{ r.claim_type }}</td>
+        <td class="muted">{{ (r.description or '')[:60] }}</td>
+        <td class="muted">{{ r.claim_date | string | truncate(10, True, '') if r.claim_date else '—' }}</td>
+        <td class="right"><strong>{{ r.amount | fmt }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4">Total Claims</td>
+        <td class="right">RM {{ data['claims']['total'] | fmt }}</td>
+      </tr>
+    </tfoot>
+  </table>
+  {% else %}
+  <div class="empty-note">No approved expense claims pending reimbursement</div>
+  {% endif %}
+</div>
+
+<!-- Grand Total -->
+<table style="margin-top:4px">
+  <tfoot>
+    <tr style="background:#1a1a1a">
+      <td style="color:#fff;font-size:11px;font-weight:700;padding:9px 10px">GRAND TOTAL PAYABLE — {{ data['month_name'] | upper }} {{ data['year'] }}</td>
+      <td class="right" style="color:#fff;font-size:13px;font-weight:700;padding:9px 10px;text-align:right;font-variant-numeric:tabular-nums">RM {{ data['grand_total'] | fmt }}</td>
+    </tr>
+  </tfoot>
+</table>
+
+<!-- Footer -->
+<div class="footer">
+  <span>This report is computer-generated. Confidential.</span>
+  <span>{{ data['month_name'] }} {{ data['year'] }} — {{ now }}</span>
+</div>
+
+</body>
+</html>

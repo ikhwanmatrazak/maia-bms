@@ -1095,6 +1095,15 @@ export interface SOAData {
   aged: SOAAged;
 }
 
+export const monthlyPayablesApi = {
+  get: (month: number, year: number) =>
+    api.get("/finance/monthly-payables", { params: { month, year } }).then((r) => r.data),
+  pdfUrl: (month: number, year: number) =>
+    `${API_URL}/finance/monthly-payables/pdf?month=${month}&year=${year}`,
+  csvUrl: (month: number, year: number) =>
+    `${API_URL}/finance/monthly-payables/csv?month=${month}&year=${year}`,
+};
+
 export const soaApi = {
   listClients: () => api.get<{ id: number; company_name: string; email?: string }[]>("/finance/soa/clients").then((r) => r.data),
   getClient: (clientId: number, date_from?: string, date_to?: string) =>
