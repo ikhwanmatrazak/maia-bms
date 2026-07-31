@@ -331,7 +331,7 @@
       <tr>
         <td><strong>{{ r.employee_name }}</strong></td>
         <td>{{ r.claim_type }}</td>
-        <td class="muted">{{ (r.description or '')[:60] }}</td>
+        <td class="muted">{{ (r.title or r.description or '')[:60] }}</td>
         <td class="muted">{{ r.claim_date | string | truncate(10, True, '') if r.claim_date else '—' }}</td>
         <td class="right"><strong>{{ r.amount | fmt }}</strong></td>
       </tr>

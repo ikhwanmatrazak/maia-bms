@@ -347,7 +347,7 @@ export default function MonthlyPayablesPage() {
                           <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50">
                             <td className="px-5 py-2.5 font-medium text-gray-900">{r.employee_name}</td>
                             <td className="px-5 py-2.5 text-gray-600">{r.claim_type}</td>
-                            <td className="px-5 py-2.5 text-gray-500 text-xs max-w-[180px] truncate">{r.description || "—"}</td>
+                            <td className="px-5 py-2.5 text-gray-500 text-xs max-w-[180px] truncate">{r.title || r.description || "—"}</td>
                             <td className="px-5 py-2.5 text-gray-500 text-xs">{r.claim_date ? String(r.claim_date).slice(0, 10) : "—"}</td>
                             <td className="px-5 py-2.5 text-right tabular-nums font-bold text-gray-900">{fmt(r.amount)}</td>
                           </tr>

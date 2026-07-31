@@ -123,17 +123,15 @@ async def _compute(db: AsyncSession, tid, month: int, year: int) -> dict:
     po_items = [dict(r._mapping) for r in po_rows.fetchall()]
     po_total = sum(float(r["total"] or 0) for r in po_items)
 
-    # ── 5. Expense Claims (approved, not yet in a payroll run) ────────────────
+    # ── 5. Expense Claims (approved user/monthly claims) ─────────────────────
     claims_rows = await db.execute(text(f"""
-        SELECT c.id, e.full_name AS employee_name, c.claim_type,
-               c.description, c.amount, c.claim_date
-        FROM hr_claims c
-        JOIN hr_employees e ON e.id = c.employee_id
-        WHERE c.status='approved'
-          AND c.payroll_run_id IS NULL
-          AND c.claim_date <= :m_end
-          AND (c.tenant_id=:tid OR (c.tenant_id IS NULL AND :tid IS NULL))
-        ORDER BY c.claim_date, e.full_name
+        SELECT id, submitted_by_name AS employee_name, claim_type,
+               title, description, amount, claim_date
+        FROM monthly_claims
+        WHERE status='approved'
+          AND claim_date <= :m_end
+          AND (tenant_id=:tid OR (tenant_id IS NULL AND :tid IS NULL))
+        ORDER BY claim_date, submitted_by_name
     """), p)
     claim_items = [dict(r._mapping) for r in claims_rows.fetchall()]
     claims_total = sum(float(r["amount"] or 0) for r in claim_items)
@@ -289,7 +287,7 @@ async def get_monthly_payables_csv(
     for r in data["claims"]["items"]:
         d = str(r.get("claim_date",""))[:10] if r.get("claim_date") else "—"
         w.writerow([r.get("employee_name",""), r.get("claim_type",""),
-                    r.get("description",""), _fmt(r["amount"]), d])
+                    r.get("title","") or r.get("description",""), _fmt(r["amount"]), d])
     w.writerow(["", "", "", f'Total: {_fmt(data["claims"]["total"])}'])
 
     # Grand total
