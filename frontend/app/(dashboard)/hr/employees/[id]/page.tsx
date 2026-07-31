@@ -639,7 +639,7 @@ export default function EmployeeDetailPage() {
       }
     }
 
-    // Save allowances as a salary structure entry
+    // Save salary structure (basic + allowances) so payroll picks it up
     try {
       await hrApi.createSalaryStructure({
         employee_id: Number(id),
@@ -650,8 +650,10 @@ export default function EmployeeDetailPage() {
         other_allowance: parseFloat(allowanceForm.other_allowance) || 0,
         effective_from: new Date().toISOString().slice(0, 10),
       });
-    } catch {
-      // Non-fatal: continue saving employee even if salary structure fails
+      qc.invalidateQueries({ queryKey: ["hr-salary-structures", id] });
+    } catch (err: any) {
+      alert("Failed to save allowances: " + (err?.response?.data?.detail || err?.message || "Unknown error"));
+      return;
     }
 
     updateMutation.mutate(data);
