@@ -639,17 +639,25 @@ export default function EmployeeDetailPage() {
       }
     }
 
-    // Save salary structure (basic + allowances) so payroll picks it up
+    // Save salary structure (basic + allowances) so it's stored on the profile
+    const savedAllowances = {
+      transport_allowance: String(parseFloat(allowanceForm.transport_allowance) || 0),
+      housing_allowance: String(parseFloat(allowanceForm.housing_allowance) || 0),
+      phone_allowance: String(parseFloat(allowanceForm.phone_allowance) || 0),
+      other_allowance: String(parseFloat(allowanceForm.other_allowance) || 0),
+    };
     try {
       await hrApi.createSalaryStructure({
         employee_id: Number(id),
         basic_salary: data.basic_salary || 0,
-        transport_allowance: parseFloat(allowanceForm.transport_allowance) || 0,
-        housing_allowance: parseFloat(allowanceForm.housing_allowance) || 0,
-        phone_allowance: parseFloat(allowanceForm.phone_allowance) || 0,
-        other_allowance: parseFloat(allowanceForm.other_allowance) || 0,
+        transport_allowance: parseFloat(savedAllowances.transport_allowance),
+        housing_allowance: parseFloat(savedAllowances.housing_allowance),
+        phone_allowance: parseFloat(savedAllowances.phone_allowance),
+        other_allowance: parseFloat(savedAllowances.other_allowance),
         effective_from: new Date().toISOString().slice(0, 10),
       });
+      // Optimistically update form so values show immediately after save
+      setAllowanceForm(savedAllowances);
       qc.invalidateQueries({ queryKey: ["hr-salary-structures", id] });
     } catch (err: any) {
       alert("Failed to save allowances: " + (err?.response?.data?.detail || err?.message || "Unknown error"));

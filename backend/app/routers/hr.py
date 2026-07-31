@@ -1925,10 +1925,11 @@ async def create_payroll_run(
         ss = ss_result.scalar_one_or_none()
 
         basic = float(ss.basic_salary) if ss else float(emp.basic_salary or 0)
-        transport = float(ss.transport_allowance or 0) if ss else 0
-        housing = float(ss.housing_allowance or 0) if ss else 0
-        phone = float(ss.phone_allowance or 0) if ss else 0
-        other = float(ss.other_allowance or 0) if ss else 0
+        # Allowances start at 0; user sets them per run via the pencil edit
+        transport = 0.0
+        housing = 0.0
+        phone = 0.0
+        other = 0.0
 
         # Claims approved for this employee for this month
         from datetime import date as _date
