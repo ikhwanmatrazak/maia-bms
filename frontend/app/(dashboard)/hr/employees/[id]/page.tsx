@@ -375,6 +375,19 @@ export default function EmployeeDetailPage() {
     enabled: tab === "leave",
   });
 
+  const { data: salaryStructures = [] } = useQuery<any[]>({
+    queryKey: ["hr-salary-structures", id],
+    queryFn: () => hrApi.listSalaryStructures({ employee_id: id }),
+  });
+
+  const [allowanceForm, setAllowanceForm] = useState({
+    transport_allowance: "0",
+    housing_allowance: "0",
+    phone_allowance: "0",
+    other_allowance: "0",
+  });
+  const setAllowance = (k: string, v: string) => setAllowanceForm(prev => ({ ...prev, [k]: v }));
+
   const [form, setForm] = useState<any>(null);
   const set = (k: string, v: any) => setForm((prev: any) => ({ ...prev, [k]: v }));
   const setUserLink = (userId: string) => {
@@ -391,6 +404,18 @@ export default function EmployeeDetailPage() {
       setOffer("benefits", emp.offer_benefits);
     }
   }, [emp]);
+
+  // Load latest salary structure allowances
+  useEffect(() => {
+    if (!salaryStructures.length) return;
+    const latest = salaryStructures[0];
+    setAllowanceForm({
+      transport_allowance: String(latest.transport_allowance || 0),
+      housing_allowance: String(latest.housing_allowance || 0),
+      phone_allowance: String(latest.phone_allowance || 0),
+      other_allowance: String(latest.other_allowance || 0),
+    });
+  }, [salaryStructures]);
 
   // Initialize form when employee data loads or employee changes
   useEffect(() => {
@@ -612,6 +637,21 @@ export default function EmployeeDetailPage() {
         alert("Failed to save job responsibilities");
         return;
       }
+    }
+
+    // Save allowances as a salary structure entry
+    try {
+      await hrApi.createSalaryStructure({
+        employee_id: Number(id),
+        basic_salary: data.basic_salary || 0,
+        transport_allowance: parseFloat(allowanceForm.transport_allowance) || 0,
+        housing_allowance: parseFloat(allowanceForm.housing_allowance) || 0,
+        phone_allowance: parseFloat(allowanceForm.phone_allowance) || 0,
+        other_allowance: parseFloat(allowanceForm.other_allowance) || 0,
+        effective_from: new Date().toISOString().slice(0, 10),
+      });
+    } catch {
+      // Non-fatal: continue saving employee even if salary structure fails
     }
 
     updateMutation.mutate(data);
@@ -864,6 +904,16 @@ export default function EmployeeDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div><label className={LABEL}>Basic Salary (MYR)</label><input type="number" step="0.01" className={INPUT} value={form.basic_salary} onChange={e => set("basic_salary", e.target.value)} /></div>
                 <div><label className={LABEL}>Bank Name</label><input className={INPUT} value={form.bank_name} onChange={e => set("bank_name", e.target.value)} /></div>
+              </div>
+              <div>
+                <label className={LABEL}>Monthly Allowances (MYR)</label>
+                <div className="grid grid-cols-2 gap-3 mt-1">
+                  <div><label className="text-xs text-gray-400 mb-1 block">Transport</label><input type="number" step="0.01" min="0" className={INPUT} value={allowanceForm.transport_allowance} onChange={e => setAllowance("transport_allowance", e.target.value)} /></div>
+                  <div><label className="text-xs text-gray-400 mb-1 block">Housing</label><input type="number" step="0.01" min="0" className={INPUT} value={allowanceForm.housing_allowance} onChange={e => setAllowance("housing_allowance", e.target.value)} /></div>
+                  <div><label className="text-xs text-gray-400 mb-1 block">Phone</label><input type="number" step="0.01" min="0" className={INPUT} value={allowanceForm.phone_allowance} onChange={e => setAllowance("phone_allowance", e.target.value)} /></div>
+                  <div><label className="text-xs text-gray-400 mb-1 block">Other</label><input type="number" step="0.01" min="0" className={INPUT} value={allowanceForm.other_allowance} onChange={e => setAllowance("other_allowance", e.target.value)} /></div>
+                </div>
+                <p className="text-xs text-gray-400 mt-1.5">These defaults are used when generating payroll. You can override them per payroll run.</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className={LABEL}>Bank Account No.</label><input className={INPUT} value={form.bank_account_no} onChange={e => set("bank_account_no", e.target.value)} /></div>

@@ -402,6 +402,15 @@ class PayslipLineResponse(BaseModel):
     leave_days: Optional[int] = None
     model_config = {"from_attributes": True}
 
+class PayslipLineUpdate(BaseModel):
+    transport_allowance: Optional[float] = None
+    housing_allowance: Optional[float] = None
+    phone_allowance: Optional[float] = None
+    other_allowance: Optional[float] = None
+    other_allowance_name: Optional[str] = None
+    overtime_pay: Optional[float] = None
+    claims_reimbursement: Optional[float] = None
+
 class PayrollRunResponse(BaseModel):
     id: int
     month: int
@@ -2119,6 +2128,119 @@ async def delete_payroll_run(
         raise HTTPException(status_code=400, detail="Cannot delete a finalized payroll run")
     await db.delete(run)
     await db.commit()
+
+
+@router.patch("/payroll/{run_id}/lines/{line_id}", response_model=PayslipLineResponse)
+async def update_payslip_line(
+    run_id: int,
+    line_id: int,
+    body: PayslipLineUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin_or_manager(current_user)
+
+    run_result = await db.execute(select(PayrollRun).where(PayrollRun.id == run_id))
+    run = run_result.scalar_one_or_none()
+    if not run:
+        raise HTTPException(status_code=404, detail="Payroll run not found")
+    if run.status == PayrollStatus.finalized:
+        raise HTTPException(status_code=400, detail="Cannot edit a finalized payroll run")
+
+    line_result = await db.execute(
+        select(PayslipLine).options(selectinload(PayslipLine.employee)).where(
+            PayslipLine.id == line_id, PayslipLine.payroll_run_id == run_id
+        )
+    )
+    line = line_result.scalar_one_or_none()
+    if not line:
+        raise HTTPException(status_code=404, detail="Payslip line not found")
+
+    # Apply updates
+    if body.transport_allowance is not None:
+        line.transport_allowance = body.transport_allowance
+    if body.housing_allowance is not None:
+        line.housing_allowance = body.housing_allowance
+    if body.phone_allowance is not None:
+        line.phone_allowance = body.phone_allowance
+    if body.other_allowance is not None:
+        line.other_allowance = body.other_allowance
+    if body.overtime_pay is not None:
+        line.overtime_pay = body.overtime_pay
+    if body.claims_reimbursement is not None:
+        line.claims_reimbursement = body.claims_reimbursement
+
+    # Recalculate gross
+    gross = (
+        float(line.basic_salary or 0)
+        + float(line.transport_allowance or 0)
+        + float(line.housing_allowance or 0)
+        + float(line.phone_allowance or 0)
+        + float(line.other_allowance or 0)
+        + float(line.overtime_pay or 0)
+        + float(line.claims_reimbursement or 0)
+    )
+    line.gross_pay = gross
+
+    # Recalculate statutory & net
+    emp = line.employee
+    age = 30
+    if emp and emp.date_of_birth:
+        today = date.today()
+        age = today.year - emp.date_of_birth.year - (
+            (today.month, today.day) < (emp.date_of_birth.month, emp.date_of_birth.day)
+        )
+    statutory = _calculate_malaysian_statutory(
+        Decimal(str(gross)), age,
+        children=emp.children_count or 0 if emp else 0,
+        spouse_working=emp.spouse_working or False if emp else False,
+    )
+    if emp and not emp.has_epf:
+        statutory["epf_employee"] = 0.0
+        statutory["epf_employer"] = 0.0
+    if emp and not emp.has_socso_eis:
+        statutory["socso_employee"] = 0.0
+        statutory["socso_employer"] = 0.0
+        statutory["eis_employee"] = 0.0
+        statutory["eis_employer"] = 0.0
+    if emp and not emp.has_income_tax:
+        statutory["pcb"] = 0.0
+
+    line.epf_employee = statutory["epf_employee"]
+    line.epf_employer = statutory["epf_employer"]
+    line.socso_employee = statutory["socso_employee"]
+    line.socso_employer = statutory["socso_employer"]
+    line.eis_employee = statutory["eis_employee"]
+    line.eis_employer = statutory["eis_employer"]
+    line.pcb = statutory["pcb"]
+    net = gross - statutory["epf_employee"] - statutory["socso_employee"] - statutory["eis_employee"] - statutory["pcb"]
+    line.net_pay = max(0, net)
+
+    # Update run totals
+    all_lines_result = await db.execute(
+        select(PayslipLine).where(PayslipLine.payroll_run_id == run_id)
+    )
+    all_lines = all_lines_result.scalars().all()
+    run.total_gross = sum(float(l.gross_pay or 0) for l in all_lines)
+    run.total_net = sum(float(l.net_pay or 0) for l in all_lines)
+
+    await db.commit()
+
+    return PayslipLineResponse(
+        id=line.id, employee_id=line.employee_id,
+        employee_name=emp.full_name if emp else None,
+        employee_no=emp.employee_no if emp else None,
+        basic_salary=float(line.basic_salary), transport_allowance=float(line.transport_allowance or 0),
+        housing_allowance=float(line.housing_allowance or 0), phone_allowance=float(line.phone_allowance or 0),
+        other_allowance=float(line.other_allowance or 0), overtime_pay=float(line.overtime_pay or 0),
+        claims_reimbursement=float(line.claims_reimbursement or 0), gross_pay=float(line.gross_pay),
+        epf_employee=float(line.epf_employee or 0), epf_employer=float(line.epf_employer or 0),
+        socso_employee=float(line.socso_employee or 0), socso_employer=float(line.socso_employer or 0),
+        eis_employee=float(line.eis_employee or 0), eis_employer=float(line.eis_employer or 0),
+        pcb=float(line.pcb or 0), other_deduction=float(line.other_deduction or 0),
+        net_pay=float(line.net_pay), working_days=line.working_days,
+        present_days=line.present_days, absent_days=line.absent_days, leave_days=line.leave_days,
+    )
 
 
 @router.get("/payroll/{run_id}/payslip/{line_id}/pdf")
