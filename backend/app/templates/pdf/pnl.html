@@ -190,7 +190,7 @@
       {% for t in txns %}
       <tr>
         <td>{{ t.txn_date }}</td>
-        <td>{{ t.description[:80] }}</td>
+        <td>{{ t.display_description[:120] }}</td>
         <td class="num pos">{% if t.type == 'credit' %}{{ '{:,.2f}'.format(t.amount) }}{% endif %}</td>
         <td class="num neg">{% if t.type == 'debit' %}{{ '{:,.2f}'.format(t.amount) }}{% endif %}</td>
       </tr>

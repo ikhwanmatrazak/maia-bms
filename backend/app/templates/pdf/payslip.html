@@ -74,7 +74,7 @@
 <!-- Header -->
 <div class="header">
   <div>
-    <div class="co-name">{{ company.company_name or 'Company' }}</div>
+    <div class="co-name">{{ company.name or company.company_name or 'Company' }}</div>
     <div class="co-meta">
       {%- if company.registration_no %}Reg No: {{ company.registration_no }}{%- endif %}
       {%- if company.address %}<br>{{ company.address }}{%- endif %}

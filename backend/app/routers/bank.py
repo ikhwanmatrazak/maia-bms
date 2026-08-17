@@ -1870,13 +1870,19 @@ async def _pnl_data(db: AsyncSession, tid, date_from: Optional[str], date_to: Op
     txns = []
     for r in txn_r.fetchall():
         acc_num = r[7] or ""
+        desc = r[1] or ""
+        party = r[2] or ""
+        note = r[5] or ""
+        parts = [p for p in [desc, party, f"({note})" if note else ""] if p]
+        display_desc = " • ".join(parts)
         txns.append({
             "txn_date": str(r[0]),
-            "description": r[1] or "",
-            "party_name": r[2] or "",
+            "display_description": display_desc,
+            "description": desc,
+            "party_name": party,
             "type": r[3],
             "amount": float(r[4]),
-            "note": r[5] or "",
+            "note": note,
             "account_label": f"{r[6]} •••{acc_num[-4:]}" if acc_num else r[6],
             "categories": r[8] or "",
         })
@@ -2085,7 +2091,7 @@ async def pnl_excel(
             exp = t["amount"] if t["type"] == "debit"  else None
             for ci, (val, fnt, num) in enumerate([
                 (t["txn_date"],    NORM_FONT, False),
-                (t["description"], NORM_FONT, False),
+                (t["display_description"], NORM_FONT, False),
                 (rev,              GRN_N,     True),
                 (exp,              RED_N,     True),
             ], 1):
