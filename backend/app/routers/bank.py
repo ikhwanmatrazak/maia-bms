@@ -1776,14 +1776,23 @@ async def _pnl_data(db: AsyncSession, tid, date_from: Optional[str], date_to: Op
 
     # Monthly totals — split debits into COGS (cost_type='cogs') vs OpEx
     monthly_r = await db.execute(text(f"""
-        SELECT DATE_FORMAT(bt.txn_date,'%Y-%m') AS month,
-               COALESCE(SUM(CASE WHEN bt.type='credit' THEN bt.amount ELSE 0 END),0) AS revenue,
-               COALESCE(SUM(CASE WHEN bt.type='debit' AND COALESCE(tc.cost_type,'opex')='cogs' THEN bt.amount ELSE 0 END),0) AS cogs,
-               COALESCE(SUM(CASE WHEN bt.type='debit' AND COALESCE(tc.cost_type,'opex')='opex' THEN bt.amount ELSE 0 END),0) AS opex
-        FROM bank_transactions bt JOIN bank_accounts ba ON ba.id=bt.account_id
-        LEFT JOIN bank_transaction_categories btc ON btc.transaction_id=bt.id
-        LEFT JOIN transaction_categories tc ON tc.id=btc.category_id
-        WHERE {wc} GROUP BY month ORDER BY month
+        SELECT month,
+               COALESCE(SUM(CASE WHEN type='credit' THEN amount ELSE 0 END),0) AS revenue,
+               COALESCE(SUM(CASE WHEN type='debit' AND cost_type='cogs' THEN amount ELSE 0 END),0) AS cogs,
+               COALESCE(SUM(CASE WHEN type='debit' AND cost_type='opex' THEN amount ELSE 0 END),0) AS opex
+        FROM (
+            SELECT bt.id, DATE_FORMAT(bt.txn_date,'%Y-%m') AS month,
+                   bt.type, bt.amount,
+                   CASE WHEN MAX(CASE WHEN tc.cost_type='cogs' THEN 1 ELSE 0 END)=1
+                        THEN 'cogs' ELSE 'opex' END AS cost_type
+            FROM bank_transactions bt
+            JOIN bank_accounts ba ON ba.id=bt.account_id
+            LEFT JOIN bank_transaction_categories btc ON btc.transaction_id=bt.id
+            LEFT JOIN transaction_categories tc ON tc.id=btc.category_id
+            WHERE {wc}
+            GROUP BY bt.id, DATE_FORMAT(bt.txn_date,'%Y-%m'), bt.type, bt.amount
+        ) t
+        GROUP BY month ORDER BY month
     """), params)
     monthly = []
     for r in monthly_r.fetchall():
