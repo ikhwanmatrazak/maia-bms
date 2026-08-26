@@ -24,9 +24,9 @@ class DocumentItemResponse(BaseModel):
     unit: Optional[str] = None
     unit_price: Decimal
     tax_rate_id: Optional[int]
-    tax_amount: Decimal
-    line_total: Decimal
-    sort_order: int
+    tax_amount: Decimal = Decimal("0.00")
+    line_total: Decimal = Decimal("0.00")
+    sort_order: int = 0
 
     model_config = {"from_attributes": True}
 

@@ -84,9 +84,9 @@ class InvoiceItem(Base):
     unit = Column(String(50), nullable=True)
     unit_price = Column(Numeric(15, 2), nullable=False, default=0.00)
     tax_rate_id = Column(Integer, ForeignKey("tax_rates.id", ondelete="SET NULL"), nullable=True)
-    tax_amount = Column(Numeric(15, 2), default=0.00)
-    line_total = Column(Numeric(15, 2), default=0.00)
-    sort_order = Column(Integer, default=0)
+    tax_amount = Column(Numeric(15, 2), nullable=False, default=0.00, server_default="0.00")
+    line_total = Column(Numeric(15, 2), nullable=False, default=0.00, server_default="0.00")
+    sort_order = Column(Integer, default=0, server_default="0")
 
     # Relationships
     invoice = relationship("Invoice", back_populates="items")
