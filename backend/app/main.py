@@ -830,40 +830,43 @@ async def _ensure_reminder_tables():
 @asynccontextmanager
 async def _ensure_payment_voucher_table():
     """Create payment_vouchers table on every startup — safe to run repeatedly."""
+    import asyncio as _asyncio
     from app.database import engine
     from sqlalchemy import text
-    stmts = [
-        """CREATE TABLE IF NOT EXISTS payment_vouchers (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            tenant_id INT NULL,
-            voucher_number VARCHAR(50) NOT NULL UNIQUE,
-            `date` DATETIME NOT NULL,
-            payee_name VARCHAR(255) NOT NULL,
-            payee_address TEXT NULL,
-            amount DECIMAL(15,2) NOT NULL DEFAULT 0.00,
-            amount_in_words VARCHAR(500) NULL,
-            description TEXT NOT NULL,
-            payment_method ENUM('cash','cheque','bank_transfer') NOT NULL DEFAULT 'bank_transfer',
-            cheque_number VARCHAR(100) NULL,
-            bank_ref VARCHAR(100) NULL,
-            transaction_id INT NULL,
-            status ENUM('draft','approved','cancelled') NOT NULL DEFAULT 'draft',
-            prepared_by VARCHAR(255) NULL,
-            approved_by VARCHAR(255) NULL,
-            notes TEXT NULL,
-            created_by INT NULL,
-            is_deleted TINYINT(1) NOT NULL DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""",
-    ]
-    for stmt in stmts:
+    sql = """CREATE TABLE IF NOT EXISTS payment_vouchers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tenant_id INT NULL,
+        voucher_number VARCHAR(50) NOT NULL UNIQUE,
+        `date` DATETIME NOT NULL,
+        payee_name VARCHAR(255) NOT NULL,
+        payee_address TEXT NULL,
+        amount DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        amount_in_words VARCHAR(500) NULL,
+        description TEXT NOT NULL,
+        payment_method ENUM('cash','cheque','bank_transfer') NOT NULL DEFAULT 'bank_transfer',
+        cheque_number VARCHAR(100) NULL,
+        bank_ref VARCHAR(100) NULL,
+        transaction_id INT NULL,
+        `status` ENUM('draft','approved','cancelled') NOT NULL DEFAULT 'draft',
+        prepared_by VARCHAR(255) NULL,
+        approved_by VARCHAR(255) NULL,
+        notes TEXT NULL,
+        created_by INT NULL,
+        is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"""
+    for attempt in range(3):
         try:
             async with engine.begin() as conn:
-                await conn.execute(text(stmt))
+                await conn.execute(text(sql))
+            logger.info("payment_vouchers table ensured")
+            return
         except Exception as e:
-            logger.warning(f"_ensure_payment_voucher_table: {e}")
-    logger.info("payment_vouchers table ensured")
+            logger.error(f"_ensure_payment_voucher_table attempt {attempt+1} failed: {e}")
+            if attempt < 2:
+                await _asyncio.sleep(2)
+    logger.error("_ensure_payment_voucher_table: all attempts failed — table may not exist")
 
 
 async def lifespan(app: FastAPI):
