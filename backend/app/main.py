@@ -867,18 +867,20 @@ async def _ensure_payment_voucher_table():
 
 
 async def lifespan(app: FastAPI):
-    await _ensure_logo_columns()
-    await _ensure_crm_columns()
-    await _ensure_hr_tables()
-    await _ensure_user_claims_table()
-    await _ensure_project_tables()
-    await _ensure_calendar_tables()
-    await _ensure_bug_reports_table()
-    await _ensure_name_card_column()
-    await _ensure_bank_tables()
-    await _ensure_reminder_tables()
-    await _ensure_payment_voucher_table()
-    await init_db()
+    for fn in [
+        _ensure_logo_columns, _ensure_crm_columns, _ensure_hr_tables,
+        _ensure_user_claims_table, _ensure_project_tables, _ensure_calendar_tables,
+        _ensure_bug_reports_table, _ensure_name_card_column, _ensure_bank_tables,
+        _ensure_reminder_tables, _ensure_payment_voucher_table,
+    ]:
+        try:
+            await fn()
+        except Exception as e:
+            logger.error(f"Startup step {fn.__name__} failed: {e}")
+    try:
+        await init_db()
+    except Exception as e:
+        logger.error(f"init_db failed: {e}")
     upload_dir = app_settings.upload_dir
     os.makedirs(f"{upload_dir}/payment_proofs", exist_ok=True)
     os.makedirs(f"{upload_dir}/logos", exist_ok=True)
