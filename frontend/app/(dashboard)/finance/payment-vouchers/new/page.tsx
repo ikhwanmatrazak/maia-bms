@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -15,7 +15,7 @@ const PAYMENT_METHODS = [
   { key: "cash", label: "Cash" },
 ];
 
-export default function NewPaymentVoucherPage() {
+function NewPaymentVoucherForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
@@ -235,5 +235,13 @@ export default function NewPaymentVoucherPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function NewPaymentVoucherPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center p-16 text-default-400">Loading…</div>}>
+      <NewPaymentVoucherForm />
+    </Suspense>
   );
 }
