@@ -334,12 +334,38 @@ export default function InvoiceDetailPage() {
             </table>
             <div className="mt-4 ml-auto w-64 space-y-1 text-sm">
               <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>{formatCurrency(inv.subtotal, inv.currency)}</span></div>
-              {parseFloat(inv.discount_amount) > 0 && <div className="flex justify-between"><span className="text-gray-500">Discount</span><span>-{formatCurrency(inv.discount_amount, inv.currency)}</span></div>}
+              {parseFloat(inv.discount_amount) > 0 && <div className="flex justify-between"><span className="text-gray-500">{inv.discount_label || "Discount"}</span><span>-{formatCurrency(inv.discount_amount, inv.currency)}</span></div>}
               <div className="flex justify-between"><span className="text-gray-500">Tax</span><span>{formatCurrency(inv.tax_total, inv.currency)}</span></div>
               <div className="flex justify-between font-bold text-base border-t pt-1"><span>Total</span><span>{formatCurrency(inv.total, inv.currency)}</span></div>
             </div>
           </CardBody>
         </Card>
+
+        {(inv as any).contract_tables && (inv as any).contract_tables.length > 0 && (
+          <Card>
+            <CardHeader><h3 className="font-semibold">Contract Tables</h3></CardHeader>
+            <CardBody className="space-y-6">
+              {(inv as any).contract_tables.map((ct: any, i: number) => (
+                <div key={i}>
+                  <h4 className="text-sm font-semibold text-primary mb-2">{ct.title}</h4>
+                  <table className="w-auto min-w-[260px] text-sm border-collapse">
+                    <thead><tr>{ct.headers.map((h: string, hi: number) => (
+                      <th key={hi} className="bg-default-900 text-white px-4 py-2 text-left text-xs font-semibold whitespace-nowrap">{h}</th>
+                    ))}</tr></thead>
+                    <tbody>{ct.rows.map((row: string[], ri: number) => (
+                      <tr key={ri} className="border-b border-default-100">
+                        {row.map((cell: string, ci: number) => <td key={ci} className="px-4 py-2 text-gray-700">{cell}</td>)}
+                      </tr>
+                    ))}</tbody>
+                    {ct.total_row && (<tfoot><tr className="border-t-2 border-default-900">
+                      {ct.total_row.map((cell: string, ci: number) => <td key={ci} className="px-4 py-2 font-bold text-gray-900">{cell}</td>)}
+                    </tr></tfoot>)}
+                  </table>
+                </div>
+              ))}
+            </CardBody>
+          </Card>
+        )}
 
         {inv.payment_terms && (
           <Card><CardHeader><h3 className="font-semibold">Payment Terms</h3></CardHeader>
@@ -598,6 +624,10 @@ export default function InvoiceDetailPage() {
                   { key: "modern", label: "Modern", desc: "Bold and contemporary" },
                   { key: "minimal", label: "Minimal", desc: "Simple and elegant" },
                   { key: "compact", label: "Compact", desc: "Condensed single-page" },
+                  { key: "signal", label: "Signal", desc: "Dark header, amber accents" },
+                  { key: "forma", label: "Forma", desc: "Bold typographic header" },
+                  { key: "dusk", label: "Dusk", desc: "Dark theme with gold" },
+                  { key: "shoreline", label: "Shoreline", desc: "Teal diagonal header" },
                 ].map((t) => (
                   <button
                     key={t.key}

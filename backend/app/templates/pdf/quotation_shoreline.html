@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+@page { size: A4; margin: 14mm 16mm; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; font-size: 10.5px; color: #1A3C3E; background: #fff; line-height: 1.5; }
+.hero { background: #00787F; margin: -14mm -16mm 0; padding: 26px 16mm 64px; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 36px), 0 100%); display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.co-name { font-family: 'Nunito', 'Helvetica Neue', sans-serif; font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+.co-info { font-size: 9px; color: rgba(255,255,255,.65); line-height: 1.8; }
+.doc-r { text-align: right; }
+.doc-eyebrow { font-family: 'IBM Plex Sans', sans-serif; font-size: 8px; letter-spacing: 2.5px; text-transform: uppercase; color: rgba(255,255,255,.55); margin-bottom: 3px; }
+.doc-num { font-family: 'Nunito', sans-serif; font-size: 22px; font-weight: 700; color: #fff; line-height: 1.1; margin-bottom: 6px; }
+.doc-meta { font-size: 9px; color: rgba(255,255,255,.65); line-height: 1.9; }
+.body { padding: 12px 0 36px; }
+.split { display: flex; gap: 14px; margin-bottom: 20px; }
+.split-l { flex: 1; }
+.split-r { width: 190px; }
+.lbl { font-family: 'IBM Plex Sans', sans-serif; font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: #6A9D9F; font-weight: 600; margin-bottom: 5px; display: block; }
+.sf-card { background: #DFF2F3; padding: 10px 14px; }
+.cl-name { font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; color: #1A3C3E; margin-bottom: 3px; }
+.cl-info { font-size: 9px; color: #2E6B6E; line-height: 1.75; }
+.meta-item { margin-bottom: 7px; }
+.meta-item:last-child { margin-bottom: 0; }
+.meta-item .k { font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase; color: #6A9D9F; display: block; margin-bottom: 2px; }
+.meta-item .v { font-size: 10.5px; font-weight: 600; color: #1A3C3E; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+thead th { background: #00787F; color: #fff; padding: 7px 10px; font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600; text-align: left; }
+thead th:nth-child(n+3) { text-align: right; }
+tbody td { padding: 7px 10px; border-bottom: 1px solid #DFF2F3; font-size: 10.5px; vertical-align: top; color: #1A3C3E; }
+tbody td:nth-child(n+3) { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+tbody tr:nth-child(even) td { background: #F5FBFB; }
+.totals-wrap { display: flex; justify-content: flex-end; margin: 4px 0 20px; }
+.totals { min-width: 250px; }
+.trow { display: flex; justify-content: space-between; padding: 5px 10px; font-size: 10px; color: #2E6B6E; border-bottom: 1px solid #DFF2F3; font-variant-numeric: tabular-nums; }
+.trow .v { color: #1A3C3E; font-weight: 500; }
+.trow.final { background: #DFF2F3; border-top: 2px solid #00787F; border-bottom: none; padding: 8px 10px; margin-top: 2px; }
+.trow.final .lbl-t { font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 12px; color: #1A3C3E; margin-bottom: 0; letter-spacing: 0; text-transform: none; }
+.trow.final .v { font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 800; color: #00787F; }
+.notes-area { border-top: 2px solid #DFF2F3; padding-top: 14px; }
+.notes-txt { font-size: 9.5px; color: #2E6B6E; line-height: 1.8; white-space: pre-line; margin-top: 3px; }
+.notes-panel { border-left: 3px solid #00787F; background: #F5FBFB; padding: 8px 12px; margin-top: 3px; }
+.ct-table { width: 100%; min-width: 220px; border-collapse: collapse; margin-top: 6px; }
+.ct-table th { background: #00787F; color: #fff; padding: 4px 10px; font-size: 8.5px; text-align: left; }
+.ct-table td { padding: 3px 10px; font-size: 9.5px; border-bottom: 1px solid #DFF2F3; color: #1A3C3E; font-variant-numeric: tabular-nums; }
+.ct-table tfoot td { font-weight: 600; border-top: 2px solid #00787F; border-bottom: none; color: #00787F; }
+.footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #DFF2F3; display: flex; justify-content: space-between; align-items: flex-end; }
+.footer-txt { font-size: 8px; color: #9BBCBE; }
+</style>
+</head>
+<body>
+<div class="hero">
+  <div>
+    <div class="co-name">{{ company.name if company else 'MAIA' }}</div>
+    <div class="co-info">
+      {% if company %}{% if company.address %}{{ company.address }}<br>{% endif %}{% if company.phone %}{{ company.phone }}{% if company.email %} · {% endif %}{% endif %}{% if company.email %}{{ company.email }}<br>{% endif %}{% if company.company_registration_no %}Reg: {{ company.company_registration_no }}{% if company.sst_no %} · {% endif %}{% endif %}{% if company.sst_no %}SST: {{ company.sst_no }}{% endif %}{% endif %}
+    </div>
+  </div>
+  <div class="doc-r">
+    <div class="doc-eyebrow">Quotation</div>
+    <div class="doc-num">{{ document.quotation_number }}</div>
+    <div class="doc-meta">{{ document.issue_date.strftime('%d %b %Y') }}{% if document.expiry_date %}<br>Valid: {{ document.expiry_date.strftime('%d %b %Y') }}{% endif %}<br>{{ document.currency }}</div>
+  </div>
+</div>
+<div class="body">
+  {% if document.subject %}<p style="font-family:'Nunito',sans-serif;font-size:12px;font-weight:600;color:#1A3C3E;margin-bottom:14px;">{{ document.subject }}</p>{% endif %}
+  <div class="split">
+    <div class="split-l">
+      <span class="lbl" style="margin-bottom:6px;">Prepared For</span>
+      <div class="sf-card">
+        <div class="cl-name">{{ document.client.company_name if document.client else '—' }}</div>
+        <div class="cl-info">{% if document.client %}{% if document.client.contact_person %}{{ document.client.contact_person }}<br>{% endif %}{% if document.client.address %}{{ document.client.address }}<br>{% endif %}{% if document.client.phone %}{{ document.client.phone }}{% if document.client.email %} · {% endif %}{% endif %}{% if document.client.email %}{{ document.client.email }}{% endif %}{% endif %}</div>
+      </div>
+    </div>
+    <div class="split-r">
+      <span class="lbl" style="margin-bottom:6px;">Summary</span>
+      <div class="sf-card">
+        <div class="meta-item"><span class="k">Items</span><span class="v">{{ document.items|length }}</span></div>
+        <div class="meta-item"><span class="k">Subtotal</span><span class="v">{{ document.subtotal|float|fmt }}</span></div>
+        {% if document.tax_total|float > 0 %}<div class="meta-item"><span class="k">Tax</span><span class="v">{{ document.tax_total|float|fmt }}</span></div>{% endif %}
+      </div>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th style="width:4%">#</th><th style="width:48%">Description</th><th style="width:8%">Qty</th><th style="width:20%">Unit Price</th><th style="width:20%">Amount</th></tr></thead>
+    <tbody>
+      {% for item in document.items %}
+      {% set lines = item.description.split('\n') %}
+      <tr>
+        <td style="color:#9BBCBE;">{{ '%02d'|format(loop.index) }}</td>
+        <td>{{ lines[0] }}{% for sub in lines[1:] %}<div style="font-size:9px;color:#6A9D9F;margin-top:2px;">{{ sub }}</div>{% endfor %}</td>
+        <td>{{ item.quantity|qty }}{% if item.unit %}<div style="font-size:8px;color:#9BBCBE;">{{ item.unit }}</div>{% endif %}</td>
+        <td>{{ item.unit_price|float|fmt }}</td>
+        <td>{{ item.line_total|float|fmt }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="totals-wrap">
+    <div class="totals">
+      <div class="trow"><span>Subtotal</span><span class="v">{{ document.currency }} {{ document.subtotal|float|fmt }}</span></div>
+      {% if document.discount_amount|float > 0 %}<div class="trow"><span>Discount</span><span class="v">-{{ document.currency }} {{ document.discount_amount|float|fmt }}</span></div>{% endif %}
+      {% if document.tax_total|float > 0 %}<div class="trow"><span>Tax</span><span class="v">{{ document.currency }} {{ document.tax_total|float|fmt }}</span></div>{% endif %}
+      <div class="trow final"><span class="lbl-t">Total Due</span><span class="v">{{ document.currency }} {{ document.total|float|fmt }}</span></div>
+    </div>
+  </div>
+  {% if document.contract_tables %}
+  <div style="margin-bottom:16px;">
+    {% for ct in document.contract_tables %}
+    <div style="margin-bottom:12px;">
+      <span class="lbl" style="margin-bottom:4px;display:block;">{{ ct.title }}</span>
+      <table class="ct-table">
+        <thead><tr>{% for h in ct.headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+        <tbody>{% for row in ct.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+        {% if ct.total_row %}<tfoot><tr>{% for cell in ct.total_row %}<td>{{ cell }}</td>{% endfor %}</tr></tfoot>{% endif %}
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <div class="notes-area">
+    {% if document.notes %}<div style="margin-bottom:10px;"><span class="lbl">Notes</span><div class="notes-panel"><div class="notes-txt">{{ document.notes }}</div></div></div>{% endif %}
+    {% if document.terms_conditions %}<div style="margin-bottom:10px;"><span class="lbl">Terms &amp; Conditions</span><div class="notes-txt">{{ document.terms_conditions }}</div></div>{% endif %}
+    {% if document.payment_terms %}<div style="margin-bottom:10px;"><span class="lbl">Payment Terms</span><div class="notes-txt">{{ document.payment_terms }}</div></div>{% endif %}
+    {% if company and (company.bank_name or company.bank_account_no or company.payment_info) %}
+    <div style="margin-bottom:10px;"><span class="lbl">Banking Details</span><div class="notes-txt">{% if company.bank_name %}Bank: {{ company.bank_name }}<br>{% endif %}{% if company.bank_account_no %}Acc: {{ company.bank_account_no }}<br>{% endif %}{% if company.bank_account_name %}Name: {{ company.bank_account_name }}{% endif %}{% if company.payment_info and not company.bank_name %}{{ company.payment_info }}{% endif %}</div></div>
+    {% endif %}
+  </div>
+  <div class="footer">
+    <div class="footer-txt">{{ company.name if company else 'MAIA' }} · Computer-generated document</div>
+    {% if signature_data %}<div style="text-align:center;"><img src="data:image/png;base64,{{ signature_data|safe }}" style="max-height:38px;display:block;margin:0 auto 4px;"><div style="width:110px;border-top:1px solid #DFF2F3;padding-top:3px;font-size:8px;color:#6A9D9F;text-align:center;margin:0 auto;">Authorised Signature</div></div>{% endif %}
+  </div>
+</div>
+</body>
+</html>

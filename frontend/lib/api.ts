@@ -185,7 +185,7 @@ export const quotationsApi = {
   convert: (id: number) => api.post(`/quotations/${id}/convert`).then((r) => r.data),
   softDelete: (id: number) => api.delete(`/quotations/${id}`),
   duplicate: (id: number) => api.post(`/quotations/${id}/duplicate`).then((r) => r.data),
-  getPdfUrl: (id: number) => `${API_URL}/quotations/${id}/pdf`,
+  getPdfUrl: (id: number, style?: string) => `${API_URL}/quotations/${id}/pdf${style ? `?style=${style}` : ""}`,
   summary: (month?: string) => api.get("/quotations/summary", { params: month ? { month } : {} }).then((r) => r.data),
   getEmailTracking: (id: number) => api.get(`/quotations/${id}/email-tracking`).then((r) => r.data),
 };
@@ -1125,4 +1125,22 @@ export const soaApi = {
     if (date_to) q.set("date_to", date_to);
     return `${API_URL}/finance/soa/vendor/pdf?${q.toString()}`;
   },
+};
+
+export const paymentVouchersApi = {
+  list: (params?: { skip?: number; limit?: number; search?: string; status?: string }) =>
+    api.get("/payment-vouchers", { params }).then((r) => r.data),
+
+  get: (id: number) => api.get(`/payment-vouchers/${id}`).then((r) => r.data),
+
+  nextNumber: () => api.get("/payment-vouchers/next-number").then((r) => r.data),
+
+  create: (data: object) => api.post("/payment-vouchers", data).then((r) => r.data),
+
+  update: (id: number, data: object) =>
+    api.put(`/payment-vouchers/${id}`, data).then((r) => r.data),
+
+  delete: (id: number) => api.delete(`/payment-vouchers/${id}`),
+
+  getPdfUrl: (id: number) => `${API_URL}/payment-vouchers/${id}/pdf`,
 };

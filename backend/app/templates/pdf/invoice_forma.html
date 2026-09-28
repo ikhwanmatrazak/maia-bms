@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+@page { size: A4; margin: 0; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; font-size: 10.5px; color: #111; background: #fff; line-height: 1.5; }
+.hd-band { background: #111; padding: 20px 20mm; display: flex; justify-content: space-between; align-items: center; min-height: 68px; }
+.hd-title { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-size: 48px; font-weight: 800; color: #fff; letter-spacing: -1px; line-height: 1; }
+.hd-right { text-align: right; }
+.co-name { font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 3px; }
+.co-info { font-size: 9px; color: rgba(255,255,255,.5); line-height: 1.7; }
+.red-bar { height: 4px; background: #CC2222; }
+.body { padding: 22px 20mm 36px; }
+.split { display: flex; gap: 0; margin-bottom: 22px; border-bottom: 1px solid #E5E7EB; padding-bottom: 18px; }
+.split-l { flex: 1; padding-right: 28px; border-right: 1px solid #E5E7EB; }
+.split-r { width: 210px; padding-left: 28px; }
+.lbl { font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: #999; font-weight: 600; margin-bottom: 5px; display: block; }
+.cl-name { font-size: 14px; font-weight: 600; color: #111; margin-bottom: 3px; }
+.cl-info { font-size: 9.5px; color: #555; line-height: 1.7; }
+.doc-num { font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 700; color: #111; line-height: 1.1; margin-bottom: 6px; }
+.meta-row { display: flex; gap: 24px; margin-top: 6px; }
+.meta-cell .k { font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase; color: #999; display: block; margin-bottom: 2px; }
+.meta-cell .v { font-size: 10.5px; font-weight: 600; color: #111; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+thead th { padding: 7px 10px; font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600; color: #888; background: #F7F8FA; border-bottom: 2px solid #E5E7EB; text-align: left; }
+thead th:nth-child(n+3) { text-align: right; }
+tbody td { padding: 7px 10px; border-bottom: 1px solid #F0F1F3; font-size: 10.5px; vertical-align: top; }
+tbody td:nth-child(n+3) { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: 2px solid #E5E7EB; }
+.totals-wrap { display: flex; justify-content: flex-end; margin: 4px 0 22px; }
+.totals { min-width: 260px; }
+.trow { display: flex; justify-content: space-between; padding: 5px 10px; font-size: 10px; color: #666; border-bottom: 1px solid #F0F1F3; font-variant-numeric: tabular-nums; }
+.trow .v { color: #111; font-weight: 500; }
+.trow.total { border-left: 4px solid #CC2222; background: #FEF2F2; padding: 8px 10px; margin-top: 3px; border-bottom: none; }
+.trow.total .lbl-t { font-weight: 700; font-size: 11px; color: #111; letter-spacing: 0; text-transform: none; }
+.trow.total .v { font-weight: 700; font-size: 15px; color: #CC2222; }
+.trow.paid { border-bottom: 1px solid #F0F1F3; }
+.trow.balance { font-weight: 700; background: #FFFBEB; border-bottom: none; }
+.notes-area { border-top: 1px solid #E5E7EB; padding-top: 14px; }
+.notes-blk { margin-bottom: 10px; }
+.notes-blk .txt { font-size: 9.5px; color: #666; line-height: 1.75; white-space: pre-line; margin-top: 3px; }
+.ct-table { width: 100%; min-width: 220px; border-collapse: collapse; margin-top: 6px; }
+.ct-table th { background: #111; color: #fff; padding: 4px 10px; font-size: 8.5px; text-align: left; }
+.ct-table td { padding: 3px 10px; font-size: 9.5px; border-bottom: 1px solid #F0F1F3; font-variant-numeric: tabular-nums; }
+.ct-table tfoot td { font-weight: 700; border-top: 2px solid #CC2222; border-bottom: none; }
+.footer-line { margin-top: 20px; padding-top: 10px; border-top: 1px solid #E5E7EB; display: flex; justify-content: space-between; align-items: flex-end; }
+.footer-txt { font-size: 8px; color: #bbb; }
+</style>
+</head>
+<body>
+<div class="hd-band">
+  <div class="hd-title">INVOICE</div>
+  <div class="hd-right">
+    <div class="co-name">{{ company.name if company else 'MAIA' }}</div>
+    <div class="co-info">
+      {% if company %}{% if company.address %}{{ company.address }}<br>{% endif %}{% if company.phone %}{{ company.phone }}{% if company.email %} · {% endif %}{% endif %}{% if company.email %}{{ company.email }}<br>{% endif %}{% if company.company_registration_no %}Reg: {{ company.company_registration_no }}{% if company.sst_no %} · {% endif %}{% endif %}{% if company.sst_no %}SST: {{ company.sst_no }}{% endif %}{% endif %}
+    </div>
+  </div>
+</div>
+<div class="red-bar"></div>
+<div class="body">
+  {% if document.subject %}<p style="font-size:11.5px;font-weight:600;margin-bottom:16px;color:#111;">{{ document.subject }}</p>{% endif %}
+  <div class="split">
+    <div class="split-l">
+      <span class="lbl">Bill To</span>
+      <div class="cl-name">{{ document.client.company_name if document.client else '—' }}</div>
+      <div class="cl-info">{% if document.client %}{% if document.client.contact_person %}{{ document.client.contact_person }}<br>{% endif %}{% if document.client.address %}{{ document.client.address }}<br>{% endif %}{% if document.client.phone %}{{ document.client.phone }}{% if document.client.email %} · {% endif %}{% endif %}{% if document.client.email %}{{ document.client.email }}{% endif %}{% endif %}</div>
+    </div>
+    <div class="split-r">
+      <span class="lbl">Reference</span>
+      <div class="doc-num">{{ document.invoice_number }}</div>
+      <div class="meta-row">
+        <div class="meta-cell"><span class="k">Date</span><span class="v">{{ document.issue_date.strftime('%d %b %Y') }}</span></div>
+        {% if document.due_date %}<div class="meta-cell"><span class="k">Due Date</span><span class="v">{{ document.due_date.strftime('%d %b %Y') }}</span></div>{% endif %}
+      </div>
+      <div class="meta-row" style="margin-top:6px;">
+        <div class="meta-cell"><span class="k">Currency</span><span class="v">{{ document.currency }}</span></div>
+      </div>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th style="width:4%">#</th><th style="width:48%">Description</th><th style="width:8%">Qty</th><th style="width:20%">Unit Price</th><th style="width:20%">Amount</th></tr></thead>
+    <tbody>
+      {% for item in document.items %}
+      {% set lines = item.description.split('\n') %}
+      <tr>
+        <td style="color:#aaa;">{{ '%02d'|format(loop.index) }}</td>
+        <td>{{ lines[0] }}{% for sub in lines[1:] %}<div style="font-size:9px;color:#999;margin-top:2px;">{{ sub }}</div>{% endfor %}</td>
+        <td>{{ item.quantity|qty }}{% if item.unit %}<div style="font-size:8px;color:#bbb;">{{ item.unit }}</div>{% endif %}</td>
+        <td>{{ item.unit_price|float|fmt }}</td>
+        <td>{{ item.line_total|float|fmt }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="totals-wrap">
+    <div class="totals">
+      <div class="trow"><span>Subtotal</span><span class="v">{{ document.currency }} {{ document.subtotal|float|fmt }}</span></div>
+      {% if document.discount_amount|float > 0 %}<div class="trow"><span>Discount</span><span class="v">-{{ document.currency }} {{ document.discount_amount|float|fmt }}</span></div>{% endif %}
+      {% if document.tax_total|float > 0 %}<div class="trow"><span>Tax</span><span class="v">{{ document.currency }} {{ document.tax_total|float|fmt }}</span></div>{% endif %}
+      <div class="trow total"><span class="lbl-t">Total Due</span><span class="v">{{ document.currency }} {{ document.total|float|fmt }}</span></div>
+      {% if document.amount_paid|float > 0 %}
+      <div class="trow paid"><span>Amount Paid</span><span class="v">{{ document.currency }} {{ document.amount_paid|float|fmt }}</span></div>
+      <div class="trow balance"><span>Balance Due</span><span class="v">{{ document.currency }} {{ document.balance_due|float|fmt }}</span></div>
+      {% endif %}
+    </div>
+  </div>
+  {% if document.contract_tables %}
+  <div style="margin-bottom:16px;">
+    {% for ct in document.contract_tables %}
+    <div style="margin-bottom:12px;">
+      <span class="lbl" style="margin-bottom:4px;display:block;">{{ ct.title }}</span>
+      <table class="ct-table">
+        <thead><tr>{% for h in ct.headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+        <tbody>{% for row in ct.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+        {% if ct.total_row %}<tfoot><tr>{% for cell in ct.total_row %}<td>{{ cell }}</td>{% endfor %}</tr></tfoot>{% endif %}
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <div class="notes-area">
+    {% if document.notes %}<div class="notes-blk"><span class="lbl">Notes</span><div class="txt">{{ document.notes }}</div></div>{% endif %}
+    {% if document.terms_conditions %}<div class="notes-blk"><span class="lbl">Terms &amp; Conditions</span><div class="txt">{{ document.terms_conditions }}</div></div>{% endif %}
+    {% if document.payment_terms %}<div class="notes-blk"><span class="lbl">Payment Terms</span><div class="txt">{{ document.payment_terms }}</div></div>{% endif %}
+    {% if company and (company.bank_name or company.bank_account_no or company.payment_info) %}
+    <div class="notes-blk"><span class="lbl">Banking Details</span><div class="txt">{% if company.bank_name %}Bank: {{ company.bank_name }}<br>{% endif %}{% if company.bank_account_no %}Acc: {{ company.bank_account_no }}<br>{% endif %}{% if company.bank_account_name %}Name: {{ company.bank_account_name }}{% endif %}{% if company.payment_info and not company.bank_name %}{{ company.payment_info }}{% endif %}</div></div>
+    {% endif %}
+  </div>
+  <div class="footer-line">
+    <div class="footer-txt">{{ company.name if company else 'MAIA' }} · Computer-generated document</div>
+    {% if signature_data %}<div style="text-align:center;"><img src="data:image/png;base64,{{ signature_data|safe }}" style="max-height:38px;display:block;margin:0 auto 4px;"><div style="width:110px;border-top:1px solid #ccc;padding-top:3px;font-size:8px;color:#999;text-align:center;margin:0 auto;">Authorised Signature</div></div>{% endif %}
+  </div>
+</div>
+</body>
+</html>

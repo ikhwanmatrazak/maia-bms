@@ -4,12 +4,14 @@ import { Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
 import { Card, CardBody, CardHeader, Button, Input, Select, SelectItem, Textarea } from "@heroui/react";
 import { useForm, Controller } from "react-hook-form";
 import { useSearchParams } from "next/navigation";
 import { clientsApi, quotationsApi, settingsApi } from "@/lib/api";
-import { Client, TaxRate, CompanySettings } from "@/types";
+import { Client, TaxRate, CompanySettings, ContractTable } from "@/types";
 import { LineItemsEditor } from "@/components/documents/LineItemsEditor";
+import { ContractTablesEditor } from "@/components/documents/ContractTablesEditor";
 import { Topbar } from "@/components/ui/Topbar";
 
 type TemplateItem = { description: string; quantity: number; unit_price: number };
@@ -43,6 +45,8 @@ function NewQuotationForm() {
   const quotationTemplates = templates.filter((t) => t.type === "quotation");
   const defaultTemplate = quotationTemplates.find((t) => t.is_default);
 
+  const [contractTables, setContractTables] = useState<ContractTable[]>([]);
+
   const { register, handleSubmit, control, watch, setValue } = useForm({
     defaultValues: {
       client_id: "",
@@ -53,6 +57,7 @@ function NewQuotationForm() {
       issue_date: new Date().toISOString().split("T")[0],
       expiry_date: "",
       discount_amount: "0",
+      discount_label: "",
       notes: "",
       terms_conditions: "",
       payment_terms: "",
@@ -126,6 +131,7 @@ function NewQuotationForm() {
     setValue("currency", sourceDoc.currency);
     setValue("exchange_rate", String(sourceDoc.exchange_rate || "1"));
     setValue("discount_amount", String(sourceDoc.discount_amount || "0"));
+    setValue("discount_label", sourceDoc.discount_label || "");
     setValue("notes", sourceDoc.notes || "");
     setValue("terms_conditions", sourceDoc.terms_conditions || "");
     setValue("payment_terms", sourceDoc.payment_terms || "");
@@ -146,6 +152,7 @@ function NewQuotationForm() {
         sub_items: lines.slice(1).map((l: string) => ({ text: l.replace(/^•\s*/, "").trim() })).filter((s: { text: string }) => s.text),
       };
     }));
+    if (sourceDoc.contract_tables) setContractTables(sourceDoc.contract_tables);
   }, [sourceDoc]);
 
   const createMutation = useMutation({
@@ -167,8 +174,10 @@ function NewQuotationForm() {
       template_id: data.template_id ? Number(data.template_id) : null,
       exchange_rate: Number(data.exchange_rate),
       discount_amount: Number(data.discount_amount),
+      discount_label: (data.discount_label as string) || null,
       issue_date: new Date(data.issue_date as string).toISOString(),
       expiry_date: data.expiry_date ? new Date(data.expiry_date as string).toISOString() : null,
+      contract_tables: contractTables.length > 0 ? contractTables : null,
       items: (data.items as Array<Record<string, any>>).map((item) => {
         const subs = (item.sub_items as Array<{ text: string }> || []).filter((s) => s.text?.trim());
         const desc = subs.length > 0 ? item.description + "\n" + subs.map((s) => "• " + s.text.trim()).join("\n") : item.description;
@@ -238,6 +247,7 @@ function NewQuotationForm() {
                 <Input variant="bordered" label="Exchange Rate" type="number" step="0.000001" {...register("exchange_rate")} />
                 <Input variant="bordered" label="Discount Amount" type="number" step="0.01"
                   startContent={<span className="text-xs text-gray-400">{currency}</span>} {...register("discount_amount")} />
+                <Input variant="bordered" label="Discount Label (optional)" placeholder="e.g. 50% Deposit / Project Kickoff" {...register("discount_label")} />
               </CardBody>
             </Card>
 
@@ -247,6 +257,8 @@ function NewQuotationForm() {
                 <LineItemsEditor control={control} register={register} taxRates={taxRates} currency={currency} />
               </CardBody>
             </Card>
+
+            <ContractTablesEditor value={contractTables} onChange={setContractTables} />
 
             <Card>
               <CardHeader><h3 className="font-semibold">Notes</h3></CardHeader>

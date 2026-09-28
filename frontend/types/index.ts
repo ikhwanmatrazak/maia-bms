@@ -37,6 +37,13 @@ export interface Client {
 }
 
 export type QuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
+
+export interface ContractTable {
+  title: string;
+  headers: string[];
+  rows: string[][];
+  total_row: string[] | null;
+}
 export type InvoiceStatus = "draft" | "sent" | "partial" | "paid" | "overdue" | "cancelled";
 export type PaymentMethod = "cash" | "bank_transfer" | "cheque" | "online" | "other";
 
@@ -64,12 +71,14 @@ export interface Quotation {
   expiry_date?: string;
   subtotal: string;
   discount_amount: string;
+  discount_label?: string;
   tax_total: string;
   total: string;
   notes?: string;
   terms_conditions?: string;
   payment_terms?: string;
   template_id?: number;
+  contract_tables?: ContractTable[];
   created_by?: number;
   sent_at?: string;
   accepted_at?: string;
@@ -92,6 +101,7 @@ export interface Invoice {
   due_date?: string;
   subtotal: string;
   discount_amount: string;
+  discount_label?: string;
   tax_total: string;
   total: string;
   amount_paid: string;
@@ -100,6 +110,7 @@ export interface Invoice {
   terms_conditions?: string;
   payment_terms?: string;
   template_id?: number;
+  contract_tables?: ContractTable[];
   created_by?: number;
   sent_at?: string;
   paid_at?: string;
@@ -370,6 +381,32 @@ export interface Bill {
   payment_receipt_url?: string;
   file_url?: string;
   notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PVStatus = "draft" | "approved" | "cancelled";
+export type PVPaymentMethod = "cash" | "cheque" | "bank_transfer";
+
+export interface PaymentVoucher {
+  id: number;
+  tenant_id?: number;
+  voucher_number: string;
+  date: string;
+  payee_name: string;
+  payee_address?: string;
+  amount: number;
+  amount_in_words?: string;
+  description: string;
+  payment_method: PVPaymentMethod;
+  cheque_number?: string;
+  bank_ref?: string;
+  transaction_id?: number;
+  status: PVStatus;
+  prepared_by?: string;
+  approved_by?: string;
+  notes?: string;
+  created_by?: number;
   created_at: string;
   updated_at: string;
 }

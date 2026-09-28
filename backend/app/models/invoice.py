@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Numeric, Enum, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Numeric, Enum, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -39,6 +39,7 @@ class Invoice(Base):
     terms_conditions = Column(Text, nullable=True)
     payment_terms = Column(Text, nullable=True)
     template_id = Column(Integer, ForeignKey("document_templates.id", ondelete="SET NULL"), nullable=True)
+    contract_tables = Column(JSON, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     paid_at = Column(DateTime(timezone=True), nullable=True)

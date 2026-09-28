@@ -22,6 +22,7 @@ export default function QuotationDetailPage() {
   const [templateModal, setTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [templateSaved, setTemplateSaved] = useState(false);
+  const [styleModal, setStyleModal] = useState(false);
 
   const { data: q, isLoading } = useQuery({
     queryKey: ["quotations", id],
@@ -82,7 +83,7 @@ export default function QuotationDetailPage() {
             <Button size="sm" color="primary" variant="flat" onPress={openEmailModal}>
               Email PDF
             </Button>
-            <Button size="sm" variant="flat" onPress={() => downloadPdf(quotationsApi.getPdfUrl(id), (q?.quotation_number || "quotation-" + id) + ".pdf")}>
+            <Button size="sm" variant="flat" onPress={() => setStyleModal(true)}>
               Download PDF
             </Button>
             <Button size="sm" variant="flat" onPress={() => router.push(`/quotations/new?from=${id}`)}>
@@ -143,12 +144,52 @@ export default function QuotationDetailPage() {
             </table>
             <div className="mt-4 ml-auto w-64 space-y-1 text-sm">
               <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>{formatCurrency(q.subtotal, q.currency)}</span></div>
-              {parseFloat(q.discount_amount) > 0 && <div className="flex justify-between"><span className="text-gray-500">Discount</span><span>-{formatCurrency(q.discount_amount, q.currency)}</span></div>}
+              {parseFloat(q.discount_amount) > 0 && <div className="flex justify-between"><span className="text-gray-500">{q.discount_label || "Discount"}</span><span>-{formatCurrency(q.discount_amount, q.currency)}</span></div>}
               <div className="flex justify-between"><span className="text-gray-500">Tax</span><span>{formatCurrency(q.tax_total, q.currency)}</span></div>
               <div className="flex justify-between font-bold text-base border-t pt-1"><span>Total</span><span>{formatCurrency(q.total, q.currency)}</span></div>
             </div>
           </CardBody>
         </Card>
+
+        {q.contract_tables && q.contract_tables.length > 0 && (
+          <Card>
+            <CardHeader><h3 className="font-semibold">Contract Tables</h3></CardHeader>
+            <CardBody className="space-y-6">
+              {q.contract_tables.map((ct: any, i: number) => (
+                <div key={i}>
+                  <h4 className="text-sm font-semibold text-primary mb-2">{ct.title}</h4>
+                  <table className="w-auto min-w-[260px] text-sm border-collapse">
+                    <thead>
+                      <tr>
+                        {ct.headers.map((h: string, hi: number) => (
+                          <th key={hi} className="bg-default-900 text-white px-4 py-2 text-left text-xs font-semibold whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ct.rows.map((row: string[], ri: number) => (
+                        <tr key={ri} className="border-b border-default-100">
+                          {row.map((cell: string, ci: number) => (
+                            <td key={ci} className="px-4 py-2 text-gray-700">{cell}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                    {ct.total_row && (
+                      <tfoot>
+                        <tr className="border-t-2 border-default-900">
+                          {ct.total_row.map((cell: string, ci: number) => (
+                            <td key={ci} className="px-4 py-2 font-bold text-gray-900">{cell}</td>
+                          ))}
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+              ))}
+            </CardBody>
+          </Card>
+        )}
 
         {q.notes && (
           <Card><CardHeader><h3 className="font-semibold">Notes</h3></CardHeader>
@@ -198,6 +239,39 @@ export default function QuotationDetailPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {styleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="font-semibold text-lg text-foreground">Choose Quotation Design</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { key: "professional", label: "Professional", desc: "Clean corporate layout" },
+                { key: "modern", label: "Modern", desc: "Bold and contemporary" },
+                { key: "minimal", label: "Minimal", desc: "Simple and elegant" },
+                { key: "compact", label: "Compact", desc: "Condensed single-page" },
+                { key: "signal", label: "Signal", desc: "Dark header, amber accents" },
+                { key: "forma", label: "Forma", desc: "Bold typographic header" },
+                { key: "dusk", label: "Dusk", desc: "Dark theme with gold" },
+                { key: "shoreline", label: "Shoreline", desc: "Teal diagonal header" },
+              ].map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => {
+                    downloadPdf(quotationsApi.getPdfUrl(id, t.key), (q?.quotation_number || "quotation-" + id) + ".pdf");
+                    setStyleModal(false);
+                  }}
+                  className="flex flex-col items-start p-3 border border-default-200 rounded-xl hover:border-primary hover:bg-primary/5 transition-colors text-left"
+                >
+                  <span className="font-medium text-sm text-foreground">{t.label}</span>
+                  <span className="text-xs text-default-400 mt-0.5">{t.desc}</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setStyleModal(false)} className="w-full py-2 text-sm text-default-500">Cancel</button>
+          </div>
+        </div>
+      )}
 
       <Modal isOpen={emailModal} onClose={() => setEmailModal(false)}>
         <ModalContent>

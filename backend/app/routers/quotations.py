@@ -166,6 +166,7 @@ async def create_quotation(
         issue_date=body.issue_date,
         expiry_date=body.expiry_date,
         discount_amount=body.discount_amount,
+        discount_label=body.discount_label,
         subject=body.subject,
         notes=body.notes,
         terms_conditions=body.terms_conditions,
@@ -539,9 +540,12 @@ async def get_quotation_email_tracking(
     }
 
 
+VALID_QUOTATION_STYLES = {"professional", "modern", "minimal", "compact", "signal", "forma", "dusk", "shoreline"}
+
 @router.get("/{quotation_id}/pdf")
 async def get_quotation_pdf(
     quotation_id: int,
+    style: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -564,16 +568,19 @@ async def get_quotation_pdf(
     if company is None:
         _fb = await db.execute(select(CompanySettings).limit(1))
         company = _fb.scalar_one_or_none()
-    template_style = "professional"
-    if quotation.template_id:
-        from app.models.settings import DocumentTemplate
-        tmpl_result = await db.execute(select(DocumentTemplate).where(DocumentTemplate.id == quotation.template_id))
-        tmpl = tmpl_result.scalar_one_or_none()
-        if tmpl and tmpl.template_json:
-            try:
-                template_style = _json.loads(tmpl.template_json).get("style", "professional")
-            except Exception:
-                pass
+    if style and style in VALID_QUOTATION_STYLES:
+        template_style = style
+    else:
+        template_style = "professional"
+        if quotation.template_id:
+            from app.models.settings import DocumentTemplate
+            tmpl_result = await db.execute(select(DocumentTemplate).where(DocumentTemplate.id == quotation.template_id))
+            tmpl = tmpl_result.scalar_one_or_none()
+            if tmpl and tmpl.template_json:
+                try:
+                    template_style = _json.loads(tmpl.template_json).get("style", "professional")
+                except Exception:
+                    pass
     pdf_bytes = await generate_pdf("quotation", quotation, company, template_style)
     return StreamingResponse(
         io.BytesIO(pdf_bytes),

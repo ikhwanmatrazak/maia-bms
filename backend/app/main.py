@@ -15,6 +15,7 @@ from app.routers import auth, users, clients, quotations, invoices, receipts, pa
 from app.routers import purchase_orders, delivery_orders, super_admin, products, analytics, vendors, prospects, credit_notes, tracking
 from app.routers import gateway, bills, hr, user_claims, projects, calendar, bug_reports, name_card, bank
 from app.routers import balance_sheet, statement_of_account, monthly_payables
+from app.routers import payment_vouchers
 
 logging.basicConfig(
     level=logging.INFO,
@@ -827,6 +828,48 @@ async def _ensure_reminder_tables():
 
 
 @asynccontextmanager
+async def _ensure_payment_voucher_table():
+    """Create payment_vouchers table on every startup — safe to run repeatedly."""
+    from app.database import engine
+    from sqlalchemy import text
+    stmts = [
+        """CREATE TABLE IF NOT EXISTS payment_vouchers (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tenant_id INT NULL,
+            voucher_number VARCHAR(50) NOT NULL UNIQUE,
+            `date` DATETIME(6) NOT NULL,
+            payee_name VARCHAR(255) NOT NULL,
+            payee_address TEXT NULL,
+            amount DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+            amount_in_words VARCHAR(500) NULL,
+            description TEXT NOT NULL,
+            payment_method ENUM('cash','cheque','bank_transfer') NOT NULL DEFAULT 'bank_transfer',
+            cheque_number VARCHAR(100) NULL,
+            bank_ref VARCHAR(100) NULL,
+            transaction_id INT NULL,
+            status ENUM('draft','approved','cancelled') NOT NULL DEFAULT 'draft',
+            prepared_by VARCHAR(255) NULL,
+            approved_by VARCHAR(255) NULL,
+            notes TEXT NULL,
+            created_by INT NULL,
+            is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+            updated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+            INDEX idx_pv_tenant (tenant_id),
+            INDEX idx_pv_number (voucher_number),
+            CONSTRAINT fk_pv_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+            CONSTRAINT fk_pv_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""",
+    ]
+    for stmt in stmts:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(stmt))
+        except Exception as e:
+            logger.warning(f"_ensure_payment_voucher_table: {e}")
+    logger.info("payment_vouchers table ensured")
+
+
 async def lifespan(app: FastAPI):
     await _ensure_logo_columns()
     await _ensure_crm_columns()
@@ -838,6 +881,7 @@ async def lifespan(app: FastAPI):
     await _ensure_name_card_column()
     await _ensure_bank_tables()
     await _ensure_reminder_tables()
+    await _ensure_payment_voucher_table()
     await init_db()
     upload_dir = app_settings.upload_dir
     os.makedirs(f"{upload_dir}/payment_proofs", exist_ok=True)
@@ -927,6 +971,7 @@ app.include_router(bank.router, prefix=prefix)
 app.include_router(balance_sheet.router, prefix=prefix)
 app.include_router(statement_of_account.router, prefix=prefix)
 app.include_router(monthly_payables.router, prefix=prefix)
+app.include_router(payment_vouchers.router, prefix=prefix)
 
 
 @app.get("/health")

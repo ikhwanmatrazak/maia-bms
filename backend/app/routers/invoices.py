@@ -540,6 +540,7 @@ async def create_invoice(
         issue_date=body.issue_date,
         due_date=body.due_date,
         discount_amount=body.discount_amount,
+        discount_label=body.discount_label,
         subject=body.subject,
         notes=body.notes,
         terms_conditions=body.terms_conditions,
@@ -1126,7 +1127,7 @@ async def get_invoice_pdf(
     if company is None:
         _fb = await db.execute(select(CompanySettings).limit(1))
         company = _fb.scalar_one_or_none()
-    VALID_STYLES = {"professional", "modern", "minimal", "compact"}
+    VALID_STYLES = {"professional", "modern", "minimal", "compact", "signal", "forma", "dusk", "shoreline"}
     if style and style in VALID_STYLES:
         template_style = style
     else:

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 from datetime import datetime
 from decimal import Decimal
 from app.models.quotation import QuotationStatus
@@ -40,11 +40,13 @@ class QuotationCreate(BaseModel):
     issue_date: datetime
     expiry_date: Optional[datetime] = None
     discount_amount: Decimal = Decimal("0.00")
+    discount_label: Optional[str] = None
     notes: Optional[str] = None
     terms_conditions: Optional[str] = None
     payment_terms: Optional[str] = None
     template_id: Optional[int] = None
     items: List[DocumentItemCreate] = []
+    contract_tables: Optional[List[Dict[str, Any]]] = None
 
 
 class QuotationUpdate(BaseModel):
@@ -56,11 +58,13 @@ class QuotationUpdate(BaseModel):
     issue_date: Optional[datetime] = None
     expiry_date: Optional[datetime] = None
     discount_amount: Optional[Decimal] = None
+    discount_label: Optional[str] = None
     notes: Optional[str] = None
     terms_conditions: Optional[str] = None
     payment_terms: Optional[str] = None
     template_id: Optional[int] = None
     items: Optional[List[DocumentItemCreate]] = None
+    contract_tables: Optional[List[Dict[str, Any]]] = None
 
 
 class QuotationResponse(BaseModel):
@@ -75,12 +79,14 @@ class QuotationResponse(BaseModel):
     expiry_date: Optional[datetime]
     subtotal: Decimal
     discount_amount: Decimal
+    discount_label: Optional[str] = None
     tax_total: Decimal
     total: Decimal
     notes: Optional[str]
     terms_conditions: Optional[str]
     payment_terms: Optional[str]
     template_id: Optional[int]
+    contract_tables: Optional[List[Dict[str, Any]]] = None
     created_by: Optional[int]
     sent_at: Optional[datetime]
     accepted_at: Optional[datetime]
@@ -103,10 +109,12 @@ class InvoiceCreate(BaseModel):
     issue_date: datetime
     due_date: Optional[datetime] = None
     discount_amount: Decimal = Decimal("0.00")
+    discount_label: Optional[str] = None
     notes: Optional[str] = None
     terms_conditions: Optional[str] = None
     payment_terms: Optional[str] = None
     template_id: Optional[int] = None
+    contract_tables: Optional[List[Dict[str, Any]]] = None
     items: List[DocumentItemCreate] = []
 
 
@@ -119,10 +127,12 @@ class InvoiceUpdate(BaseModel):
     issue_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
     discount_amount: Optional[Decimal] = None
+    discount_label: Optional[str] = None
     notes: Optional[str] = None
     terms_conditions: Optional[str] = None
     payment_terms: Optional[str] = None
     template_id: Optional[int] = None
+    contract_tables: Optional[List[Dict[str, Any]]] = None
     items: Optional[List[DocumentItemCreate]] = None
 
 
@@ -139,6 +149,7 @@ class InvoiceResponse(BaseModel):
     due_date: Optional[datetime]
     subtotal: Decimal
     discount_amount: Decimal
+    discount_label: Optional[str] = None
     tax_total: Decimal
     total: Decimal
     amount_paid: Decimal
@@ -151,6 +162,7 @@ class InvoiceResponse(BaseModel):
     sent_at: Optional[datetime]
     paid_at: Optional[datetime]
     payment_link_url: Optional[str] = None
+    contract_tables: Optional[List[Dict[str, Any]]] = None
     client_name: str = ""
     client_email: str = ""
     client_phone: str = ""

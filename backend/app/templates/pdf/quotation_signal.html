@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+@page { size: A4; margin: 14mm 16mm; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; font-size: 10.5px; color: #111; background: #F8F9FA; line-height: 1.5; }
+.hd { background: #111; margin: -14mm -16mm 0; padding: 22px 16mm 20px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.co-name { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; color: #F59E0B; margin-bottom: 5px; }
+.co-info { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(255,255,255,.5); line-height: 1.8; }
+.doc-r { text-align: right; }
+.doc-lbl { font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,.35); margin-bottom: 3px; }
+.doc-num { font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600; color: #F59E0B; line-height: 1.1; margin-bottom: 6px; }
+.doc-meta { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(255,255,255,.5); line-height: 1.9; }
+.amber-bar { height: 3px; background: #F59E0B; margin: 0 -16mm; }
+.body { padding: 22px 0 36px; }
+.lbl { font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 2px; text-transform: uppercase; color: #888; margin-bottom: 4px; }
+.bill { display: flex; gap: 0; margin-bottom: 20px; }
+.bill-co { flex: 1; padding-right: 24px; }
+.bill-info-col { width: 210px; }
+.cl-name { font-size: 13px; font-weight: 600; color: #111; margin-bottom: 2px; }
+.cl-info { font-size: 9.5px; color: #555; line-height: 1.75; }
+.meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+.meta-item .k { font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase; color: #888; display: block; margin-bottom: 2px; }
+.meta-item .v { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 600; color: #111; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+thead th { background: #F59E0B; color: #111; padding: 6px 10px; font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600; text-align: left; }
+thead th:nth-child(n+3) { text-align: right; }
+tbody td { padding: 6px 10px; border-bottom: 1px solid #E8E9EB; font-size: 10.5px; vertical-align: top; }
+tbody td:nth-child(1) { font-family: 'IBM Plex Mono', monospace; font-size: 10px; }
+tbody td:nth-child(n+3) { text-align: right; white-space: nowrap; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-variant-numeric: tabular-nums; }
+tbody tr:nth-child(even) td { background: #F2F3F5; }
+.totals { display: flex; justify-content: flex-end; margin: 4px 0 20px; }
+.totals-inner { min-width: 250px; }
+.trow { display: flex; justify-content: space-between; padding: 5px 10px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; border-bottom: 1px solid #E8E9EB; font-variant-numeric: tabular-nums; color: #555; }
+.trow span:last-child { color: #111; }
+.trow.final { background: #F59E0B; color: #111; font-weight: 600; font-size: 12px; border: none; margin-top: 2px; }
+.trow.final span { color: #111; }
+.notes-sect { border-top: 2px solid #E8E9EB; padding-top: 14px; margin-top: 2px; }
+.ct-table { width: 100%; min-width: 220px; border-collapse: collapse; margin-top: 6px; }
+.ct-table th { background: #111; color: #fff; padding: 4px 10px; font-family: 'IBM Plex Mono', monospace; font-size: 8.5px; text-align: left; letter-spacing: 0.5px; }
+.ct-table td { padding: 3px 10px; font-size: 9.5px; border-bottom: 1px solid #E8E9EB; font-variant-numeric: tabular-nums; }
+.ct-table tfoot td { font-weight: 600; border-top: 2px solid #F59E0B; border-bottom: none; }
+.sect-sub { font-size: 9.5px; color: #777; line-height: 1.75; margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="hd">
+  <div>
+    <div class="co-name">{{ company.name | upper if company else 'MAIA' }}</div>
+    <div class="co-info">
+      {% if company %}{% if company.address %}{{ company.address }}<br>{% endif %}{% if company.phone %}{{ company.phone }}{% if company.email %} · {% endif %}{% endif %}{% if company.email %}{{ company.email }}<br>{% endif %}{% if company.company_registration_no %}Reg: {{ company.company_registration_no }}{% if company.sst_no %} · {% endif %}{% endif %}{% if company.sst_no %}SST: {{ company.sst_no }}{% endif %}{% endif %}
+    </div>
+  </div>
+  <div class="doc-r">
+    <div class="doc-lbl">Quotation No.</div>
+    <div class="doc-num">{{ document.quotation_number }}</div>
+    <div class="doc-meta">
+      Date: {{ document.issue_date.strftime('%d %b %Y') }}<br>
+      {% if document.expiry_date %}Valid Until: {{ document.expiry_date.strftime('%d %b %Y') }}<br>{% endif %}
+      Currency: {{ document.currency }}
+    </div>
+  </div>
+</div>
+<div class="amber-bar"></div>
+<div class="body">
+  {% if document.subject %}<p style="font-size:11px;margin-bottom:14px;"><strong>Subject:</strong> {{ document.subject }}</p>{% endif %}
+  <div class="bill">
+    <div class="bill-co">
+      <div class="lbl">Prepared For</div>
+      <div class="cl-name">{{ document.client.company_name if document.client else '—' }}</div>
+      <div class="cl-info">{% if document.client %}{% if document.client.contact_person %}{{ document.client.contact_person }}<br>{% endif %}{% if document.client.address %}{{ document.client.address }}<br>{% endif %}{% if document.client.phone %}{{ document.client.phone }}{% if document.client.email %} · {% endif %}{% endif %}{% if document.client.email %}{{ document.client.email }}{% endif %}{% endif %}</div>
+    </div>
+    <div class="bill-info-col">
+      <div class="lbl" style="margin-bottom:8px;">Summary</div>
+      <div class="meta-grid">
+        <div class="meta-item"><span class="k">Items</span><span class="v">{{ document.items|length }}</span></div>
+        <div class="meta-item"><span class="k">Currency</span><span class="v">{{ document.currency }}</span></div>
+        <div class="meta-item"><span class="k">Subtotal</span><span class="v">{{ document.subtotal|float|fmt }}</span></div>
+        <div class="meta-item"><span class="k">Tax</span><span class="v">{{ document.tax_total|float|fmt }}</span></div>
+      </div>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th style="width:4%">#</th><th style="width:48%">Description</th><th style="width:8%">Qty</th><th style="width:20%">Unit Price</th><th style="width:20%">Amount</th></tr></thead>
+    <tbody>
+      {% for item in document.items %}
+      {% set lines = item.description.split('\n') %}
+      <tr>
+        <td>{{ '%02d'|format(loop.index) }}</td>
+        <td>{{ lines[0] }}{% for sub in lines[1:] %}<div style="font-size:9px;color:#777;margin-top:1px;">{{ sub }}</div>{% endfor %}</td>
+        <td>{{ item.quantity|qty }}{% if item.unit %}<div style="font-size:8px;color:#aaa;">{{ item.unit }}</div>{% endif %}</td>
+        <td>{{ item.unit_price|float|fmt }}</td>
+        <td>{{ item.line_total|float|fmt }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="totals">
+    <div class="totals-inner">
+      <div class="trow"><span>SUBTOTAL</span><span>{{ document.currency }} {{ document.subtotal|float|fmt }}</span></div>
+      {% if document.discount_amount|float > 0 %}<div class="trow"><span>DISCOUNT</span><span>-{{ document.currency }} {{ document.discount_amount|float|fmt }}</span></div>{% endif %}
+      {% if document.tax_total|float > 0 %}<div class="trow"><span>TAX</span><span>{{ document.currency }} {{ document.tax_total|float|fmt }}</span></div>{% endif %}
+      <div class="trow final"><span>TOTAL DUE</span><span>{{ document.currency }} {{ document.total|float|fmt }}</span></div>
+    </div>
+  </div>
+  {% if document.contract_tables %}
+  {% for ct in document.contract_tables %}
+  <div style="margin-bottom:12px;">
+    <div class="lbl" style="margin-bottom:4px;">{{ ct.title }}</div>
+    <table class="ct-table">
+      <thead><tr>{% for h in ct.headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in ct.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+      {% if ct.total_row %}<tfoot><tr>{% for cell in ct.total_row %}<td>{{ cell }}</td>{% endfor %}</tr></tfoot>{% endif %}
+    </table>
+  </div>
+  {% endfor %}
+  {% endif %}
+  <div class="notes-sect">
+    {% if document.notes %}<div style="margin-bottom:8px;"><div class="lbl" style="margin-bottom:3px;">Notes</div><div class="sect-sub">{{ document.notes }}</div></div>{% endif %}
+    {% if document.terms_conditions %}<div style="margin-bottom:8px;"><div class="lbl" style="margin-bottom:3px;">Terms &amp; Conditions</div><div class="sect-sub">{{ document.terms_conditions }}</div></div>{% endif %}
+    {% if document.payment_terms %}<div><div class="lbl" style="margin-bottom:3px;">Payment Terms</div><div class="sect-sub" style="white-space:pre-line;">{{ document.payment_terms }}</div></div>{% endif %}
+  </div>
+  {% if company and (company.bank_name or company.bank_account_no or company.payment_info) %}
+  <div style="margin-top:10px;"><div class="lbl" style="margin-bottom:3px;">Payment / Banking Details</div>
+  <div class="sect-sub">{% if company.bank_name %}Bank: {{ company.bank_name }}<br>{% endif %}{% if company.bank_account_no %}Account No: {{ company.bank_account_no }}<br>{% endif %}{% if company.bank_account_name %}Account Name: {{ company.bank_account_name }}{% endif %}{% if company.payment_info and not company.bank_name %}{{ company.payment_info }}{% endif %}</div></div>
+  {% endif %}
+  <div style="margin-top:18px;padding-top:10px;border-top:1px solid #E8E9EB;display:flex;justify-content:space-between;align-items:flex-end;">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:#bbb;">Computer-generated document · {{ company.name if company else 'MAIA' }}</div>
+    {% if signature_data %}<div style="text-align:center;"><img src="data:image/png;base64,{{ signature_data|safe }}" style="max-height:38px;display:block;margin:0 auto 4px;"><div style="width:110px;border-top:1px solid #333;padding-top:3px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:#777;text-align:center;margin:0 auto;">Authorised Signature</div></div>{% endif %}
+  </div>
+</div>
+</body>
+</html>

@@ -78,6 +78,30 @@
   </table>
 </div>
 
+{% if document.contract_tables %}
+{% for ct in document.contract_tables %}
+<div class="notes-section">
+  <h4>{{ ct.title }}</h4>
+  <table>
+    <thead>
+      <tr>{% for h in ct.headers %}<th>{{ h }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in ct.rows %}
+      <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </tbody>
+    {% if ct.total_row %}
+    <tfoot>
+      <tr>{% for cell in ct.total_row %}<td style="font-weight:700;border-top:2px solid #333;">{{ cell }}</td>{% endfor %}</tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+{% endfor %}
+{% endif %}
+
 {% if document.notes %}
 <div class="notes-section">
   <h4>Notes</h4>

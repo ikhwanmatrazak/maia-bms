@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Numeric, Enum, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Numeric, Enum, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -27,6 +27,7 @@ class Quotation(Base):
     expiry_date = Column(DateTime(timezone=True), nullable=True)
     subtotal = Column(Numeric(15, 2), default=0.00)
     discount_amount = Column(Numeric(15, 2), default=0.00)
+    discount_label = Column(String(200), nullable=True)
     tax_total = Column(Numeric(15, 2), default=0.00)
     total = Column(Numeric(15, 2), default=0.00)
     subject = Column(String(500), nullable=True)
@@ -34,6 +35,7 @@ class Quotation(Base):
     terms_conditions = Column(Text, nullable=True)
     payment_terms = Column(Text, nullable=True)
     template_id = Column(Integer, ForeignKey("document_templates.id", ondelete="SET NULL"), nullable=True)
+    contract_tables = Column(JSON, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     accepted_at = Column(DateTime(timezone=True), nullable=True)

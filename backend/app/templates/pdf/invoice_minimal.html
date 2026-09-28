@@ -47,6 +47,7 @@
     {% endif %}
   </table>
 </div>
+{% if document.contract_tables %}{% for ct in document.contract_tables %}<div class="notes-section"><h4>{{ ct.title }}</h4><table style="width:100%;border-collapse:collapse;margin-top:4px;"><thead><tr>{% for h in ct.headers %}<th style="background:#333;color:#fff;padding:4px 8px;font-size:10px;text-align:left;">{{ h }}</th>{% endfor %}</tr></thead><tbody>{% for row in ct.rows %}<tr>{% for cell in row %}<td style="padding:3px 8px;font-size:10px;border-bottom:1px solid #e5e7eb;">{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>{% if ct.total_row %}<tfoot><tr>{% for cell in ct.total_row %}<td style="padding:4px 8px;font-size:10px;font-weight:700;border-top:2px solid #333;">{{ cell }}</td>{% endfor %}</tr></tfoot>{% endif %}</table></div>{% endfor %}{% endif %}
 {% if document.notes %}<div class="notes-section"><h4>Notes</h4><p>{{ document.notes }}</p></div>{% endif %}
 <div class="footer"></div>
 {% endblock %}
