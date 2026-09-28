@@ -837,7 +837,7 @@ async def _ensure_payment_voucher_table():
             id INT AUTO_INCREMENT PRIMARY KEY,
             tenant_id INT NULL,
             voucher_number VARCHAR(50) NOT NULL UNIQUE,
-            `date` DATETIME(6) NOT NULL,
+            `date` DATETIME NOT NULL,
             payee_name VARCHAR(255) NOT NULL,
             payee_address TEXT NULL,
             amount DECIMAL(15,2) NOT NULL DEFAULT 0.00,
@@ -853,12 +853,8 @@ async def _ensure_payment_voucher_table():
             notes TEXT NULL,
             created_by INT NULL,
             is_deleted TINYINT(1) NOT NULL DEFAULT 0,
-            created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
-            updated_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-            INDEX idx_pv_tenant (tenant_id),
-            INDEX idx_pv_number (voucher_number),
-            CONSTRAINT fk_pv_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-            CONSTRAINT fk_pv_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""",
     ]
     for stmt in stmts:
