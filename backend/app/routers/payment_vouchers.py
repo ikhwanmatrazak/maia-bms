@@ -171,15 +171,45 @@ def _pv_to_dict(pv: PaymentVoucher) -> dict:
 
 @router.get("/diag")
 async def diag(db: AsyncSession = Depends(get_db)):
-    """Diagnostic: check table existence and try a simple insert."""
+    """Diagnostic: check table existence, attempt CREATE if missing."""
     try:
         await db.execute(text("SELECT 1 FROM payment_vouchers LIMIT 1"))
-        table_ok = True
-        table_err = None
+        return {"table_exists": True, "table_error": None, "create_error": None}
     except Exception as e:
-        table_ok = False
         table_err = str(e)
-    return {"table_exists": table_ok, "table_error": table_err}
+
+    create_sql = """CREATE TABLE IF NOT EXISTS payment_vouchers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tenant_id INT NULL,
+        voucher_number VARCHAR(50) NOT NULL UNIQUE,
+        `date` DATETIME NOT NULL,
+        payee_name VARCHAR(255) NOT NULL,
+        payee_address TEXT NULL,
+        amount DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        amount_in_words VARCHAR(500) NULL,
+        description TEXT NOT NULL,
+        payment_method ENUM('cash','cheque','bank_transfer') NOT NULL DEFAULT 'bank_transfer',
+        cheque_number VARCHAR(100) NULL,
+        bank_ref VARCHAR(100) NULL,
+        transaction_id INT NULL,
+        `status` ENUM('draft','approved','cancelled') NOT NULL DEFAULT 'draft',
+        prepared_by VARCHAR(255) NULL,
+        approved_by VARCHAR(255) NULL,
+        notes TEXT NULL,
+        created_by INT NULL,
+        is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"""
+    try:
+        from app.database import engine
+        async with engine.begin() as conn:
+            await conn.execute(text(create_sql))
+        create_err = None
+    except Exception as e:
+        create_err = str(e)
+
+    return {"table_exists": False, "table_error": table_err, "create_error": create_err}
 
 
 @router.get("")
