@@ -74,7 +74,8 @@
     <div class="title">Payment Voucher</div>
     <div class="number">{{ document.voucher_number }}</div>
     <div style="margin-top:6px">
-      <span class="status-badge status-{{ document.status }}">{{ document.status }}</span>
+      {% set status_val = document.status.value if document.status.value is defined else document.status|string %}
+      <span class="status-badge status-{{ status_val }}">{{ status_val | upper }}</span>
     </div>
   </div>
 </div>
@@ -114,7 +115,8 @@
   <div class="pay-row" style="margin-top:8px; border-top:1px solid #eee; padding-top:8px">
     <span class="lbl">Payment Method</span>
     <span class="val">
-      <span class="method-chip">{{ document.payment_method.replace('_', ' ') }}</span>
+      {% set method_val = document.payment_method.value if document.payment_method.value is defined else document.payment_method|string %}
+      <span class="method-chip">{{ method_val.replace('_', ' ') }}</span>
       {% if document.cheque_number %}
         &nbsp; Cheque No: <strong>{{ document.cheque_number }}</strong>
       {% endif %}
@@ -155,7 +157,8 @@
     <div class="sig-col">
       <div class="sig-line"></div>
       <div class="sig-label">Received By</div>
-      <div class="sig-name" style="color:#bbb; font-size:9px; margin-top:4px">Date: _______________</div>
+      <div class="sig-name" style="color:#999; font-weight:400; font-size:9px; margin-top:2px">Name: ___________________________</div>
+      <div class="sig-name" style="color:#999; font-weight:400; font-size:9px; margin-top:4px">Date: ___________________________</div>
     </div>
   </div>
 </div>
