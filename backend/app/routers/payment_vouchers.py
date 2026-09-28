@@ -169,6 +169,19 @@ def _pv_to_dict(pv: PaymentVoucher) -> dict:
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
+@router.get("/diag")
+async def diag(db: AsyncSession = Depends(get_db)):
+    """Diagnostic: check table existence and try a simple insert."""
+    try:
+        await db.execute(text("SELECT 1 FROM payment_vouchers LIMIT 1"))
+        table_ok = True
+        table_err = None
+    except Exception as e:
+        table_ok = False
+        table_err = str(e)
+    return {"table_exists": table_ok, "table_error": table_err}
+
+
 @router.get("")
 async def list_vouchers(
     skip: int = Query(0, ge=0),
