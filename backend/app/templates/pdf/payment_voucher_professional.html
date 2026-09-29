@@ -1,169 +1,239 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-  .pv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0; }
-  .pv-logo { display: flex; align-items: flex-start; gap: 12px; }
-  .pv-logo img { height: 44px; width: auto; max-width: 70px; flex-shrink: 0; display: block; }
-  .pv-company { }
-  .pv-company .name { font-size: 15px; font-weight: 700; color: #1a2f5c; }
-  .pv-company .addr { font-size: 9px; color: #555; line-height: 1.5; margin-top: 3px; }
-  .pv-title-box { text-align: right; }
-  .pv-title-box .title { font-size: 22px; font-weight: 700; color: {{ company.primary_color if company else '#1a1a2e' }}; text-transform: uppercase; letter-spacing: 1px; }
-  .pv-title-box .number { font-size: 13px; font-weight: 600; color: #333; margin-top: 2px; }
+  * { box-sizing: border-box; }
 
-  hr.divider { border: none; border-top: 1.5px solid #ccc; margin: 12px 0; }
+  /* ── Header band ── */
+  .pv-header {
+    background: #0f1f4b;
+    margin: -20px -24px 0 -24px;
+    padding: 22px 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .pv-header-left { display: flex; align-items: flex-start; gap: 14px; }
+  .pv-logo-wrap img { height: 48px; width: auto; display: block; }
+  .pv-company-name { font-size: 16px; font-weight: 700; color: #ffffff; letter-spacing: 0.3px; margin-bottom: 3px; }
+  .pv-company-addr { font-size: 8.5px; color: #a8b8d8; line-height: 1.6; }
 
-  .pv-meta-row { display: flex; justify-content: space-between; margin-bottom: 14px; }
-  .pv-meta-left { font-size: 11px; line-height: 1.8; }
-  .pv-meta-left .lbl { font-weight: 600; display: inline-block; min-width: 60px; color: #555; }
-  .pv-meta-right { }
+  .pv-header-right { text-align: right; }
+  .pv-doc-label { font-size: 11px; font-weight: 600; color: #6a88c4; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }
+  .pv-doc-title { font-size: 26px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; line-height: 1; margin-bottom: 6px; }
+  .pv-doc-number { font-size: 13px; font-weight: 600; color: #a8b8d8; margin-bottom: 10px; }
 
-  .status-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-  .status-draft    { background: #fef3c7; color: #92400e; }
-  .status-approved { background: #d1fae5; color: #065f46; }
-  .status-cancelled{ background: #fee2e2; color: #991b1b; }
+  .pv-status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .pv-status-approved { background: #22c55e; color: #fff; }
+  .pv-status-draft    { background: #f59e0b; color: #fff; }
+  .pv-status-cancelled{ background: #ef4444; color: #fff; }
 
-  .pay-box { border: 1.5px solid #ddd; border-radius: 6px; padding: 14px 16px; margin-bottom: 14px; background: #fafafa; }
-  .pay-box .pay-row { display: flex; margin-bottom: 7px; font-size: 11px; }
-  .pay-box .pay-row:last-child { margin-bottom: 0; }
-  .pay-box .lbl { font-weight: 600; color: #555; min-width: 140px; flex-shrink: 0; }
-  .pay-box .val { color: #1a1a1a; }
-  .pay-box .amount-big { font-size: 20px; font-weight: 700; color: {{ company.primary_color if company else '#1a1a2e' }}; }
-  .pay-box .amount-words { font-size: 10px; color: #444; font-style: italic; margin-top: 2px; }
-  .pay-box .method-chip { display: inline-block; background: #e0e7ff; color: #3730a3; border-radius: 10px; padding: 1px 8px; font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  /* ── Accent bar ── */
+  .pv-accent-bar { height: 4px; background: linear-gradient(90deg, #3b82f6 0%, #06b6d4 100%); margin: 0 -24px 20px -24px; }
 
-  .desc-box { margin-bottom: 14px; }
-  .desc-box .sec-title { font-size: 9px; text-transform: uppercase; color: #999; letter-spacing: 1px; font-weight: 600; margin-bottom: 4px; }
-  .desc-box p { font-size: 11px; color: #333; line-height: 1.6; white-space: pre-line; }
+  /* ── Meta row ── */
+  .pv-meta { display: flex; justify-content: space-between; margin-bottom: 20px; }
+  .pv-meta-block { }
+  .pv-meta-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px; }
+  .pv-meta-value { font-size: 11px; font-weight: 600; color: #1e293b; }
 
-  .notes-box { margin-bottom: 16px; font-size: 10px; color: #666; line-height: 1.6; }
-  .notes-box .sec-title { font-size: 9px; text-transform: uppercase; color: #bbb; letter-spacing: 1px; font-weight: 600; margin-bottom: 3px; }
+  /* ── Payee / amount box ── */
+  .pv-pay-section { display: flex; gap: 0; margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+  .pv-payee-col { flex: 1; padding: 16px 18px; background: #f8fafc; border-right: 1px solid #e2e8f0; }
+  .pv-amount-col { width: 220px; padding: 16px 18px; background: #0f1f4b; text-align: right; }
 
-  .sig-section { margin-top: 24px; border-top: 1px solid #eee; padding-top: 16px; }
-  .sig-row { display: flex; justify-content: space-between; gap: 16px; }
-  .sig-col { flex: 1; text-align: center; }
-  .sig-line { border-top: 1px solid #555; margin: 36px auto 4px; width: 85%; }
-  .sig-label { font-size: 9px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
-  .sig-name  { font-size: 10px; font-weight: 600; color: #333; margin-top: 2px; }
+  .pv-col-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 6px; }
+  .pv-payee-name { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 3px; }
+  .pv-payee-addr { font-size: 9.5px; color: #64748b; line-height: 1.5; white-space: pre-line; }
 
-  .footer-note { text-align: center; font-size: 8px; color: #bbb; margin-top: 20px; }
+  .pv-amount-col .pv-col-label { color: #6a88c4; }
+  .pv-amount-big { font-size: 24px; font-weight: 800; color: #ffffff; line-height: 1.1; }
+  .pv-amount-words { font-size: 8px; color: #a8b8d8; margin-top: 5px; font-style: italic; line-height: 1.4; }
+
+  /* ── Payment method row ── */
+  .pv-method-row { display: flex; gap: 0; margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+  .pv-method-cell { flex: 1; padding: 12px 18px; background: #f8fafc; }
+  .pv-method-cell + .pv-method-cell { border-left: 1px solid #e2e8f0; }
+  .pv-method-val { font-size: 11px; font-weight: 600; color: #1e293b; }
+  .pv-chip { display: inline-block; background: #dbeafe; color: #1d4ed8; border-radius: 20px; padding: 2px 10px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ── Description ── */
+  .pv-desc { margin-bottom: 20px; }
+  .pv-section-title { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #f1f5f9; }
+  .pv-desc p { font-size: 11px; color: #334155; line-height: 1.7; }
+  .pv-notes p { font-size: 10px; color: #64748b; line-height: 1.6; white-space: pre-line; }
+  .pv-notes { margin-bottom: 20px; }
+
+  /* ── Signature section ── */
+  .pv-sig-section { margin-top: 28px; }
+  .pv-sig-title { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; margin-bottom: 14px; padding-bottom: 6px; border-bottom: 2px solid #0f1f4b; }
+  .pv-sig-row { display: flex; gap: 16px; }
+  .pv-sig-col { flex: 1; }
+  .pv-sig-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 14px; background: #f8fafc; }
+  .pv-sig-space { height: 44px; }
+  .pv-sig-line { border-top: 1.5px solid #334155; margin: 0 0 6px 0; }
+  .pv-sig-role { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 4px; }
+  .pv-sig-name { font-size: 10px; font-weight: 600; color: #1e293b; margin-bottom: 2px; }
+  .pv-sig-blank { font-size: 9px; color: #94a3b8; margin-bottom: 2px; }
+
+  /* ── Footer ── */
+  .pv-footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+  .pv-footer-left { font-size: 8px; color: #94a3b8; }
+  .pv-footer-right { font-size: 8px; color: #94a3b8; }
 </style>
 
-<!-- Header -->
+<!-- Header band -->
 <div class="pv-header">
-  <div class="pv-logo">
+  <div class="pv-header-left">
     {% if logo_data %}
-    <img src="{{ logo_data | safe }}" alt="Logo">
+    <div class="pv-logo-wrap">
+      <img src="{{ logo_data | safe }}" alt="Logo">
+    </div>
     {% endif %}
-    <div class="pv-company">
+    <div>
       {% if company %}
-      <div class="name">{{ company.name }}</div>
-      {% if company.address %}<div class="addr">{{ company.address }}</div>{% endif %}
+      <div class="pv-company-name">{{ company.name }}</div>
+      {% if company.address %}<div class="pv-company-addr">{{ company.address }}</div>{% endif %}
       {% if company.phone or company.email %}
-      <div class="addr">
+      <div class="pv-company-addr">
         {% if company.phone %}Tel: {{ company.phone }}{% endif %}
         {% if company.phone and company.email %} &nbsp;|&nbsp; {% endif %}
         {% if company.email %}Email: {{ company.email }}{% endif %}
       </div>
       {% endif %}
-      {% if company.company_registration_no %}<div class="addr">Reg. No: {{ company.company_registration_no }}</div>{% endif %}
+      {% if company.company_registration_no %}<div class="pv-company-addr">Reg. No: {{ company.company_registration_no }}</div>{% endif %}
       {% endif %}
     </div>
   </div>
-  <div class="pv-title-box">
-    <div class="title">Payment Voucher</div>
-    <div class="number">{{ document.voucher_number }}</div>
-    <div style="margin-top:6px">
-      {% set status_val = document.status.value if document.status.value is defined else document.status|string %}
-      <span class="status-badge status-{{ status_val }}">{{ status_val | upper }}</span>
-    </div>
+  <div class="pv-header-right">
+    <div class="pv-doc-label">Finance Document</div>
+    <div class="pv-doc-title">Payment Voucher</div>
+    <div class="pv-doc-number">{{ document.voucher_number }}</div>
+    {% set status_val = document.status.value if document.status.value is defined else document.status|string %}
+    <span class="pv-status-badge pv-status-{{ status_val }}">{{ status_val | upper }}</span>
   </div>
 </div>
 
-<hr class="divider">
+<!-- Accent bar -->
+<div class="pv-accent-bar"></div>
 
-<!-- Meta: date + prepared/approved -->
-<div class="pv-meta-row">
-  <div class="pv-meta-left">
-    <div><span class="lbl">Date:</span> {{ document.date.strftime('%d %b %Y') if document.date else '—' }}</div>
-    {% if document.prepared_by %}<div><span class="lbl">Prepared:</span> {{ document.prepared_by }}</div>{% endif %}
-    {% if document.approved_by %}<div><span class="lbl">Approved:</span> {{ document.approved_by }}</div>{% endif %}
+<!-- Meta row: date, prepared, approved -->
+<div class="pv-meta">
+  <div class="pv-meta-block">
+    <div class="pv-meta-label">Date</div>
+    <div class="pv-meta-value">{{ document.date.strftime('%d %B %Y') if document.date else '—' }}</div>
   </div>
-</div>
-
-<!-- Payment Details Box -->
-<div class="pay-box">
-  <div class="pay-row">
-    <span class="lbl">Pay To</span>
-    <span class="val"><strong>{{ document.payee_name }}</strong></span>
-  </div>
-  {% if document.payee_address %}
-  <div class="pay-row">
-    <span class="lbl">Address</span>
-    <span class="val" style="white-space:pre-line">{{ document.payee_address }}</span>
+  {% if document.prepared_by %}
+  <div class="pv-meta-block">
+    <div class="pv-meta-label">Prepared By</div>
+    <div class="pv-meta-value">{{ document.prepared_by }}</div>
   </div>
   {% endif %}
-  <div class="pay-row" style="margin-top:10px; align-items:flex-end">
-    <span class="lbl" style="padding-top:6px">Amount</span>
-    <span class="val">
-      <div class="amount-big">MYR {{ "%.2f"|format(document.amount|float) }}</div>
-      {% if document.amount_in_words %}
-      <div class="amount-words">{{ document.amount_in_words }}</div>
-      {% endif %}
-    </span>
+  {% if document.approved_by %}
+  <div class="pv-meta-block">
+    <div class="pv-meta-label">Approved By</div>
+    <div class="pv-meta-value">{{ document.approved_by }}</div>
   </div>
-  <div class="pay-row" style="margin-top:8px; border-top:1px solid #eee; padding-top:8px">
-    <span class="lbl">Payment Method</span>
-    <span class="val">
-      {% set method_val = document.payment_method.value if document.payment_method.value is defined else document.payment_method|string %}
-      <span class="method-chip">{{ method_val.replace('_', ' ') }}</span>
-      {% if document.cheque_number %}
-        &nbsp; Cheque No: <strong>{{ document.cheque_number }}</strong>
-      {% endif %}
-      {% if document.bank_ref %}
-        &nbsp; Ref: <strong>{{ document.bank_ref }}</strong>
-      {% endif %}
-    </span>
+  {% endif %}
+</div>
+
+<!-- Payee + Amount box -->
+<div class="pv-pay-section">
+  <div class="pv-payee-col">
+    <div class="pv-col-label">Pay To</div>
+    <div class="pv-payee-name">{{ document.payee_name }}</div>
+    {% if document.payee_address %}
+    <div class="pv-payee-addr">{{ document.payee_address }}</div>
+    {% endif %}
+  </div>
+  <div class="pv-amount-col">
+    <div class="pv-col-label">Total Amount</div>
+    <div class="pv-amount-big">MYR {{ "%.2f"|format(document.amount|float) }}</div>
+    {% if document.amount_in_words %}
+    <div class="pv-amount-words">{{ document.amount_in_words }}</div>
+    {% endif %}
   </div>
 </div>
 
-<!-- Description / Purpose -->
-<div class="desc-box">
-  <div class="sec-title">Purpose / Description</div>
+<!-- Payment method row -->
+<div class="pv-method-row">
+  <div class="pv-method-cell">
+    <div class="pv-col-label">Payment Method</div>
+    {% set method_val = document.payment_method.value if document.payment_method.value is defined else document.payment_method|string %}
+    <span class="pv-chip">{{ method_val.replace('_', ' ') }}</span>
+  </div>
+  {% if document.cheque_number %}
+  <div class="pv-method-cell">
+    <div class="pv-col-label">Cheque No.</div>
+    <div class="pv-method-val">{{ document.cheque_number }}</div>
+  </div>
+  {% endif %}
+  {% if document.bank_ref %}
+  <div class="pv-method-cell">
+    <div class="pv-col-label">Bank Reference</div>
+    <div class="pv-method-val">{{ document.bank_ref }}</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Description -->
+<div class="pv-desc">
+  <div class="pv-section-title">Purpose / Description</div>
   <p>{{ document.description }}</p>
 </div>
 
 {% if document.notes %}
-<div class="notes-box">
-  <div class="sec-title">Notes</div>
-  <p style="white-space:pre-line">{{ document.notes }}</p>
+<div class="pv-notes">
+  <div class="pv-section-title">Notes</div>
+  <p>{{ document.notes }}</p>
 </div>
 {% endif %}
 
-<!-- Signature Section -->
-<div class="sig-section">
-  <div class="sig-row">
-    <div class="sig-col">
-      {% if signature_data %}<img src="{{ signature_data | safe }}" style="max-height:38px; margin-bottom:0">{% endif %}
-      <div class="sig-line"></div>
-      <div class="sig-label">Prepared By</div>
-      {% if document.prepared_by %}<div class="sig-name">{{ document.prepared_by }}</div>{% endif %}
+<!-- Signature section -->
+<div class="pv-sig-section">
+  <div class="pv-sig-title">Authorisation &amp; Acknowledgement</div>
+  <div class="pv-sig-row">
+    <!-- Prepared By -->
+    <div class="pv-sig-col">
+      <div class="pv-sig-box">
+        {% if signature_data %}
+        <img src="{{ signature_data | safe }}" style="height:38px; width:auto; display:block; margin-bottom:4px">
+        {% else %}
+        <div class="pv-sig-space"></div>
+        {% endif %}
+        <div class="pv-sig-line"></div>
+        <div class="pv-sig-role">Prepared By</div>
+        {% if document.prepared_by %}
+        <div class="pv-sig-name">{{ document.prepared_by }}</div>
+        {% endif %}
+      </div>
     </div>
-    <div class="sig-col">
-      <div class="sig-line"></div>
-      <div class="sig-label">Approved By</div>
-      {% if document.approved_by %}<div class="sig-name">{{ document.approved_by }}</div>{% endif %}
+    <!-- Approved By -->
+    <div class="pv-sig-col">
+      <div class="pv-sig-box">
+        <div class="pv-sig-space"></div>
+        <div class="pv-sig-line"></div>
+        <div class="pv-sig-role">Approved By</div>
+        {% if document.approved_by %}
+        <div class="pv-sig-name">{{ document.approved_by }}</div>
+        {% endif %}
+      </div>
     </div>
-    <div class="sig-col">
-      <div class="sig-line"></div>
-      <div class="sig-label">Received By</div>
-      <div class="sig-name" style="color:#999; font-weight:400; font-size:9px; margin-top:2px">Name: ___________________________</div>
-      <div class="sig-name" style="color:#999; font-weight:400; font-size:9px; margin-top:4px">Date: ___________________________</div>
+    <!-- Received By -->
+    <div class="pv-sig-col">
+      <div class="pv-sig-box">
+        <div class="pv-sig-space"></div>
+        <div class="pv-sig-line"></div>
+        <div class="pv-sig-role">Received By</div>
+        <div class="pv-sig-blank">Name: _______________________</div>
+        <div class="pv-sig-blank">Date: ________________________</div>
+      </div>
     </div>
   </div>
 </div>
 
-<div class="footer-note">
-  This is a computer-generated document. {{ company.name if company else 'MAIA' }} &mdash; {{ document.voucher_number }}
+<!-- Footer -->
+<div class="pv-footer">
+  <div class="pv-footer-left">This is a computer-generated document.</div>
+  <div class="pv-footer-right">{{ company.name if company else 'MAIA' }} &mdash; {{ document.voucher_number }}</div>
 </div>
 {% endblock %}
