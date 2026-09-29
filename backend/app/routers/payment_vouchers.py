@@ -70,7 +70,7 @@ def amount_to_words(amount: Decimal) -> str:
 
 # ── Voucher number generation ──────────────────────────────────────────────────
 
-async def _generate_voucher_number(db: AsyncSession, tenant_id=None) -> str:
+async def _generate_voucher_number(db: AsyncSession, tenant_id=None, voucher_date=None) -> str:
     result = await db.execute(
         select(CompanySettings).where(CompanySettings.tenant_id == tenant_id).limit(1)
     )
@@ -80,7 +80,7 @@ async def _generate_voucher_number(db: AsyncSession, tenant_id=None) -> str:
         settings = result.scalar_one_or_none()
 
     prefix = "PV"
-    year = datetime.now().year
+    year = voucher_date.year if voucher_date else datetime.now().year
     pattern = f"{prefix}-{year}-%"
 
     max_result = await db.execute(
@@ -215,12 +215,13 @@ async def create_voucher(
     current_user=Depends(get_current_user),
 ):
     tid = get_effective_tenant_id(current_user)
-    number = await _generate_voucher_number(db, tid)
+    voucher_date = datetime.fromisoformat(body.date)
+    number = await _generate_voucher_number(db, tid, voucher_date=voucher_date)
     amount = Decimal(str(body.amount))
     pv = PaymentVoucher(
         tenant_id=tid,
         voucher_number=number,
-        date=datetime.fromisoformat(body.date).replace(tzinfo=timezone.utc),
+        date=voucher_date.replace(tzinfo=timezone.utc),
         payee_name=body.payee_name,
         payee_address=body.payee_address,
         amount=amount,
