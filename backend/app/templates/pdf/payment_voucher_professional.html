@@ -12,18 +12,23 @@
     justify-content: space-between;
     align-items: flex-start;
     margin-bottom: 0;
+    overflow: hidden;
   }
   .pv-header-left {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+    flex: 1;
+    min-width: 0;
+    max-width: 52%;
+    padding-right: 12px;
   }
-  .pv-logo-wrap { margin-bottom: 10px; }
+  .pv-logo-wrap { margin-bottom: 8px; }
   .pv-logo-wrap img { height: 44px; width: auto; display: block; }
-  .pv-company-name { font-size: 13px; font-weight: 700; color: #ffffff; letter-spacing: 0.3px; margin-bottom: 4px; }
-  .pv-company-addr { font-size: 8px; color: #8fabd4; line-height: 1.7; }
+  .pv-company-name { font-size: 12px; font-weight: 700; color: #ffffff; letter-spacing: 0.3px; margin-bottom: 4px; white-space: nowrap; }
+  .pv-company-addr { font-size: 7.5px; color: #8fabd4; line-height: 1.65; word-break: break-word; }
 
-  .pv-header-right { text-align: right; }
+  .pv-header-right { text-align: right; flex-shrink: 0; }
   .pv-doc-eyebrow { font-size: 8px; font-weight: 600; color: #5a7bb5; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; }
   .pv-doc-title { font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; margin-bottom: 6px; line-height: 1; }
   .pv-doc-number { font-size: 12px; font-weight: 600; color: #8fabd4; margin-bottom: 12px; }
