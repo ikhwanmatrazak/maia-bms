@@ -1142,5 +1142,8 @@ export const paymentVouchersApi = {
 
   delete: (id: number) => api.delete(`/payment-vouchers/${id}`),
 
+  duplicate: (id: number) =>
+    api.post(`/payment-vouchers/${id}/duplicate`).then((r) => r.data),
+
   getPdfUrl: (id: number) => `${API_URL}/payment-vouchers/${id}/pdf`,
 };

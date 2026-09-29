@@ -330,6 +330,51 @@ async def delete_voucher(
     await db.commit()
 
 
+@router.post("/{pv_id}/duplicate", status_code=status.HTTP_201_CREATED)
+async def duplicate_voucher(
+    pv_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    q = select(PaymentVoucher).where(
+        PaymentVoucher.id == pv_id,
+        PaymentVoucher.is_deleted == False,
+    )
+    q = apply_tenant_filter(q, PaymentVoucher, current_user)
+    result = await db.execute(q)
+    src = result.scalar_one_or_none()
+    if not src:
+        raise HTTPException(status_code=404, detail="Payment voucher not found")
+
+    today = datetime.now(timezone.utc)
+    tid = get_effective_tenant_id(current_user)
+    number = await _generate_voucher_number(db, tid, voucher_date=today)
+
+    new_pv = PaymentVoucher(
+        tenant_id=src.tenant_id,
+        voucher_number=number,
+        date=today,
+        payee_name=src.payee_name,
+        payee_address=src.payee_address,
+        amount=src.amount,
+        amount_in_words=src.amount_in_words,
+        description=src.description,
+        payment_method=src.payment_method,
+        cheque_number=src.cheque_number,
+        bank_ref=src.bank_ref,
+        transaction_id=src.transaction_id,
+        status=PVStatus.draft,
+        prepared_by=src.prepared_by,
+        approved_by=src.approved_by,
+        notes=src.notes,
+        created_by=current_user.id,
+    )
+    db.add(new_pv)
+    await db.commit()
+    await db.refresh(new_pv)
+    return _pv_to_dict(new_pv)
+
+
 @router.get("/{pv_id}/pdf")
 async def download_pdf(
     pv_id: int,

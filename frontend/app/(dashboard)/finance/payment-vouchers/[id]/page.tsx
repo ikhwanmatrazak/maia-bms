@@ -10,7 +10,7 @@ import {
 import { paymentVouchersApi, downloadPdf } from "@/lib/api";
 import { Topbar } from "@/components/ui/Topbar";
 import { formatDate, formatCurrency } from "@/lib/utils";
-import { FileDown, Pencil, Trash2, CheckCircle } from "lucide-react";
+import { FileDown, Pencil, Trash2, CheckCircle, Copy } from "lucide-react";
 
 const STATUS_COLOR: Record<string, "warning" | "success" | "danger" | "default"> = {
   draft: "warning",
@@ -56,6 +56,11 @@ export default function PaymentVoucherDetailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["payment-vouchers", id] }),
   });
 
+  const duplicateMutation = useMutation({
+    mutationFn: () => paymentVouchersApi.duplicate(id),
+    onSuccess: (newPv) => router.push(`/finance/payment-vouchers/${newPv.id}`),
+  });
+
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen bg-default-50">
@@ -93,6 +98,15 @@ export default function PaymentVoucherDetailPage() {
               Approve
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="flat"
+            startContent={<Copy size={14} />}
+            isLoading={duplicateMutation.isPending}
+            onPress={() => duplicateMutation.mutate()}
+          >
+            Duplicate
+          </Button>
           <Button
             size="sm"
             variant="flat"
