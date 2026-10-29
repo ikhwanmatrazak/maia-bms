@@ -1147,3 +1147,32 @@ export const paymentVouchersApi = {
 
   getPdfUrl: (id: number) => `${API_URL}/payment-vouchers/${id}/pdf`,
 };
+
+export const accountingApi = {
+  // Accounts
+  listAccounts: () => api.get("/accounting/accounts").then((r) => r.data),
+  createAccount: (data: object) => api.post("/accounting/accounts", data).then((r) => r.data),
+  updateAccount: (id: number, data: object) => api.put(`/accounting/accounts/${id}`, data).then((r) => r.data),
+  deleteAccount: (id: number) => api.delete(`/accounting/accounts/${id}`),
+
+  // Entries
+  listEntries: (params?: object) => api.get("/accounting/entries", { params }).then((r) => r.data),
+  createEntry: (data: object) => api.post("/accounting/entries", data).then((r) => r.data),
+  deleteEntry: (id: number) => api.delete(`/accounting/entries/${id}`),
+
+  // Sync
+  sync: () => api.post("/accounting/sync").then((r) => r.data),
+
+  // Summary
+  summary: () => api.get("/accounting/summary").then((r) => r.data),
+
+  // Reports
+  pl: (startDate: string, endDate: string) =>
+    api.get("/accounting/reports/pl", { params: { start_date: startDate, end_date: endDate } }).then((r) => r.data),
+  balanceSheet: (asOf: string) =>
+    api.get("/accounting/reports/balance-sheet", { params: { as_of: asOf } }).then((r) => r.data),
+  cashFlow: (year: number) =>
+    api.get("/accounting/reports/cash-flow", { params: { year } }).then((r) => r.data),
+  trialBalance: (asOf: string) =>
+    api.get("/accounting/reports/trial-balance", { params: { as_of: asOf } }).then((r) => r.data),
+};

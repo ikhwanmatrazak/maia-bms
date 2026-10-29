@@ -16,6 +16,7 @@ from app.routers import purchase_orders, delivery_orders, super_admin, products,
 from app.routers import gateway, bills, hr, user_claims, projects, calendar, bug_reports, name_card, bank
 from app.routers import balance_sheet, statement_of_account, monthly_payables
 from app.routers import payment_vouchers
+from app.routers import accounting
 
 logging.basicConfig(
     level=logging.INFO,
@@ -869,12 +870,63 @@ async def _ensure_payment_voucher_table():
     logger.error("_ensure_payment_voucher_table: all attempts failed — table may not exist")
 
 
+async def _ensure_accounting_tables():
+    from app.database import engine
+    from sqlalchemy import text
+    stmts = [
+        """CREATE TABLE IF NOT EXISTS accounts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tenant_id INT NULL,
+            code VARCHAR(20) NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            account_type ENUM('asset','liability','equity','revenue','expense') NOT NULL,
+            description TEXT NULL,
+            is_system TINYINT(1) NOT NULL DEFAULT 0,
+            is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX ix_accounts_tenant (tenant_id),
+            INDEX ix_accounts_tenant_code (tenant_id, code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""",
+        """CREATE TABLE IF NOT EXISTS journal_entries (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tenant_id INT NULL,
+            entry_number VARCHAR(50) NOT NULL UNIQUE,
+            `date` DATETIME NOT NULL,
+            description TEXT NOT NULL,
+            reference_type VARCHAR(50) NULL,
+            reference_id INT NULL,
+            is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+            created_by INT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX ix_je_tenant (tenant_id),
+            INDEX ix_je_date (tenant_id, `date`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""",
+        """CREATE TABLE IF NOT EXISTS journal_entry_lines (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            journal_entry_id INT NOT NULL,
+            account_id INT NOT NULL,
+            debit DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+            credit DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+            description TEXT NULL,
+            INDEX ix_jel_entry (journal_entry_id),
+            INDEX ix_jel_account (account_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""",
+    ]
+    async with engine.begin() as conn:
+        for stmt in stmts:
+            try:
+                await conn.execute(text(stmt))
+            except Exception as e:
+                logger.warning(f"_ensure_accounting_tables stmt skipped: {e}")
+    logger.info("Accounting tables ensured")
+
+
 async def lifespan(app: FastAPI):
     for fn in [
         _ensure_logo_columns, _ensure_crm_columns, _ensure_hr_tables,
         _ensure_user_claims_table, _ensure_project_tables, _ensure_calendar_tables,
         _ensure_bug_reports_table, _ensure_name_card_column, _ensure_bank_tables,
-        _ensure_reminder_tables, _ensure_payment_voucher_table,
+        _ensure_reminder_tables, _ensure_payment_voucher_table, _ensure_accounting_tables,
     ]:
         try:
             await fn()
@@ -973,6 +1025,7 @@ app.include_router(balance_sheet.router, prefix=prefix)
 app.include_router(statement_of_account.router, prefix=prefix)
 app.include_router(monthly_payables.router, prefix=prefix)
 app.include_router(payment_vouchers.router, prefix=prefix)
+app.include_router(accounting.router, prefix=prefix)
 
 
 @app.get("/health")
