@@ -1337,6 +1337,13 @@ export default function BankDetailPage() {
   });
 
   const [showDuplicates, setShowDuplicates] = useState(false);
+  const autoFillMut = useMutation({
+    mutationFn: () => bankApi.autoFillParty(accountId),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["bank-txns", accountId] });
+      alert(`Done — filled party/remark for ${data.updated} transaction${data.updated !== 1 ? "s" : ""}.`);
+    },
+  });
   const { data: duplicates = [], refetch: refetchDuplicates, isFetching: dupFetching } = useQuery({
     queryKey: ["bank-duplicates", accountId],
     queryFn: () => bankApi.findDuplicates(accountId),
@@ -1379,6 +1386,12 @@ export default function BankDetailPage() {
           </div>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
+          <button
+            onClick={() => { if (window.confirm("Auto-fill Party & Remark for all DUITNOW transactions that are missing them?")) autoFillMut.mutate(); }}
+            disabled={autoFillMut.isPending}
+            className="px-3 py-1.5 rounded-xl border border-primary-300 text-xs font-medium text-primary-700 hover:bg-primary-50 disabled:opacity-50">
+            {autoFillMut.isPending ? "Filling…" : "✨ Auto-fill Party"}
+          </button>
           <button onClick={() => setShowDuplicates(true)}
             className="px-3 py-1.5 rounded-xl border border-warning-300 text-xs font-medium text-warning-700 hover:bg-warning-50">
             🔍 Find Duplicates

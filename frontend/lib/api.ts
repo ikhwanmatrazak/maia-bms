@@ -975,6 +975,7 @@ export const bankApi = {
   }>) => api.put<BankTransaction>(`/bank/transactions/${id}`, d).then((r) => r.data),
   deleteTransaction: (id: number) => api.delete(`/bank/transactions/${id}`).then((r) => r.data),
   findDuplicates: (accountId: number) => api.get(`/bank/accounts/${accountId}/transactions/duplicates`).then((r) => r.data),
+  autoFillParty: (accountId: number) => api.post(`/bank/accounts/${accountId}/transactions/auto-fill-party`).then((r) => r.data),
   uploadReceipt: (id: number, file: File) => {
     const fd = new FormData();
     fd.append("file", file);

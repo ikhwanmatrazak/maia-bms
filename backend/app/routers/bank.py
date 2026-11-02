@@ -1546,6 +1546,102 @@ async def update_transaction(
     return _txn_out_from_row(r2.fetchone())
 
 
+@router.post("/accounts/{account_id}/transactions/auto-fill-party")
+async def auto_fill_party(
+    account_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Parse DUITNOW descriptions and fill empty party_name / note fields."""
+    import re as _re
+
+    tid = _tenant_id(current_user)
+    r = await db.execute(
+        text("""
+            SELECT bt.id, bt.description
+            FROM bank_transactions bt
+            JOIN bank_accounts ba ON ba.id = bt.account_id
+            WHERE bt.account_id = :aid AND ba.tenant_id = :tid
+              AND (bt.party_name IS NULL OR bt.party_name = '')
+              AND bt.description IS NOT NULL AND bt.description != ''
+        """),
+        {"aid": account_id, "tid": tid},
+    )
+    rows = r.fetchall()
+
+    # Ref patterns: MAIV-2026-0001, INV-001, Inv0151, Minv0580, IV-00003, MINV0237, M100380, etc.
+    ref_re = _re.compile(
+        r"\b((?:MAIV|MINV|INV|IV|Inv|Minv|M\d{5,}|MAIA)[-/]?\d[\w-]*)\b",
+        _re.IGNORECASE,
+    )
+    # Strip common DUITNOW prefixes
+    prefix_re = _re.compile(
+        r"^(?:DUITNOW TO ACCOUNT|DUITNOW TO MOBILE/ID|DUITNOW TO|TR FROM CA|TR TO SAVINGS|TR IBG|AUTOPAY CR|IBG CREDIT \d+)\s*",
+        _re.IGNORECASE,
+    )
+    # Company suffixes to help detect end of company name
+    company_re = _re.compile(
+        r"(.*?\b(?:SDN\.?\s*BHD\.?|PLT|SB|SDN BHD|BHD|PTE LTD|LTD|ENT|ENTERPRISE|HOLDINGS?|GROUP|TRADING|SERVICES?|SOLUTION|RESOURCES?|TECH|TECHNOLOGIES?))\b",
+        _re.IGNORECASE,
+    )
+
+    updated = 0
+    previews = []
+
+    for txn_id, desc in rows:
+        if not desc:
+            continue
+
+        # Strip prefix
+        cleaned = prefix_re.sub("", desc).strip()
+
+        # Extract refs
+        refs = ref_re.findall(cleaned)
+        # Remove refs from text to get the remaining name
+        name_text = ref_re.sub("", cleaned).strip()
+
+        # CIMB often repeats the name; take the last occurrence (more complete)
+        # Detect repetition: "FIRST HELL FIRST HELLO SDN BHD" → "FIRST HELLO SDN BHD"
+        words = name_text.split()
+        # Try to find longest suffix that forms a meaningful company name
+        party = None
+
+        # Try company pattern on the full cleaned name
+        cm = company_re.search(name_text)
+        if cm:
+            candidate = cm.group(1).strip()
+            # If name appears twice (truncated + full), take the second
+            half = len(words) // 2
+            second_half = " ".join(words[half:])
+            cm2 = company_re.search(second_half)
+            if cm2:
+                candidate = cm2.group(1).strip()
+            party = _re.sub(r"\s+", " ", candidate).title()
+
+        if not party and words:
+            # Fallback: just take last 4 words
+            party = " ".join(words[-4:]).title()
+
+        note = ", ".join(refs) if refs else None
+
+        if party or note:
+            await db.execute(
+                text("""
+                    UPDATE bank_transactions
+                    SET party_name = COALESCE(NULLIF(:party, ''), party_name),
+                        note = COALESCE(NULLIF(:note, ''), note)
+                    WHERE id = :id
+                """),
+                {"party": party or "", "note": note or "", "id": txn_id},
+            )
+            updated += 1
+            if len(previews) < 10:
+                previews.append({"id": txn_id, "desc": desc, "party": party, "note": note})
+
+    await db.commit()
+    return {"updated": updated, "previews": previews}
+
+
 @router.get("/accounts/{account_id}/transactions/duplicates")
 async def find_duplicate_transactions(
     account_id: int,
