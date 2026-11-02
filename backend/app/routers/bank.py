@@ -1546,6 +1546,64 @@ async def update_transaction(
     return _txn_out_from_row(r2.fetchone())
 
 
+@router.get("/accounts/{account_id}/transactions/duplicates")
+async def find_duplicate_transactions(
+    account_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Find transactions with same date+amount+type but different statement_id."""
+    tid = _tenant_id(current_user)
+    r = await db.execute(
+        text("""
+            SELECT bt.id, bt.statement_id, bt.txn_date, bt.description,
+                   bt.amount, bt.type, bs.filename
+            FROM bank_transactions bt
+            JOIN bank_accounts ba ON ba.id = bt.account_id
+            JOIN bank_statements bs ON bs.id = bt.statement_id
+            WHERE bt.account_id = :aid AND ba.tenant_id = :tid
+            AND (bt.txn_date, bt.amount, bt.type) IN (
+                SELECT txn_date, amount, type
+                FROM bank_transactions
+                WHERE account_id = :aid
+                GROUP BY txn_date, amount, type
+                HAVING COUNT(DISTINCT statement_id) > 1
+            )
+            ORDER BY bt.txn_date, bt.amount, bt.type, bt.id
+        """),
+        {"aid": account_id, "tid": tid},
+    )
+    rows = r.fetchall()
+
+    # Group by (date, amount, type)
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for row in rows:
+        key = (str(row[2]), float(row[4]), row[5])
+        groups[key].append({
+            "id": row[0],
+            "statement_id": row[1],
+            "txn_date": str(row[2]),
+            "description": row[3],
+            "amount": float(row[4]),
+            "type": row[5],
+            "filename": row[6],
+        })
+
+    result = []
+    for key, entries in groups.items():
+        # suggest keeping the first, deleting the rest
+        result.append({
+            "date": key[0],
+            "amount": key[1],
+            "type": key[2],
+            "entries": entries,
+            "keep_id": entries[0]["id"],
+            "delete_ids": [e["id"] for e in entries[1:]],
+        })
+    return result
+
+
 @router.delete("/transactions/{txn_id}")
 async def delete_transaction(
     txn_id: int,
