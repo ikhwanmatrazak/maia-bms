@@ -1926,22 +1926,32 @@ export default function BankDetailPage() {
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
-                  <div className="text-sm text-warning-700 bg-warning-50 border border-warning-200 rounded-xl p-3">
-                    Found <strong>{duplicates.length}</strong> duplicate group{duplicates.length > 1 ? "s" : ""}. The first entry in each group will be kept; the rest deleted.
+                  <div className="text-sm text-default-600 bg-default-50 border border-default-200 rounded-xl p-3 space-y-1">
+                    <p>Found <strong>{duplicates.length}</strong> duplicate group{duplicates.length > 1 ? "s" : ""}.</p>
+                    <p className="text-xs text-default-400">Each group has the <strong>same date + amount + direction</strong> across two different statement uploads. The entry marked <span className="text-success-700 font-semibold">KEEP</span> stays; <span className="text-danger-700 font-semibold">DEL</span> will be removed. Safe to delete when the descriptions are about the same transaction.</p>
                   </div>
-                  {duplicates.map((dup: any, i: number) => (
-                    <div key={i} className="border border-default-200 rounded-xl overflow-hidden">
-                      <div className="flex items-center justify-between bg-default-50 px-4 py-2.5">
-                        <div className="text-sm font-medium">
+                  {duplicates.map((dup: any, i: number) => {
+                    // Check if all descriptions share key words (safe indicator)
+                    const descs = dup.entries.map((e: any) => (e.description || "").toLowerCase());
+                    const words0 = descs[0].split(/\s+/).filter((w: string) => w.length > 3);
+                    const matchCount = words0.filter((w: string) => descs.slice(1).some((d: string) => d.includes(w))).length;
+                    const isSafe = matchCount >= 2 || descs.some((d: string) => d.includes("duitnow"));
+                    return (
+                    <div key={i} className={`border rounded-xl overflow-hidden ${isSafe ? "border-default-200" : "border-warning-300"}`}>
+                      <div className="flex items-center justify-between bg-default-50 px-4 py-2.5 gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 text-sm font-medium">
                           {dup.date} &nbsp;·&nbsp;
                           <span className={dup.type === "credit" ? "text-success-600" : "text-danger-600"}>
                             {dup.type === "credit" ? "+" : "−"} MYR {Number(dup.amount).toFixed(2)}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isSafe ? "bg-success-100 text-success-700" : "bg-warning-100 text-warning-700"}`}>
+                            {isSafe ? "✓ Safe to delete" : "⚠ Review first"}
                           </span>
                         </div>
                         <button
                           onClick={() => deleteDupMut.mutate(dup.delete_ids)}
                           disabled={deleteDupMut.isPending}
-                          className="text-xs px-3 py-1 rounded-lg bg-danger text-white font-medium hover:bg-danger/90 disabled:opacity-50"
+                          className="text-xs px-3 py-1 rounded-lg bg-danger text-white font-medium hover:bg-danger/90 disabled:opacity-50 shrink-0"
                         >
                           Delete {dup.delete_ids.length} duplicate{dup.delete_ids.length > 1 ? "s" : ""}
                         </button>
@@ -1949,34 +1959,37 @@ export default function BankDetailPage() {
                       <div className="divide-y divide-default-100">
                         {dup.entries.map((e: any) => (
                           <div key={e.id} className={`flex items-start gap-3 px-4 py-2.5 text-sm ${e.id === dup.keep_id ? "bg-success-50" : "bg-danger-50"}`}>
-                            <span className={`text-xs font-bold mt-0.5 ${e.id === dup.keep_id ? "text-success-700" : "text-danger-700"}`}>
+                            <span className={`text-xs font-bold mt-0.5 shrink-0 ${e.id === dup.keep_id ? "text-success-700" : "text-danger-700"}`}>
                               {e.id === dup.keep_id ? "KEEP" : "DEL"}
                             </span>
                             <div className="flex-1 min-w-0">
-                              <div className="truncate text-default-700">{e.description || "—"}</div>
-                              <div className="text-xs text-default-400 truncate">{e.filename}</div>
+                              <div className="text-default-700 text-xs leading-relaxed break-words">{e.description || "—"}</div>
+                              <div className="text-xs text-default-400 truncate mt-0.5">{e.filename}</div>
                             </div>
-                            <span className="text-xs text-default-400 shrink-0">ID {e.id}</span>
                           </div>
                         ))}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
             {duplicates.length > 0 && (
-              <div className="p-4 border-t border-default-100">
+              <div className="p-4 border-t border-default-100 flex flex-col gap-2">
                 <button
                   onClick={() => {
-                    const allDeleteIds = duplicates.flatMap((d: any) => d.delete_ids);
-                    deleteDupMut.mutate(allDeleteIds);
+                    if (window.confirm(`Delete all ${duplicates.reduce((s: number, d: any) => s + d.delete_ids.length, 0)} duplicate entries? This cannot be undone.`)) {
+                      const allDeleteIds = duplicates.flatMap((d: any) => d.delete_ids);
+                      deleteDupMut.mutate(allDeleteIds);
+                    }
                   }}
                   disabled={deleteDupMut.isPending}
                   className="w-full py-2 rounded-xl bg-danger text-white text-sm font-medium hover:bg-danger/90 disabled:opacity-50"
                 >
                   {deleteDupMut.isPending ? "Deleting…" : `Delete All ${duplicates.reduce((s: number, d: any) => s + d.delete_ids.length, 0)} Duplicates`}
                 </button>
+                <p className="text-xs text-default-400 text-center">Review each group above before deleting. Groups marked ✓ Safe are very likely real duplicates.</p>
               </div>
             )}
           </div>
