@@ -1569,21 +1569,87 @@ async def auto_fill_party(
     )
     rows = r.fetchall()
 
-    # Ref patterns: MAIV-2026-0001, INV-001, Inv0151, Minv0580, IV-00003, MINV0237, M100380, etc.
+    # Invoice/ref patterns
     ref_re = _re.compile(
-        r"\b((?:MAIV|MINV|INV|IV|Inv|Minv|M\d{5,}|MAIA)[-/]?\d[\w-]*)\b",
+        r"\b((?:MAIV|MINV|INV|IV|Inv|Minv|HRCE|PO|DO|M\d{5,})[-/]?\d[\w-]*)\b",
         _re.IGNORECASE,
     )
-    # Strip common DUITNOW prefixes
+    # Strip DUITNOW / bank transfer prefixes
     prefix_re = _re.compile(
-        r"^(?:DUITNOW TO ACCOUNT|DUITNOW TO MOBILE/ID|DUITNOW TO|TR FROM CA|TR TO SAVINGS|TR IBG|AUTOPAY CR|IBG CREDIT \d+)\s*",
+        r"^(?:DUITNOW TO ACCOUNT|DUITNOW TO MOBILE/ID|DUITNOW TO|TR FROM CA|TR TO SAVINGS|TR IBG|AUTOPAY CR\s+\S+|IBG CREDIT \d+\s+\S+|OTHER TRANSFER FEE.*|AUDIT CONFIRMATION.*|REPRODUCTION OF STATEMENT.*)\s*",
         _re.IGNORECASE,
     )
-    # Company suffixes to help detect end of company name
-    company_re = _re.compile(
-        r"(.*?\b(?:SDN\.?\s*BHD\.?|PLT|SB|SDN BHD|BHD|PTE LTD|LTD|ENT|ENTERPRISE|HOLDINGS?|GROUP|TRADING|SERVICES?|SOLUTION|RESOURCES?|TECH|TECHNOLOGIES?))\b",
+    # Known transfer-note words (user labels, not party names)
+    note_words_re = _re.compile(
+        r"^(salary|claim|loan|payment payment|advance|travel|trip|consultation|bonus|reimbursement|allowance|sponsor|refund|deposit|outsourcing|cloud|website|invoice|software|service|demo|audit|fee)\s+",
         _re.IGNORECASE,
     )
+    # Known Malaysian bank codes (safe to strip from end of description)
+    _BANK_CODES = {
+        "CIMB", "MAYB", "HLBB", "PBBB", "RHBB", "BIMB", "ABMB", "AMBB",
+        "AFFB", "BOCM", "BSNM", "KWSP", "LUTH", "HSBC", "OCBC",
+    }
+    bankcode_re = _re.compile(r"\s+([A-Z]{2,5})$")
+    # Company legal suffixes
+    co_suffix_re = _re.compile(
+        r"\b(SDN\.?\s*BHD\.?|PLT|PTE\.?\s*LTD\.?|BERHAD|HOLDINGS?|GROUP|ENTERPRISE|TRADING|RESOURCES?|SOLUTIONS?|TECHNOLOGIES?|SERVICES?)\b",
+        _re.IGNORECASE,
+    )
+
+    def _title(s: str) -> str:
+        s = _re.sub(r"\s+", " ", s).strip().title()
+        # Fix common abbreviations broken by title()
+        s = _re.sub(r"\bSdn\b\.?", "Sdn.", s)
+        s = _re.sub(r"\bBhd\b\.?", "Bhd.", s)
+        s = _re.sub(r"\bPlt\b", "PLT", s)
+        s = _re.sub(r"\bPte\b\.?", "Pte.", s)
+        s = _re.sub(r"\bLtd\b\.?", "Ltd.", s)
+        s = s.replace("Sdn. .", "Sdn.").replace("Bhd. .", "Bhd.")
+        return s.strip(" .")
+
+    def _dedup_start(words: list) -> int:
+        """Find the index where the company name starts, skipping truncated prefix.
+        CIMB repeats names: 'FIRST HELL FIRST HELLO SDN BHD' → start at second 'FIRST' (index 2).
+        """
+        seen: dict = {}
+        for i, w in enumerate(words):
+            key = w.lower().rstrip(".")
+            if len(key) > 1 and key in seen:
+                return i
+            seen[key] = i
+        return 0
+
+    def _parse_name(text: str):
+        """Extract (party, extra_note) from the name portion of a DUITNOW description."""
+        # Pull out leading note word (user label like "salary", "claim", not the party name)
+        extra_note = None
+        m = note_words_re.match(text)
+        if m:
+            extra_note = m.group(1).capitalize()
+            text = text[m.end():].strip()
+
+        if not text:
+            return None, extra_note
+
+        co_matches = list(co_suffix_re.finditer(text))
+
+        if co_matches:
+            last = co_matches[-1]
+            after = _re.sub(r"^\.+\s*", "", text[last.end():]).strip()  # strip stray "." from "SDN. BHD."
+            before_suffix = text[:last.start()].strip() # words before the suffix
+            words = before_suffix.split()
+
+            # Detect and skip truncated prefix (CIMB repeats name)
+            start_idx = _dedup_start(words)
+            company_words = words[start_idx:]
+
+            # Reconstruct: words + suffix + trailing identifiers
+            core = " ".join(company_words) + " " + text[last.start():last.end()]
+            full = (core.strip() + " " + after).strip() if after else core.strip()
+            return _title(full), extra_note
+        else:
+            # No company suffix — personal name or plain identifier
+            return _title(text), extra_note
 
     updated = 0
     previews = []
@@ -1592,37 +1658,21 @@ async def auto_fill_party(
         if not desc:
             continue
 
-        # Strip prefix
         cleaned = prefix_re.sub("", desc).strip()
+        m_bc = bankcode_re.search(cleaned)
+        if m_bc and m_bc.group(1) in _BANK_CODES:
+            cleaned = cleaned[: m_bc.start()]
 
-        # Extract refs
         refs = ref_re.findall(cleaned)
-        # Remove refs from text to get the remaining name
-        name_text = ref_re.sub("", cleaned).strip()
+        name_text = _re.sub(r"\s+", " ", ref_re.sub("", cleaned)).strip()
 
-        # CIMB often repeats the name; take the last occurrence (more complete)
-        # Detect repetition: "FIRST HELL FIRST HELLO SDN BHD" → "FIRST HELLO SDN BHD"
-        words = name_text.split()
-        # Try to find longest suffix that forms a meaningful company name
-        party = None
+        party, extra_note = _parse_name(name_text)
 
-        # Try company pattern on the full cleaned name
-        cm = company_re.search(name_text)
-        if cm:
-            candidate = cm.group(1).strip()
-            # If name appears twice (truncated + full), take the second
-            half = len(words) // 2
-            second_half = " ".join(words[half:])
-            cm2 = company_re.search(second_half)
-            if cm2:
-                candidate = cm2.group(1).strip()
-            party = _re.sub(r"\s+", " ", candidate).title()
-
-        if not party and words:
-            # Fallback: just take last 4 words
-            party = " ".join(words[-4:]).title()
-
-        note = ", ".join(refs) if refs else None
+        # Build note: refs first, then any extra note word
+        note_parts = [r for r in refs]
+        if extra_note and not refs:
+            note_parts.append(extra_note)
+        note = ", ".join(note_parts) if note_parts else None
 
         if party or note:
             await db.execute(
