@@ -1679,64 +1679,72 @@ export default function BankDetailPage() {
             No transactions found. Upload a statement or add one manually.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-default-50 border-b border-default-200">
-                <tr>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Date</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Description</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Party</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Remarks</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-default-500">Category</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-success-600">Money In</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-danger-500">Money Out</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTxns.map((txn) => (
-                  <tr key={txn.id} className="border-t border-default-100 hover:bg-default-50/50 transition-colors">
-                    <td className="px-4 py-3 text-default-600 whitespace-nowrap text-xs">{txn.txn_date}</td>
-                    <td className="px-4 py-3 text-foreground">
-                      <p className="whitespace-normal break-words">{txn.description}</p>
-                    </td>
-                    <td className="px-4 py-3 text-default-500 text-xs whitespace-normal break-words">{txn.party_name ?? "—"}</td>
-                    <td className="px-4 py-3 text-default-500 text-xs whitespace-normal break-words">{txn.note ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      {txn.categories && txn.categories.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {txn.categories.map((cat) => (
-                            <span key={cat.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
-                              style={{ backgroundColor: `${cat.color}35`, color: "#1f2937" }}>
-                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }} />
-                              {cat.name}
-                              {cat.cost_type === "cogs" && (
-                                <span className="ml-0.5 px-1 py-0 rounded text-[9px] font-semibold bg-orange-100 text-orange-700">COGS</span>
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-default-300">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold whitespace-nowrap text-success-600">
-                      {txn.type === "credit" ? fmt(txn.amount, cur) : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold whitespace-nowrap text-danger-500">
-                      {txn.type === "debit" ? fmt(txn.amount, cur) : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 justify-end">
-                        <button onClick={() => setDrawerTxn(txn)}
-                          className="px-2 py-1 rounded-lg text-xs text-default-500 hover:bg-default-100 transition-colors">Edit</button>
+          <table className="w-full text-sm table-fixed">
+            <colgroup>
+              <col className="w-24" />
+              <col className="w-[22%]" />
+              <col className="w-[18%]" />
+              <col className="w-[16%]" />
+              <col className="w-[16%]" />
+              <col className="w-28" />
+              <col className="w-28" />
+              <col className="w-14" />
+            </colgroup>
+            <thead className="bg-default-50 border-b border-default-200">
+              <tr>
+                <th className="text-left px-3 py-3 text-xs font-medium text-default-500">Date</th>
+                <th className="text-left px-3 py-3 text-xs font-medium text-default-500">Description</th>
+                <th className="text-left px-3 py-3 text-xs font-medium text-default-500">Party</th>
+                <th className="text-left px-3 py-3 text-xs font-medium text-default-500">Remarks</th>
+                <th className="text-left px-3 py-3 text-xs font-medium text-default-500">Category</th>
+                <th className="text-right px-3 py-3 text-xs font-medium text-success-600">Money In</th>
+                <th className="text-right px-3 py-3 text-xs font-medium text-danger-500">Money Out</th>
+                <th className="px-3 py-3"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTxns.map((txn) => (
+                <tr key={txn.id} className="border-t border-default-100 hover:bg-default-50/50 transition-colors">
+                  <td className="px-3 py-3 text-default-600 whitespace-nowrap text-xs">{txn.txn_date}</td>
+                  <td className="px-3 py-3 text-foreground text-xs">
+                    <p className="truncate" title={txn.description ?? ""}>{txn.description}</p>
+                  </td>
+                  <td className="px-3 py-3 text-default-500 text-xs truncate" title={txn.party_name ?? ""}>{txn.party_name ?? "—"}</td>
+                  <td className="px-3 py-3 text-default-500 text-xs truncate" title={txn.note ?? ""}>{txn.note ?? "—"}</td>
+                  <td className="px-3 py-3">
+                    {txn.categories && txn.categories.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {txn.categories.map((cat) => (
+                          <span key={cat.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium truncate max-w-full"
+                            style={{ backgroundColor: `${cat.color}35`, color: "#1f2937" }}>
+                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                            <span className="truncate">{cat.name}</span>
+                            {cat.cost_type === "cogs" && (
+                              <span className="flex-shrink-0 ml-0.5 px-1 py-0 rounded text-[9px] font-semibold bg-orange-100 text-orange-700">COGS</span>
+                            )}
+                          </span>
+                        ))}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    ) : (
+                      <span className="text-xs text-default-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3 text-right font-semibold whitespace-nowrap text-xs text-success-600">
+                    {txn.type === "credit" ? fmt(txn.amount, cur) : "—"}
+                  </td>
+                  <td className="px-3 py-3 text-right font-semibold whitespace-nowrap text-xs text-danger-500">
+                    {txn.type === "debit" ? fmt(txn.amount, cur) : "—"}
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center gap-1 justify-end">
+                      <button onClick={() => setDrawerTxn(txn)}
+                        className="px-2 py-1 rounded-lg text-xs text-default-500 hover:bg-default-100 transition-colors">Edit</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 
