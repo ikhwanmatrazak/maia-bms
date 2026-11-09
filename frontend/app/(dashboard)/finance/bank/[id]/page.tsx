@@ -1344,6 +1344,20 @@ export default function BankDetailPage() {
       alert(`Done — filled party/remark for ${data.updated} transaction${data.updated !== 1 ? "s" : ""}.`);
     },
   });
+  const autoCatMut = useMutation({
+    mutationFn: () => bankApi.autoSetupCategories(),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["bank-txns", accountId] });
+      qc.invalidateQueries({ queryKey: ["bank-cats"] });
+      qc.invalidateQueries({ queryKey: ["bank-summary", accountId] });
+      qc.invalidateQueries({ queryKey: ["bank-summary-all", accountId] });
+      const lines = (data.breakdown as any[])
+        .filter((b) => b.tagged > 0)
+        .map((b) => `  • ${b.category} (${b.cost_type.toUpperCase()}): ${b.tagged}`)
+        .join("\n");
+      alert(`Auto-categorized ${data.tagged} transaction(s):\n\n${lines || "  (none matched)"}`);
+    },
+  });
   const { data: duplicates = [], refetch: refetchDuplicates, isFetching: dupFetching } = useQuery({
     queryKey: ["bank-duplicates", accountId],
     queryFn: () => bankApi.findDuplicates(accountId),
@@ -1391,6 +1405,12 @@ export default function BankDetailPage() {
             disabled={autoFillMut.isPending}
             className="px-3 py-1.5 rounded-xl border border-primary-300 text-xs font-medium text-primary-700 hover:bg-primary-50 disabled:opacity-50">
             {autoFillMut.isPending ? "Filling…" : "✨ Auto-fill Party"}
+          </button>
+          <button
+            onClick={() => { if (window.confirm("Auto-categorize all uncategorized expense transactions?\n\nThis will create default COGS and OpEx categories and tag matching transactions.")) autoCatMut.mutate(); }}
+            disabled={autoCatMut.isPending}
+            className="px-3 py-1.5 rounded-xl border border-orange-300 text-xs font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50">
+            {autoCatMut.isPending ? "Categorizing…" : "🏷️ Auto-categorize"}
           </button>
           <button onClick={() => setShowDuplicates(true)}
             className="px-3 py-1.5 rounded-xl border border-warning-300 text-xs font-medium text-warning-700 hover:bg-warning-50">

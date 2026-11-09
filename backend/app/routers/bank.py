@@ -900,6 +900,119 @@ async def delete_category(
     return {"ok": True}
 
 
+# ── Auto-categorize transactions ─────────────────────────────────────────────
+
+@router.post("/categories/auto-setup")
+async def auto_setup_categories(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Ensure a sensible set of default categories exists, then tag every
+    uncategorised transaction using keyword rules.
+    Returns counts of newly tagged transactions per category.
+    """
+    import re as _re
+
+    tid = _tenant_id(current_user)
+
+    # Default categories: (name, type, cost_type, hex_color, keyword_patterns)
+    # Patterns matched against: lower(description) + " " + lower(party_name) + " " + lower(note)
+    DEFAULTS = [
+        # ── COGS ──
+        ("AI Development",          "expense", "cogs", "#f97316",
+         ["ai dev", "ai agent", "ai testing", "ai upgrade", "ai consultation",
+          "elynovation", "minwork solution", "lightning cloud", "tot - mobile",
+          "medvanta", "sparklife"]),
+        ("Integration & Deployment", "expense", "cogs", "#10b981",
+         ["integration fee", "deployment", "outsourcing dev", "outsourcing ai",
+          "xray machine integra", "xray integra", "integra"]),
+        ("Direct Service Costs",    "expense", "cogs", "#06b6d4",
+         ["iso 27001", "hsdc resources", "cloud serv", "server", "hosting"]),
+        # ── OpEx ──
+        ("Salaries",                "expense", "opex", "#6366f1",
+         ["salary", "gaji", "october salary", "august salary", "september salary",
+          "july salary"]),
+        ("Claims & Allowances",     "expense", "opex", "#a855f7",
+         ["claim", "allowance", "advance", "reimburs"]),
+        ("Marketing",               "expense", "opex", "#ef4444",
+         ["marketing campaign", "marketing expenses", "marketing"]),
+        ("Travel & Expenses",       "expense", "opex", "#eab308",
+         ["korea trip", "travel", "trip"]),
+        ("Professional Services",   "expense", "opex", "#64748b",
+         ["consultation fee", "audit", "legal", "accounting", "tax"]),
+        ("Office & Admin",          "expense", "opex", "#94a3b8",
+         ["ansuran lesen", "bayaran utm", "bendahari", "utm"]),
+    ]
+
+    # Get or create each category; build {cat_id: [patterns]}
+    cat_rules: list[tuple[int, list[str]]] = []
+    for name, ctype, cost_type, color, patterns in DEFAULTS:
+        row = await db.execute(
+            text("SELECT id FROM transaction_categories WHERE tenant_id=:tid AND name=:name LIMIT 1"),
+            {"tid": tid, "name": name},
+        )
+        existing = row.fetchone()
+        if existing:
+            cat_id = existing[0]
+            await db.execute(
+                text("UPDATE transaction_categories SET cost_type=:ct WHERE id=:id"),
+                {"ct": cost_type, "id": cat_id},
+            )
+        else:
+            r = await db.execute(
+                text("INSERT INTO transaction_categories (tenant_id, name, type, color, cost_type) VALUES (:tid,:name,:type,:color,:ct)"),
+                {"tid": tid, "name": name, "type": ctype, "color": color, "ct": cost_type},
+            )
+            cat_id = r.lastrowid
+        cat_rules.append((cat_id, patterns))
+    await db.commit()
+
+    # Fetch all debit transactions that have no category yet
+    r = await db.execute(text("""
+        SELECT bt.id, bt.description, bt.party_name, bt.note
+        FROM bank_transactions bt
+        JOIN bank_accounts ba ON ba.id = bt.account_id
+        WHERE ba.tenant_id = :tid
+          AND bt.type = 'debit'
+          AND NOT EXISTS (
+            SELECT 1 FROM bank_transaction_categories btc WHERE btc.transaction_id = bt.id
+          )
+    """), {"tid": tid})
+    uncategorised = r.fetchall()
+
+    tagged: dict[int, int] = {}  # cat_id → count
+
+    for txn_id, desc, party, note in uncategorised:
+        haystack = " ".join(filter(None, [desc, party, note])).lower()
+        matched_cat: int | None = None
+        for cat_id, patterns in cat_rules:
+            if any(p in haystack for p in patterns):
+                matched_cat = cat_id
+                break
+        if matched_cat:
+            await db.execute(
+                text("INSERT IGNORE INTO bank_transaction_categories (transaction_id, category_id) VALUES (:txn,:cat)"),
+                {"txn": txn_id, "cat": matched_cat},
+            )
+            tagged[matched_cat] = tagged.get(matched_cat, 0) + 1
+
+    await db.commit()
+
+    # Build human-readable summary
+    summary = []
+    for cat_id, patterns in cat_rules:
+        row = await db.execute(
+            text("SELECT name, cost_type FROM transaction_categories WHERE id=:id"), {"id": cat_id}
+        )
+        nm, ct = row.fetchone()
+        count = tagged.get(cat_id, 0)
+        summary.append({"category": nm, "cost_type": ct, "tagged": count})
+
+    total = sum(tagged.values())
+    return {"tagged": total, "breakdown": summary}
+
+
 # ── Bank account endpoints ────────────────────────────────────────────────────
 
 @router.get("/accounts", response_model=List[AccountOut])
